@@ -1,0 +1,842 @@
+import { useState } from "react";
+import { Taller, TipoVenta, MetodoPago, ProductoOrden } from "../data/mockData";
+import { useErpData } from "../context/ErpDataContext";
+import { useAuth } from "../context/AuthContext";
+import {
+  X,
+  User,
+  Package,
+  Calendar,
+  DollarSign,
+  CreditCard,
+  Plus,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  Building2,
+  Shirt,
+  FileText,
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "./Card";
+
+interface NuevaOrdenMultiProductoProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (orden: any) => void;
+}
+
+const todosLosTalleres: Taller[] = [
+  "diseno",
+  "sublimacion",
+  "corte",
+  "costura",
+  "bordado",
+];
+
+const tallerLabels: Record<Taller, string> = {
+  diseno: "Diseño",
+  sublimacion: "Sublimación",
+  corte: "Corte",
+  costura: "Costura",
+  bordado: "Bordado",
+};
+
+export default function NuevaOrdenMultiProducto({
+  isOpen,
+  onClose,
+  onSubmit,
+}: NuevaOrdenMultiProductoProps) {
+  const { proveedores: mockProveedores } = useErpData();
+  const { user } = useAuth();
+  const [formData, setFormData] = useState({
+    cliente: "",
+    fechaEntrega: "",
+    prioridad: "media" as const,
+    tipoVenta: "fabricacion" as TipoVenta,
+    metodoPago: "transferencia" as MetodoPago,
+    anticipo: 0,
+    notas: "",
+  });
+
+  const [productos, setProductos] = useState<
+    Array<{
+      nombre: string;
+      tipoPrenda: string;
+      marca: string;
+      talla: string;
+      color: string;
+      cantidad: number;
+      precioUnitario: number;
+      tipoProduccion: "directa" | "fabricacion" | "comercializacion";
+      talleres: Taller[];
+      proveedorId?: string;
+      requiereBordado: boolean;
+      bordadoUbicacion: "frente" | "espalda" | "bolsillo" | "personalizado";
+      bordadoColores: string;
+      bordadoNotas: string;
+    }>
+  >([
+    {
+      nombre: "",
+      tipoPrenda: "camisa",
+      marca: "",
+      talla: "",
+      color: "",
+      cantidad: 1,
+      precioUnitario: 0,
+      tipoProduccion: "fabricacion",
+      talleres: ["corte", "costura"],
+      requiereBordado: false,
+      bordadoUbicacion: "bolsillo",
+      bordadoColores: "",
+      bordadoNotas: "",
+    },
+  ]);
+
+  const [productosExpandidos, setProductosExpandidos] = useState<Set<number>>(
+    new Set([0])
+  );
+
+  if (!isOpen) return null;
+
+  const agregarProducto = () => {
+    setProductos([
+      ...productos,
+      {
+        nombre: "",
+        tipoPrenda: "camisa",
+        marca: "",
+        talla: "",
+        color: "",
+        cantidad: 1,
+        precioUnitario: 0,
+        tipoProduccion: "fabricacion",
+        talleres: ["corte", "costura"],
+        requiereBordado: false,
+        bordadoUbicacion: "bolsillo",
+        bordadoColores: "",
+        bordadoNotas: "",
+      },
+    ]);
+    setProductosExpandidos(new Set([...productosExpandidos, productos.length]));
+  };
+
+  const eliminarProducto = (index: number) => {
+    if (productos.length === 1) {
+      alert("Debe haber al menos un producto");
+      return;
+    }
+    setProductos(productos.filter((_, i) => i !== index));
+    const nuevosExpandidos = new Set(productosExpandidos);
+    nuevosExpandidos.delete(index);
+    setProductosExpandidos(nuevosExpandidos);
+  };
+
+  const actualizarProducto = (index: number, campo: string, valor: any) => {
+    const nuevosProductos = [...productos];
+    (nuevosProductos[index] as any)[campo] = valor;
+
+    // Auto-detectar tipo de venta basado en tipoProduccion
+    const tipos = nuevosProductos.map((p) => p.tipoProduccion);
+    const tiposUnicos = new Set(tipos);
+
+    let nuevoTipoVenta: TipoVenta = "fabricacion";
+    if (tiposUnicos.size > 1) {
+      nuevoTipoVenta = "mixta";
+    } else if (tiposUnicos.has("directa")) {
+      nuevoTipoVenta = "directa";
+    } else if (tiposUnicos.has("comercializacion")) {
+      nuevoTipoVenta = "comercializacion";
+    } else if (tiposUnicos.has("fabricacion")) {
+      nuevoTipoVenta = "fabricacion";
+    }
+
+    setFormData({ ...formData, tipoVenta: nuevoTipoVenta });
+    setProductos(nuevosProductos);
+  };
+
+  const toggleTaller = (indexProducto: number, taller: Taller) => {
+    const producto = productos[indexProducto];
+    const talleres = producto.talleres.includes(taller)
+      ? producto.talleres.filter((t) => t !== taller)
+      : [...producto.talleres, taller].sort(
+          (a, b) => todosLosTalleres.indexOf(a) - todosLosTalleres.indexOf(b)
+        );
+    actualizarProducto(indexProducto, "talleres", talleres);
+  };
+
+  const toggleExpandido = (index: number) => {
+    const nuevosExpandidos = new Set(productosExpandidos);
+    if (nuevosExpandidos.has(index)) {
+      nuevosExpandidos.delete(index);
+    } else {
+      nuevosExpandidos.add(index);
+    }
+    setProductosExpandidos(nuevosExpandidos);
+  };
+
+  const calcularTotal = () => {
+    return productos.reduce(
+      (acc, p) => acc + p.cantidad * p.precioUnitario,
+      0
+    );
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const total = calcularTotal();
+    const anticipo = formData.anticipo;
+
+    const nuevaOrden = {
+      vendedor: user?.nombre || "Usuario",
+      vendedorId: user?.id || "0",
+      cliente: formData.cliente,
+      numero: `ORD-2026-${String(Date.now()).slice(-3)}`,
+      fechaCreacion: new Date().toISOString().split("T")[0],
+      fechaEntrega: formData.fechaEntrega,
+      tipoVenta: formData.tipoVenta,
+      estado: formData.tipoVenta === "directa" ? "completed" : "pending",
+      prioridad: formData.prioridad,
+      metodoPago: formData.metodoPago,
+      estadoPago:
+        anticipo >= total
+          ? "liquidado"
+          : anticipo > 0
+          ? "anticipo"
+          : "pendiente",
+      total,
+      anticipo,
+      pagos:
+        anticipo > 0
+          ? [
+              {
+                monto: anticipo,
+                fecha: new Date().toISOString().split("T")[0],
+                metodo: formData.metodoPago,
+                concepto:
+                  anticipo >= total
+                    ? "Pago total"
+                    : `Anticipo ${Math.round((anticipo / total) * 100)}%`,
+              },
+            ]
+          : [],
+      productos: productos.map((p, i) => ({
+        id: `p${i}`,
+        nombre: p.nombre,
+        tipoPrenda: p.tipoPrenda as any,
+        marca: p.marca || undefined,
+        talla: p.talla,
+        color: p.color,
+        cantidad: p.cantidad,
+        precioUnitario: p.precioUnitario,
+        tipoProduccion: p.tipoProduccion,
+        talleres: p.talleres,
+        progreso: Object.fromEntries(p.talleres.map((t) => [t, "pending"])),
+        proveedorId: p.proveedorId || undefined,
+        proveedorNombre: p.proveedorId
+          ? mockProveedores.find((pr) => pr.id === p.proveedorId)?.nombre
+          : undefined,
+        personalizacion: p.requiereBordado
+          ? {
+              lugarBordado: p.bordadoUbicacion,
+              coloresHilo: p.bordadoColores
+                .split(",")
+                .map((c) => c.trim())
+                .filter((c) => c),
+              notas: p.bordadoNotas || undefined,
+            }
+          : undefined,
+      })),
+      notas: formData.notas || undefined,
+    };
+
+    onSubmit(nuevaOrden);
+    onClose();
+  };
+
+  const getTipoVentaColor = (tipo: TipoVenta) => {
+    switch (tipo) {
+      case "directa":
+        return "bg-orange-500/10 text-orange-600 border-orange-500";
+      case "fabricacion":
+        return "bg-green-500/10 text-green-600 border-green-500";
+      case "comercializacion":
+        return "bg-blue-500/10 text-blue-600 border-blue-500";
+      case "mixta":
+        return "bg-purple-500/10 text-purple-600 border-purple-500";
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-background rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-background border-b border-border px-6 py-4 flex items-center justify-between z-10">
+          <div className="flex items-center gap-3">
+            <h2>Nueva Orden de Producción</h2>
+            <span
+              className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border-2 ${getTipoVentaColor(
+                formData.tipoVenta
+              )}`}
+            >
+              {formData.tipoVenta === "directa"
+                ? "Venta Directa"
+                : formData.tipoVenta === "fabricacion"
+                ? "Fabricación"
+                : formData.tipoVenta === "comercializacion"
+                ? "Comercialización"
+                : "Venta Mixta"}
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-secondary rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Información General */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Información General</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    <User className="w-4 h-4 inline mr-2" />
+                    Cliente *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.cliente}
+                    onChange={(e) =>
+                      setFormData({ ...formData, cliente: e.target.value })
+                    }
+                    className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    <Calendar className="w-4 h-4 inline mr-2" />
+                    Fecha de Entrega *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={formData.fechaEntrega}
+                    onChange={(e) =>
+                      setFormData({ ...formData, fechaEntrega: e.target.value })
+                    }
+                    className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    <CreditCard className="w-4 h-4 inline mr-2" />
+                    Método de Pago *
+                  </label>
+                  <select
+                    required
+                    value={formData.metodoPago}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        metodoPago: e.target.value as MetodoPago,
+                      })
+                    }
+                    className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  >
+                    <option value="efectivo">💵 Efectivo</option>
+                    <option value="transferencia">🏦 Transferencia</option>
+                    <option value="tarjeta">💳 Tarjeta</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    <DollarSign className="w-4 h-4 inline mr-2" />
+                    Anticipo
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.anticipo}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        anticipo: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                    className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Prioridad</label>
+                <div className="flex gap-3">
+                  {(["baja", "media", "alta"] as const).map((p) => (
+                    <label key={p} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="prioridad"
+                        value={p}
+                        checked={formData.prioridad === p}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            prioridad: e.target.value as any,
+                          })
+                        }
+                        className="w-4 h-4"
+                      />
+                      <span className="capitalize">{p}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Productos */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">
+                  Productos ({productos.length})
+                </CardTitle>
+                <button
+                  type="button"
+                  onClick={agregarProducto}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Agregar Producto
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {productos.map((producto, index) => {
+                const expandido = productosExpandidos.has(index);
+                return (
+                  <div
+                    key={index}
+                    className="border border-border rounded-lg overflow-hidden"
+                  >
+                    <div
+                      className="flex items-center justify-between p-4 bg-secondary cursor-pointer"
+                      onClick={() => toggleExpandido(index)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Package className="w-5 h-5 text-primary" />
+                        <div>
+                          <p className="font-medium">
+                            Producto {index + 1}
+                            {producto.nombre && `: ${producto.nombre}`}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {producto.cantidad || 0} uds •{" $"}
+                            {(
+                              producto.cantidad * producto.precioUnitario
+                            ).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {productos.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              eliminarProducto(index);
+                            }}
+                            className="p-2 text-status-pending hover:bg-status-pending-bg rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                        {expandido ? (
+                          <ChevronUp className="w-5 h-5" />
+                        ) : (
+                          <ChevronDown className="w-5 h-5" />
+                        )}
+                      </div>
+                    </div>
+
+                    {expandido && (
+                      <div className="p-4 space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="md:col-span-2">
+                            <label className="block text-sm font-medium mb-2">
+                              Nombre del Producto *
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              value={producto.nombre}
+                              onChange={(e) =>
+                                actualizarProducto(index, "nombre", e.target.value)
+                              }
+                              className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-2">
+                              Tipo de Producción *
+                            </label>
+                            <select
+                              required
+                              value={producto.tipoProduccion}
+                              onChange={(e) =>
+                                actualizarProducto(
+                                  index,
+                                  "tipoProduccion",
+                                  e.target.value
+                                )
+                              }
+                              className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            >
+                              <option value="directa">Venta Directa</option>
+                              <option value="fabricacion">Fabricación</option>
+                              <option value="comercializacion">
+                                Comercialización
+                              </option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium mb-2">
+                              Tipo de Prenda *
+                            </label>
+                            <select
+                              required
+                              value={producto.tipoPrenda}
+                              onChange={(e) =>
+                                actualizarProducto(index, "tipoPrenda", e.target.value)
+                              }
+                              className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            >
+                              <option value="camisa">Camisa</option>
+                              <option value="pantalon">Pantalón</option>
+                              <option value="overol">Overol</option>
+                              <option value="chaleco">Chaleco</option>
+                              <option value="playera">Playera</option>
+                              <option value="otro">Otro</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-2">
+                              Talla *
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              value={producto.talla}
+                              onChange={(e) =>
+                                actualizarProducto(index, "talla", e.target.value)
+                              }
+                              className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-2">
+                              Color *
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              value={producto.color}
+                              onChange={(e) =>
+                                actualizarProducto(index, "color", e.target.value)
+                              }
+                              className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-2">
+                              Marca
+                            </label>
+                            <input
+                              type="text"
+                              value={producto.marca}
+                              onChange={(e) =>
+                                actualizarProducto(index, "marca", e.target.value)
+                              }
+                              className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium mb-2">
+                              Cantidad *
+                            </label>
+                            <input
+                              type="number"
+                              required
+                              min="1"
+                              value={producto.cantidad}
+                              onChange={(e) =>
+                                actualizarProducto(
+                                  index,
+                                  "cantidad",
+                                  parseInt(e.target.value)
+                                )
+                              }
+                              className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-2">
+                              Precio Unitario *
+                            </label>
+                            <input
+                              type="number"
+                              required
+                              min="0"
+                              step="0.01"
+                              value={producto.precioUnitario}
+                              onChange={(e) =>
+                                actualizarProducto(
+                                  index,
+                                  "precioUnitario",
+                                  parseFloat(e.target.value)
+                                )
+                              }
+                              className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            />
+                          </div>
+                        </div>
+
+                        {producto.tipoProduccion === "comercializacion" && (
+                          <div>
+                            <label className="block text-sm font-medium mb-2">
+                              <Building2 className="w-4 h-4 inline mr-2" />
+                              Proveedor
+                            </label>
+                            <select
+                              value={producto.proveedorId || ""}
+                              onChange={(e) =>
+                                actualizarProducto(
+                                  index,
+                                  "proveedorId",
+                                  e.target.value
+                                )
+                              }
+                              className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            >
+                              <option value="">Seleccionar proveedor</option>
+                              {mockProveedores.map((prov) => (
+                                <option key={prov.id} value={prov.id}>
+                                  {prov.nombre}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        {producto.tipoProduccion !== "directa" && (
+                          <div>
+                            <label className="block text-sm font-medium mb-2">
+                              Talleres del Flujo de Producción
+                            </label>
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                              {todosLosTalleres.map((taller) => (
+                                <label
+                                  key={taller}
+                                  className={`flex items-center gap-2 p-2 rounded-lg border-2 cursor-pointer transition-all text-sm ${
+                                    producto.talleres.includes(taller)
+                                      ? "border-primary bg-primary/10"
+                                      : "border-border hover:border-primary/50"
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={producto.talleres.includes(taller)}
+                                    onChange={() => toggleTaller(index, taller)}
+                                    className="w-4 h-4"
+                                  />
+                                  <span>{tallerLabels[taller]}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {producto.talleres.includes("bordado") && (
+                          <div className="p-4 border border-border rounded-lg space-y-3">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                id={`bordado-${index}`}
+                                checked={producto.requiereBordado}
+                                onChange={(e) =>
+                                  actualizarProducto(
+                                    index,
+                                    "requiereBordado",
+                                    e.target.checked
+                                  )
+                                }
+                                className="w-4 h-4"
+                              />
+                              <label
+                                htmlFor={`bordado-${index}`}
+                                className="font-medium cursor-pointer flex items-center gap-2"
+                              >
+                                <Shirt className="w-4 h-4 text-primary" />
+                                Configurar Bordado
+                              </label>
+                            </div>
+
+                            {producto.requiereBordado && (
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+                                <div>
+                                  <label className="block text-sm mb-1">
+                                    Ubicación
+                                  </label>
+                                  <select
+                                    value={producto.bordadoUbicacion}
+                                    onChange={(e) =>
+                                      actualizarProducto(
+                                        index,
+                                        "bordadoUbicacion",
+                                        e.target.value
+                                      )
+                                    }
+                                    className="w-full px-3 py-2 bg-secondary rounded-lg text-sm"
+                                  >
+                                    <option value="frente">Frente</option>
+                                    <option value="espalda">Espalda</option>
+                                    <option value="bolsillo">Bolsillo</option>
+                                    <option value="personalizado">
+                                      Personalizado
+                                    </option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-sm mb-1">
+                                    Colores de Hilo
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={producto.bordadoColores}
+                                    onChange={(e) =>
+                                      actualizarProducto(
+                                        index,
+                                        "bordadoColores",
+                                        e.target.value
+                                      )
+                                    }
+                                    placeholder="Ej: Azul, Blanco"
+                                    className="w-full px-3 py-2 bg-secondary rounded-lg text-sm"
+                                  />
+                                </div>
+                                <div className="md:col-span-1">
+                                  <label className="block text-sm mb-1">Notas</label>
+                                  <input
+                                    type="text"
+                                    value={producto.bordadoNotas}
+                                    onChange={(e) =>
+                                      actualizarProducto(
+                                        index,
+                                        "bordadoNotas",
+                                        e.target.value
+                                      )
+                                    }
+                                    placeholder="Instrucciones..."
+                                    className="w-full px-3 py-2 bg-secondary rounded-lg text-sm"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between p-3 bg-primary/5 rounded-lg">
+                          <span className="font-medium">Subtotal:</span>
+                          <span className="text-xl font-bold text-primary">
+                            $
+                            {(
+                              producto.cantidad * producto.precioUnitario
+                            ).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              <div className="flex items-center justify-between p-4 bg-secondary rounded-lg border-2 border-primary">
+                <span className="text-lg font-semibold">Total de la Orden:</span>
+                <span className="text-2xl font-bold text-primary">
+                  ${calcularTotal().toLocaleString()}
+                </span>
+              </div>
+
+              {formData.anticipo > 0 && (
+                <div className="grid grid-cols-2 gap-4 p-4 bg-blue-500/5 rounded-lg border border-blue-500/20">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Anticipo</p>
+                    <p className="text-lg font-semibold text-blue-600">
+                      ${formData.anticipo.toLocaleString()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Saldo Pendiente</p>
+                    <p className="text-lg font-semibold text-orange-600">
+                      ${(calcularTotal() - formData.anticipo).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Notas */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">
+                <FileText className="w-5 h-5 inline mr-2" />
+                Notas de la Orden
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <textarea
+                value={formData.notas}
+                onChange={(e) =>
+                  setFormData({ ...formData, notas: e.target.value })
+                }
+                rows={3}
+                className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                placeholder="Instrucciones especiales, comentarios adicionales..."
+              />
+            </CardContent>
+          </Card>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-border sticky bottom-0 bg-background pb-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-6 py-2 bg-secondary hover:bg-secondary/80 rounded-lg transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg transition-colors"
+            >
+              Crear Orden
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

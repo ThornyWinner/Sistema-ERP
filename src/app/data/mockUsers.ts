@@ -1,0 +1,88 @@
+import { User } from '../types/auth';
+
+// Contraseñas (en producción estarían hasheadas)
+export const userCredentials: Record<string, string> = {
+  'admin': 'admin123',
+  'admin2': 'admin456',
+  'vendedor1': 'ventas123',
+  'diseño1': 'diseno123',
+  'sublima1': 'sublima123',
+  'corte1': 'corte123',
+  'costura1': 'costura123',
+  'bordado1': 'bordado123',
+};
+
+export const mockUsers: User[] = [
+  {
+    id: '1',
+    nombre: 'Héctor Salas',
+    username: 'admin',
+    rol: 'admin_primario',
+    estado: 'activo',
+    ultimoAcceso: '2026-04-16 09:30',
+    email: 'hector.salas@uniformes.com',
+  },
+  {
+    id: '2',
+    nombre: 'Miguel Salas',
+    username: 'admin2',
+    rol: 'admin_secundario',
+    estado: 'activo',
+    ultimoAcceso: '2026-04-15 16:45',
+    email: 'miguel.salas@uniformes.com',
+  },
+  {
+    id: '3',
+    nombre: 'Karla Flores',
+    username: 'vendedor1',
+    rol: 'vendedor',
+    estado: 'activo',
+    ultimoAcceso: '2026-04-16 08:15',
+    email: 'karla.flores@uniformes.com',
+  },
+  {
+    id: '4',
+    nombre: 'Diana Mendoza',
+    username: 'diseño1',
+    rol: 'disenador',
+    estado: 'activo',
+    ultimoAcceso: '2026-04-16 07:00',
+    email: 'diana.mendoza@uniformes.com',
+  },
+  {
+    id: '5',
+    nombre: 'Felipe López',
+    username: 'sublima1',
+    rol: 'sublimador',
+    estado: 'activo',
+    ultimoAcceso: '2026-04-16 06:30',
+    email: 'felipe.lopez@uniformes.com',
+  },
+  {
+    id: '6',
+    nombre: 'Ramón Sánchez',
+    username: 'corte1',
+    rol: 'cortador',
+    estado: 'activo',
+    ultimoAcceso: '2026-04-15 18:20',
+    email: 'ramon.sanchez@uniformes.com',
+  },
+  {
+    id: '7',
+    nombre: 'Carmen Torres',
+    username: 'costura1',
+    rol: 'costurera',
+    estado: 'activo',
+    ultimoAcceso: '2026-04-16 09:00',
+    email: 'carmen.torres@uniformes.com',
+  },
+  {
+    id: '8',
+    nombre: 'Jesús Pérez',
+    username: 'bordado1',
+    rol: 'bordador',
+    estado: 'activo',
+    ultimoAcceso: '2026-04-15 14:30',
+    email: 'jesus.perez@uniformes.com',
+  },
+];

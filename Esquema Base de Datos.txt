@@ -1,0 +1,301 @@
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
+CREATE TABLE public.roles (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  nombre text NOT NULL UNIQUE,
+  descripcion text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT roles_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.usuarios (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  auth_user_id uuid UNIQUE,
+  rol_id uuid,
+  nombre text NOT NULL,
+  username text NOT NULL UNIQUE,
+  email text NOT NULL UNIQUE,
+  estado text DEFAULT 'activo'::text,
+  ultimo_acceso timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT usuarios_pkey PRIMARY KEY (id),
+  CONSTRAINT usuarios_rol_id_fkey FOREIGN KEY (rol_id) REFERENCES public.roles(id)
+);
+CREATE TABLE public.clientes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  razon_social text NOT NULL,
+  contacto text,
+  telefono text,
+  email text,
+  direccion text,
+  notas text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT clientes_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.proveedores (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  nombre text NOT NULL,
+  contacto text,
+  telefono text,
+  email text,
+  calificacion numeric,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT proveedores_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.categorias_producto (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  nombre text NOT NULL UNIQUE,
+  CONSTRAINT categorias_producto_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.materiales (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  nombre text NOT NULL,
+  tipo text NOT NULL,
+  unidad text NOT NULL,
+  stock_actual numeric DEFAULT 0 CHECK (stock_actual >= 0::numeric),
+  stock_minimo numeric DEFAULT 0 CHECK (stock_minimo >= 0::numeric),
+  precio_unitario numeric CHECK (precio_unitario >= 0::numeric),
+  proveedor_id uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT materiales_pkey PRIMARY KEY (id),
+  CONSTRAINT materiales_proveedor_id_fkey FOREIGN KEY (proveedor_id) REFERENCES public.proveedores(id)
+);
+CREATE TABLE public.movimientos_material (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  material_id uuid,
+  usuario_id uuid,
+  tipo_movimiento text NOT NULL,
+  cantidad numeric,
+  stock_anterior numeric,
+  stock_nuevo numeric,
+  motivo text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT movimientos_material_pkey PRIMARY KEY (id),
+  CONSTRAINT movimientos_material_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
+  CONSTRAINT movimientos_material_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id)
+);
+CREATE TABLE public.productos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  nombre text NOT NULL,
+  tipo_prenda text NOT NULL,
+  categoria_id uuid,
+  imagen_url text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT productos_pkey PRIMARY KEY (id),
+  CONSTRAINT productos_categoria_id_fkey FOREIGN KEY (categoria_id) REFERENCES public.categorias_producto(id)
+);
+CREATE TABLE public.variantes_producto (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  producto_id uuid,
+  talla text,
+  color text,
+  stock integer DEFAULT 0 CHECK (stock >= 0),
+  precio numeric CHECK (precio >= 0::numeric),
+  sku text UNIQUE,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT variantes_producto_pkey PRIMARY KEY (id),
+  CONSTRAINT variantes_producto_producto_id_fkey FOREIGN KEY (producto_id) REFERENCES public.productos(id)
+);
+CREATE TABLE public.talleres (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  nombre text NOT NULL UNIQUE,
+  CONSTRAINT talleres_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.ordenes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  folio text NOT NULL UNIQUE,
+  cliente_id uuid,
+  vendedor_id uuid,
+  prioridad text DEFAULT 'media'::text,
+  fecha_creacion date,
+  fecha_entrega date,
+  subtotal numeric CHECK (subtotal >= 0::numeric),
+  total numeric CHECK (total >= 0::numeric),
+  anticipo numeric DEFAULT 0 CHECK (anticipo >= 0::numeric),
+  notas text,
+  created_at timestamp with time zone DEFAULT now(),
+  estado_id uuid,
+  metodo_pago_id uuid,
+  tipo_venta_id uuid,
+  estado_pago_id uuid,
+  descuento numeric DEFAULT 0 CHECK (descuento >= 0::numeric),
+  CONSTRAINT ordenes_pkey PRIMARY KEY (id),
+  CONSTRAINT ordenes_cliente_id_fkey FOREIGN KEY (cliente_id) REFERENCES public.clientes(id),
+  CONSTRAINT ordenes_vendedor_id_fkey FOREIGN KEY (vendedor_id) REFERENCES public.usuarios(id),
+  CONSTRAINT fk_orden_estado FOREIGN KEY (estado_id) REFERENCES public.estados_orden(id),
+  CONSTRAINT fk_orden_metodo_pago FOREIGN KEY (metodo_pago_id) REFERENCES public.metodos_pago(id),
+  CONSTRAINT fk_orden_tipo_venta FOREIGN KEY (tipo_venta_id) REFERENCES public.tipos_venta(id),
+  CONSTRAINT fk_orden_estado_pago FOREIGN KEY (estado_pago_id) REFERENCES public.estados_pago(id)
+);
+CREATE TABLE public.orden_detalles (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  orden_id uuid,
+  producto_id uuid,
+  cantidad integer NOT NULL CHECK (cantidad > 0),
+  precio_unitario numeric CHECK (precio_unitario >= 0::numeric),
+  tipo_produccion text,
+  notas text,
+  created_at timestamp with time zone DEFAULT now(),
+  variante_id uuid,
+  CONSTRAINT orden_detalles_pkey PRIMARY KEY (id),
+  CONSTRAINT orden_detalles_orden_id_fkey FOREIGN KEY (orden_id) REFERENCES public.ordenes(id),
+  CONSTRAINT orden_detalles_producto_id_fkey FOREIGN KEY (producto_id) REFERENCES public.productos(id),
+  CONSTRAINT fk_detalle_variante FOREIGN KEY (variante_id) REFERENCES public.variantes_producto(id)
+);
+CREATE TABLE public.personalizaciones (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  orden_detalle_id uuid,
+  lugar_bordado text,
+  logo_url text,
+  notas text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT personalizaciones_pkey PRIMARY KEY (id),
+  CONSTRAINT personalizaciones_orden_detalle_id_fkey FOREIGN KEY (orden_detalle_id) REFERENCES public.orden_detalles(id)
+);
+CREATE TABLE public.personalizacion_hilos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  personalizacion_id uuid,
+  color_hilo text NOT NULL,
+  CONSTRAINT personalizacion_hilos_pkey PRIMARY KEY (id),
+  CONSTRAINT personalizacion_hilos_personalizacion_id_fkey FOREIGN KEY (personalizacion_id) REFERENCES public.personalizaciones(id)
+);
+CREATE TABLE public.produccion_taller (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  orden_detalle_id uuid,
+  taller_id uuid,
+  usuario_id uuid,
+  estado text DEFAULT 'pending'::text,
+  fecha_inicio timestamp with time zone,
+  fecha_fin timestamp with time zone,
+  observaciones text,
+  created_at timestamp with time zone DEFAULT now(),
+  estado_id uuid,
+  CONSTRAINT produccion_taller_pkey PRIMARY KEY (id),
+  CONSTRAINT produccion_taller_orden_detalle_id_fkey FOREIGN KEY (orden_detalle_id) REFERENCES public.orden_detalles(id),
+  CONSTRAINT produccion_taller_taller_id_fkey FOREIGN KEY (taller_id) REFERENCES public.talleres(id),
+  CONSTRAINT produccion_taller_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id),
+  CONSTRAINT fk_produccion_estado FOREIGN KEY (estado_id) REFERENCES public.estados_produccion(id)
+);
+CREATE TABLE public.pagos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  orden_id uuid,
+  fecha date,
+  monto numeric CHECK (monto > 0::numeric),
+  metodo_pago text,
+  referencia text,
+  created_at timestamp with time zone DEFAULT now(),
+  metodo_pago_id uuid,
+  CONSTRAINT pagos_pkey PRIMARY KEY (id),
+  CONSTRAINT pagos_orden_id_fkey FOREIGN KEY (orden_id) REFERENCES public.ordenes(id),
+  CONSTRAINT fk_pago_metodo FOREIGN KEY (metodo_pago_id) REFERENCES public.metodos_pago(id)
+);
+CREATE TABLE public.tallas (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  nombre text NOT NULL UNIQUE,
+  CONSTRAINT tallas_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.colores (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  nombre text NOT NULL UNIQUE,
+  CONSTRAINT colores_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.estados_orden (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  nombre text NOT NULL UNIQUE,
+  descripcion text,
+  orden_visualizacion integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT estados_orden_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.metodos_pago (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  nombre text NOT NULL UNIQUE,
+  descripcion text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT metodos_pago_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.tipos_venta (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  nombre text NOT NULL UNIQUE,
+  descripcion text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT tipos_venta_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.estados_pago (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  nombre text NOT NULL UNIQUE,
+  descripcion text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT estados_pago_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.historial_ordenes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  orden_id uuid NOT NULL,
+  usuario_id uuid NOT NULL,
+  estado_anterior_id uuid,
+  estado_nuevo_id uuid,
+  comentario text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT historial_ordenes_pkey PRIMARY KEY (id),
+  CONSTRAINT fk_historial_orden FOREIGN KEY (orden_id) REFERENCES public.ordenes(id),
+  CONSTRAINT fk_historial_usuario FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id),
+  CONSTRAINT fk_historial_estado_anterior FOREIGN KEY (estado_anterior_id) REFERENCES public.estados_orden(id),
+  CONSTRAINT fk_historial_estado_nuevo FOREIGN KEY (estado_nuevo_id) REFERENCES public.estados_orden(id)
+);
+CREATE TABLE public.movimientos_producto (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  variante_id uuid NOT NULL,
+  usuario_id uuid,
+  tipo text NOT NULL,
+  cantidad integer NOT NULL,
+  stock_anterior integer,
+  stock_nuevo integer,
+  referencia text,
+  observaciones text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT movimientos_producto_pkey PRIMARY KEY (id),
+  CONSTRAINT fk_movimiento_variante FOREIGN KEY (variante_id) REFERENCES public.variantes_producto(id),
+  CONSTRAINT fk_movimiento_usuario FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id)
+);
+CREATE TABLE public.estados_produccion (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  nombre text NOT NULL UNIQUE,
+  descripcion text,
+  orden_visualizacion integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT estados_produccion_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.archivos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  orden_id uuid NOT NULL,
+  usuario_id uuid,
+  nombre_archivo text NOT NULL,
+  url_archivo text NOT NULL,
+  tipo text NOT NULL,
+  mime_type text,
+  tamano_bytes bigint,
+  observaciones text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT archivos_pkey PRIMARY KEY (id),
+  CONSTRAINT fk_archivo_orden FOREIGN KEY (orden_id) REFERENCES public.ordenes(id),
+  CONSTRAINT fk_archivo_usuario FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id)
+);
+CREATE TABLE public.comentarios_orden (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  orden_id uuid NOT NULL,
+  usuario_id uuid NOT NULL,
+  comentario text NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  visibilidad text DEFAULT 'interno'::text,
+  CONSTRAINT comentarios_orden_pkey PRIMARY KEY (id),
+  CONSTRAINT fk_comentario_orden FOREIGN KEY (orden_id) REFERENCES public.ordenes(id),
+  CONSTRAINT fk_comentario_usuario FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id)
+);
+CREATE TABLE public.consecutivos_documentos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  tipo_documento text NOT NULL,
+  anio integer NOT NULL,
+  ultimo_numero integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT consecutivos_documentos_pkey PRIMARY KEY (id)
+);

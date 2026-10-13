@@ -1,0 +1,102 @@
+| table_name              | ordinal_position | column_name         | data_type                | udt_name    | is_nullable | column_default    |
+| ----------------------- | ---------------- | ------------------- | ------------------------ | ----------- | ----------- | ----------------- |
+| archivos                | 1                | id                  | uuid                     | uuid        | NO          | gen_random_uuid() |
+| archivos                | 2                | orden_id            | uuid                     | uuid        | NO          | null              |
+| archivos                | 3                | usuario_id          | uuid                     | uuid        | YES         | null              |
+| archivos                | 4                | nombre_archivo      | text                     | text        | NO          | null              |
+| archivos                | 5                | url_archivo         | text                     | text        | NO          | null              |
+| archivos                | 6                | tipo                | text                     | text        | NO          | null              |
+| archivos                | 7                | mime_type           | text                     | text        | YES         | null              |
+| archivos                | 8                | tamano_bytes        | bigint                   | int8        | YES         | null              |
+| archivos                | 9                | observaciones       | text                     | text        | YES         | null              |
+| archivos                | 10               | created_at          | timestamp with time zone | timestamptz | YES         | now()             |
+| categorias_producto     | 1                | id                  | uuid                     | uuid        | NO          | gen_random_uuid() |
+| categorias_producto     | 2                | nombre              | text                     | text        | NO          | null              |
+| clientes                | 1                | id                  | uuid                     | uuid        | NO          | gen_random_uuid() |
+| clientes                | 2                | razon_social        | text                     | text        | NO          | null              |
+| clientes                | 3                | contacto            | text                     | text        | YES         | null              |
+| clientes                | 4                | telefono            | text                     | text        | YES         | null              |
+| clientes                | 5                | email               | text                     | text        | YES         | null              |
+| clientes                | 6                | direccion           | text                     | text        | YES         | null              |
+| clientes                | 7                | notas               | text                     | text        | YES         | null              |
+| clientes                | 8                | created_at          | timestamp with time zone | timestamptz | YES         | now()             |
+| colores                 | 1                | id                  | uuid                     | uuid        | NO          | gen_random_uuid() |
+| colores                 | 2                | nombre              | text                     | text        | NO          | null              |
+| comentarios_orden       | 1                | id                  | uuid                     | uuid        | NO          | gen_random_uuid() |
+| comentarios_orden       | 2                | orden_id            | uuid                     | uuid        | NO          | null              |
+| comentarios_orden       | 3                | usuario_id          | uuid                     | uuid        | NO          | null              |
+| comentarios_orden       | 4                | comentario          | text                     | text        | NO          | null              |
+| comentarios_orden       | 5                | created_at          | timestamp with time zone | timestamptz | YES         | now()             |
+| comentarios_orden       | 6                | visibilidad         | text                     | text        | YES         | 'interno'::text   |
+| consecutivos_documentos | 1                | id                  | uuid                     | uuid        | NO          | gen_random_uuid() |
+| consecutivos_documentos | 2                | tipo_documento      | text                     | text        | NO          | null              |
+| consecutivos_documentos | 3                | anio                | integer                  | int4        | NO          | null              |
+| consecutivos_documentos | 4                | ultimo_numero       | integer                  | int4        | NO          | 0                 |
+| consecutivos_documentos | 5                | created_at          | timestamp with time zone | timestamptz | YES         | now()             |
+| estados_orden           | 1                | id                  | uuid                     | uuid        | NO          | gen_random_uuid() |
+| estados_orden           | 2                | nombre              | text                     | text        | NO          | null              |
+| estados_orden           | 3                | descripcion         | text                     | text        | YES         | null              |
+| estados_orden           | 4                | orden_visualizacion | integer                  | int4        | YES         | 0                 |
+| estados_orden           | 5                | created_at          | timestamp with time zone | timestamptz | YES         | now()             |
+| estados_pago            | 1                | id                  | uuid                     | uuid        | NO          | gen_random_uuid() |
+| estados_pago            | 2                | nombre              | text                     | text        | NO          | null              |
+| estados_pago            | 3                | descripcion         | text                     | text        | YES         | null              |
+| estados_pago            | 4                | created_at          | timestamp with time zone | timestamptz | YES         | now()             |
+| estados_produccion      | 1                | id                  | uuid                     | uuid        | NO          | gen_random_uuid() |
+| estados_produccion      | 2                | nombre              | text                     | text        | NO          | null              |
+| estados_produccion      | 3                | descripcion         | text                     | text        | YES         | null              |
+| estados_produccion      | 4                | orden_visualizacion | integer                  | int4        | YES         | 0                 |
+| estados_produccion      | 5                | created_at          | timestamp with time zone | timestamptz | YES         | now()             |
+| historial_ordenes       | 1                | id                  | uuid                     | uuid        | NO          | gen_random_uuid() |
+| historial_ordenes       | 2                | orden_id            | uuid                     | uuid        | NO          | null              |
+| historial_ordenes       | 3                | usuario_id          | uuid                     | uuid        | NO          | null              |
+| historial_ordenes       | 4                | estado_anterior_id  | uuid                     | uuid        | YES         | null              |
+| historial_ordenes       | 5                | estado_nuevo_id     | uuid                     | uuid        | YES         | null              |
+| historial_ordenes       | 6                | comentario          | text                     | text        | YES         | null              |
+| historial_ordenes       | 7                | created_at          | timestamp with time zone | timestamptz | YES         | now()             |
+| materiales              | 1                | id                  | uuid                     | uuid        | NO          | gen_random_uuid() |
+| materiales              | 2                | nombre              | text                     | text        | NO          | null              |
+| materiales              | 3                | tipo                | text                     | text        | NO          | null              |
+| materiales              | 4                | unidad              | text                     | text        | NO          | null              |
+| materiales              | 5                | stock_actual        | numeric                  | numeric     | YES         | 0                 |
+| materiales              | 6                | stock_minimo        | numeric                  | numeric     | YES         | 0                 |
+| materiales              | 7                | precio_unitario     | numeric                  | numeric     | YES         | null              |
+| materiales              | 8                | proveedor_id        | uuid                     | uuid        | YES         | null              |
+| materiales              | 9                | created_at          | timestamp with time zone | timestamptz | YES         | now()             |
+| metodos_pago            | 1                | id                  | uuid                     | uuid        | NO          | gen_random_uuid() |
+| metodos_pago            | 2                | nombre              | text                     | text        | NO          | null              |
+| metodos_pago            | 3                | descripcion         | text                     | text        | YES         | null              |
+| metodos_pago            | 4                | created_at          | timestamp with time zone | timestamptz | YES         | now()             |
+| movimientos_material    | 1                | id                  | uuid                     | uuid        | NO          | gen_random_uuid() |
+| movimientos_material    | 2                | material_id         | uuid                     | uuid        | YES         | null              |
+| movimientos_material    | 3                | usuario_id          | uuid                     | uuid        | YES         | null              |
+| movimientos_material    | 4                | tipo_movimiento     | text                     | text        | NO          | null              |
+| movimientos_material    | 5                | cantidad            | numeric                  | numeric     | YES         | null              |
+| movimientos_material    | 6                | stock_anterior      | numeric                  | numeric     | YES         | null              |
+| movimientos_material    | 7                | stock_nuevo         | numeric                  | numeric     | YES         | null              |
+| movimientos_material    | 8                | motivo              | text                     | text        | YES         | null              |
+| movimientos_material    | 9                | created_at          | timestamp with time zone | timestamptz | YES         | now()             |
+| movimientos_producto    | 1                | id                  | uuid                     | uuid        | NO          | gen_random_uuid() |
+| movimientos_producto    | 2                | variante_id         | uuid                     | uuid        | NO          | null              |
+| movimientos_producto    | 3                | usuario_id          | uuid                     | uuid        | YES         | null              |
+| movimientos_producto    | 4                | tipo                | text                     | text        | NO          | null              |
+| movimientos_producto    | 5                | cantidad            | integer                  | int4        | NO          | null              |
+| movimientos_producto    | 6                | stock_anterior      | integer                  | int4        | YES         | null              |
+| movimientos_producto    | 7                | stock_nuevo         | integer                  | int4        | YES         | null              |
+| movimientos_producto    | 8                | referencia          | text                     | text        | YES         | null              |
+| movimientos_producto    | 9                | observaciones       | text                     | text        | YES         | null              |
+| movimientos_producto    | 10               | created_at          | timestamp with time zone | timestamptz | YES         | now()             |
+| orden_detalles          | 1                | id                  | uuid                     | uuid        | NO          | gen_random_uuid() |
+| orden_detalles          | 2                | orden_id            | uuid                     | uuid        | YES         | null              |
+| orden_detalles          | 3                | producto_id         | uuid                     | uuid        | YES         | null              |
+| orden_detalles          | 4                | cantidad            | integer                  | int4        | NO          | null              |
+| orden_detalles          | 5                | precio_unitario     | numeric                  | numeric     | YES         | null              |
+| orden_detalles          | 6                | tipo_produccion     | text                     | text        | YES         | null              |
+| orden_detalles          | 7                | notas               | text                     | text        | YES         | null              |
+| orden_detalles          | 8                | created_at          | timestamp with time zone | timestamptz | YES         | now()             |
+| orden_detalles          | 9                | variante_id         | uuid                     | uuid        | YES         | null              |
+| ordenes                 | 1                | id                  | uuid                     | uuid        | NO          | gen_random_uuid() |
+| ordenes                 | 2                | folio               | text                     | text        | NO          | null              |
+| ordenes                 | 3                | cliente_id          | uuid                     | uuid        | YES         | null              |
+| ordenes                 | 4                | vendedor_id         | uuid                     | uuid        | YES         | null              |
+| ordenes                 | 7                | prioridad           | text                     | text        | YES         | 'media'::text     |
