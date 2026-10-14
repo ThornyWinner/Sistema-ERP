@@ -1,3 +1,10 @@
+/**
+ * accordion.tsx — Secciones plegables tipo acordeón (Radix Accordion).
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 "use client";
 
 import * as React from "react";
@@ -6,12 +13,14 @@ import { ChevronDownIcon } from "lucide-react";
 
 import { cn } from "./utils";
 
+/** Contenedor; `type="single"` permite una sección abierta, `"multiple"` varias. */
 function Accordion({
   ...props
 }: React.ComponentProps<typeof AccordionPrimitive.Root>) {
   return <AccordionPrimitive.Root data-slot="accordion" {...props} />;
 }
 
+/** Sección individual (cabecera + contenido). */
 function AccordionItem({
   className,
   ...props
@@ -25,6 +34,7 @@ function AccordionItem({
   );
 }
 
+/** Cabecera clicable; la flecha gira 180° al abrirse. */
 function AccordionTrigger({
   className,
   children,
@@ -47,6 +57,7 @@ function AccordionTrigger({
   );
 }
 
+/** Contenido plegable con animación de apertura/cierre. */
 function AccordionContent({
   className,
   children,

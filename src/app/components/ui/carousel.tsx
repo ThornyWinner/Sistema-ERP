@@ -1,3 +1,11 @@
+/**
+ * carousel.tsx — Carrusel deslizable de elementos (librería embla-carousel-react).
+ * Admite orientación horizontal o vertical y navegación con flechas del teclado.
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 "use client";
 
 import * as React from "react";
@@ -9,6 +17,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { cn } from "./utils";
 import { Button } from "./button";
 
+/** API de Embla para controlar el carrusel desde fuera (siguiente, anterior, eventos...). */
 type CarouselApi = UseEmblaCarouselType[1];
 type UseCarouselParameters = Parameters<typeof useEmblaCarousel>;
 type CarouselOptions = UseCarouselParameters[0];
@@ -21,6 +30,7 @@ type CarouselProps = {
   setApi?: (api: CarouselApi) => void;
 };
 
+/** Datos compartidos por el contexto: referencia, API y estado de los botones de navegación. */
 type CarouselContextProps = {
   carouselRef: ReturnType<typeof useEmblaCarousel>[0];
   api: ReturnType<typeof useEmblaCarousel>[1];
@@ -30,8 +40,10 @@ type CarouselContextProps = {
   canScrollNext: boolean;
 } & CarouselProps;
 
+/** Contexto que comparte el estado del carrusel con sus piezas. */
 const CarouselContext = React.createContext<CarouselContextProps | null>(null);
 
+/** Hook para acceder al contexto del carrusel (solo dentro de <Carousel>). */
 function useCarousel() {
   const context = React.useContext(CarouselContext);
 
@@ -42,6 +54,7 @@ function useCarousel() {
   return context;
 }
 
+/** Componente raíz: inicializa Embla, escucha cambios de selección y gestiona las flechas del teclado. */
 function Carousel({
   orientation = "horizontal",
   opts,
@@ -132,6 +145,7 @@ function Carousel({
   );
 }
 
+/** Pista que contiene y desplaza los elementos. */
 function CarouselContent({ className, ...props }: React.ComponentProps<"div">) {
   const { carouselRef, orientation } = useCarousel();
 
@@ -153,6 +167,7 @@ function CarouselContent({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/** Diapositiva individual. */
 function CarouselItem({ className, ...props }: React.ComponentProps<"div">) {
   const { orientation } = useCarousel();
 
@@ -171,6 +186,7 @@ function CarouselItem({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/** Botón para ir a la diapositiva anterior (se deshabilita al inicio). */
 function CarouselPrevious({
   className,
   variant = "outline",
@@ -201,6 +217,7 @@ function CarouselPrevious({
   );
 }
 
+/** Botón para ir a la diapositiva siguiente (se deshabilita al final). */
 function CarouselNext({
   className,
   variant = "outline",

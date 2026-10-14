@@ -1,3 +1,11 @@
+/**
+ * TallerCorte.tsx — Tablero Kanban del taller de Corte (ruta /talleres/corte).
+ *
+ * Muestra los productos cuyo flujo incluye "corte" agrupados por su estado en este
+ * taller; Iniciar/Completar guardan el avance en Supabase. Cada tarjeta indica las
+ * piezas a cortar e incluye un contador de piezas cortadas y una casilla de
+ * "Material verificado" (ambos solo visuales, no se guardan).
+ */
 import TallerKanban from "../../components/TallerKanban";
 import { useErpData } from "../../context/ErpDataContext";
 import { Ruler } from "lucide-react";
@@ -5,11 +13,13 @@ import { Ruler } from "lucide-react";
 export default function TallerCorte() {
   const { ordenes, actualizarProgresoTaller } = useErpData();
 
+  // Una tarjeta por cada producto (de cualquier orden) que pasa por Corte.
   const ordenesTaller = ordenes
     .flatMap((orden) =>
       orden.productos
         .filter((producto) => producto.talleres.includes("corte"))
         .map((producto) => ({
+          // Id compuesto "ordenId::productoId".
           id: `${orden.id}::${producto.id}`,
           numero: `${orden.numero} - ${producto.nombre}`,
           cliente: orden.cliente,
@@ -47,6 +57,7 @@ export default function TallerCorte() {
         }))
     );
 
+  // Extrae el id del producto y guarda el nuevo estado de Corte.
   const handleChangeEstado = (itemId: string, nuevoEstado: any) => {
     const [, productoId] = itemId.split("::");
     void actualizarProgresoTaller(productoId, "corte", nuevoEstado);

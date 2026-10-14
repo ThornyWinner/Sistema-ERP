@@ -1,3 +1,11 @@
+/**
+ * UserGuide.tsx — Diálogo de bienvenida con la guía de uso según el rol.
+ *
+ * Muestra al usuario actual: una descripción de su rol, la lista de cosas que puede
+ * hacer, consejos útiles y, si su rol no es administrador primario, un aviso de las
+ * restricciones que tiene. Es un componente controlado: el padre decide cuándo se
+ * abre (`open`) y recibe el aviso de cierre (`onClose`).
+ */
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { roleLabels } from '../utils/permissions';
@@ -27,7 +35,9 @@ import {
 } from 'lucide-react';
 
 interface UserGuideProps {
+  /** Si el diálogo está visible. */
   open: boolean;
+  /** Se llama al cerrar el diálogo (botón, tecla Esc o clic fuera). */
   onClose: () => void;
 }
 
@@ -36,6 +46,7 @@ export default function UserGuide({ open, onClose }: UserGuideProps) {
 
   if (!user) return null;
 
+  // Icono representativo de cada rol.
   const roleIcons: Record<string, any> = {
     admin_primario: ShieldCheck,
     admin_secundario: ShieldAlert,
@@ -47,6 +58,7 @@ export default function UserGuide({ open, onClose }: UserGuideProps) {
     bordador: Sparkles,
   };
 
+  // Contenido de la guía para cada rol: título, descripción, permisos y consejos.
   const roleGuides: Record<string, { title: string; description: string; permissions: string[]; tips: string[] }> = {
     admin_primario: {
       title: 'Administrador Primario',
@@ -169,12 +181,15 @@ export default function UserGuide({ open, onClose }: UserGuideProps) {
     },
   };
 
+  // Guía e icono correspondientes al rol del usuario actual.
   const currentGuide = roleGuides[user.rol];
   const Icon = roleIcons[user.rol];
 
   return (
+    // onOpenChange se dispara al intentar cerrar el diálogo; delega en onClose.
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        {/* Encabezado: icono del rol, saludo, insignia y descripción */}
         <DialogHeader>
           <div className="flex items-center gap-3 mb-2">
             <div className="p-3 bg-[#059669] rounded-lg">
@@ -201,6 +216,7 @@ export default function UserGuide({ open, onClose }: UserGuideProps) {
             </h3>
             <div className="space-y-2">
               {currentGuide.permissions.map((permission, index) => (
+                // El icono varía: lápiz (admin primario), ojo (admin secundario), + (resto).
                 <div key={index} className="flex items-start gap-3 p-3 bg-neutral-50 rounded-lg">
                   {user.rol === 'admin_primario' ? (
                     <Edit className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
@@ -251,6 +267,7 @@ export default function UserGuide({ open, onClose }: UserGuideProps) {
           )}
         </div>
 
+        {/* Botón para cerrar la guía */}
         <div className="flex justify-end gap-3 mt-6 pt-6 border-t">
           <Button onClick={onClose} className="bg-[#059669] hover:bg-[#047857]">
             Entendido, comenzar

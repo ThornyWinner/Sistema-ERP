@@ -1,3 +1,20 @@
+/**
+ * OrdenDetalle.tsx — Detalle de una orden (ruta /ordenes/:id).
+ *
+ * Secciones:
+ *  - Encabezado: folio, estado, tipo de venta y aviso de prioridad alta.
+ *  - Productos y flujo de producción: por cada producto, sus datos, el WorkflowStepper
+ *    con el avance por taller y la personalización (bordado, hilos, logo, notas);
+ *    al final, el progreso total de la orden.
+ *  - Información general (vendedor, cliente, productos, fecha de entrega).
+ *  - Información de pago (total, método, estado de pago, anticipo y saldo).
+ *  - Historial de pagos y notas de la orden.
+ *
+ * Compatibilidad: varias secciones (marcadas como "órdenes antiguas") soportan el
+ * formato del prototipo en el que la orden tenía un solo producto con campos sueltos
+ * (talleres, progreso, tipoPrenda, bordadoDetalle...). Por eso se usa `(orden as any)`.
+ * Con los datos actuales de Supabase siempre existe `orden.productos`.
+ */
 import { useParams, useNavigate } from "react-router";
 import { useErpData } from "../context/ErpDataContext";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/Card";
@@ -22,10 +39,12 @@ import {
 
 export default function OrdenDetalle() {
   const { ordenes: mockOrdenes } = useErpData();
+  // Id de la orden tomado de la URL.
   const { id } = useParams();
   const navigate = useNavigate();
   const orden = mockOrdenes.find((o) => o.id === id);
 
+  // Id inexistente (o datos aún cargando): mensaje y botón para volver al listado.
   if (!orden) {
     return (
       <div className="p-6">
@@ -42,11 +61,16 @@ export default function OrdenDetalle() {
     );
   }
 
+  // Días que faltan para la fecha de entrega (negativo = vencida).
   const diasRestantes = Math.ceil(
     (new Date(orden.fechaEntrega).getTime() - new Date().getTime()) /
       (1000 * 60 * 60 * 24)
   );
 
+  /**
+   * Porcentaje de avance de la orden = pasos de taller completados / pasos totales.
+   * Si la orden no tiene productos (formato antiguo) usa sus campos talleres/progreso.
+   */
   const getProgresoTotal = () => {
     if (!orden.productos || orden.productos.length === 0) {
       const talleresActivos = (orden as any).talleres || [];
@@ -67,6 +91,8 @@ export default function OrdenDetalle() {
     }, 0);
     return Math.round((talleresCompletados / todosLosTalleres.length) * 100);
   };
+
+  // --- Funciones auxiliares de presentación (texto, color e icono según valores) ---
 
   const getTipoVentaLabel = () => {
     switch (orden.tipoVenta) {
@@ -98,6 +124,7 @@ export default function OrdenDetalle() {
     }
   };
 
+  // Icono del método de pago (cheque y crédito no tienen icono).
   const getMetodoPagoIcon = () => {
     switch (orden.metodoPago) {
       case "efectivo":
@@ -189,7 +216,7 @@ export default function OrdenDetalle() {
         </div>
       </div>
 
-      {/* Flujo de Trabajo */}
+      {/* Flujo de Trabajo: por producto (formato actual) o único (formato antiguo) */}
       {orden.productos && orden.productos.length > 0 ? (
         <Card>
           <CardHeader>
@@ -227,6 +254,7 @@ export default function OrdenDetalle() {
                     )}
                   </div>
                 </div>
+                {/* Avance por taller (solo si el producto pasa por algún taller) */}
                 {producto.talleres.length > 0 && (
                   <div className="flex justify-center py-4">
                     <WorkflowStepper
@@ -237,6 +265,7 @@ export default function OrdenDetalle() {
                     />
                   </div>
                 )}
+                {/* Datos de personalización; cada campo se muestra solo si existe */}
                 {producto.personalizacion && (
                   <div className="bg-secondary p-4 rounded-lg">
                     <h4 className="font-medium mb-3 flex items-center gap-2">
@@ -285,6 +314,7 @@ export default function OrdenDetalle() {
                 )}
               </div>
             ))}
+            {/* Barra de progreso total de la orden */}
             <div className="mt-6 flex items-center gap-4 p-4 bg-secondary rounded-lg">
               <div className="flex-1">
                 <p className="text-sm text-muted-foreground">Progreso Total</p>
@@ -300,6 +330,7 @@ export default function OrdenDetalle() {
           </CardContent>
         </Card>
       ) : (
+        // Formato antiguo: un único flujo a nivel de orden.
         <Card>
           <CardHeader>
             <CardTitle>Flujo de Producción</CardTitle>
@@ -380,6 +411,7 @@ export default function OrdenDetalle() {
               <div className="flex-1">
                 <p className="text-sm text-muted-foreground">Fecha de Entrega</p>
                 <p className="font-medium">
+                  {/* Fecha larga en español, p. ej. "20 de abril de 2026" */}
                   {new Date(orden.fechaEntrega).toLocaleDateString("es-MX", {
                     year: "numeric",
                     month: "long",

@@ -1,7 +1,15 @@
+/**
+ * textarea.tsx — Área de texto multilínea estilizada.
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 import * as React from "react";
 
 import { cn } from "./utils";
 
+/** Textarea que crece con el contenido (field-sizing-content) y acepta las props nativas. */
 function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
   return (
     <textarea

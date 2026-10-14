@@ -1,9 +1,22 @@
+/**
+ * button.tsx — Botón reutilizable con variantes de estilo y tamaño. Usado en toda la app.
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "./utils";
 
+/**
+ * Define las clases del botón con class-variance-authority (cva):
+ *  - variant: default | destructive | outline | secondary | ghost | link
+ *  - size:    default | sm | lg | icon
+ * También se puede usar para dar aspecto de botón a otros elementos (p. ej. enlaces).
+ */
 const buttonVariants = cva(
   "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
   {
@@ -34,6 +47,11 @@ const buttonVariants = cva(
   },
 );
 
+/**
+ * Botón con variantes. Con `asChild` no renderiza un <button> propio, sino que aplica sus
+ * estilos y props al hijo (p. ej. un <Link>), gracias a Slot de Radix.
+ * Usa forwardRef para que componentes como Tooltip o Dialog puedan acceder al elemento DOM.
+ */
 const Button = React.forwardRef<
   HTMLButtonElement,
   React.ComponentProps<"button"> &

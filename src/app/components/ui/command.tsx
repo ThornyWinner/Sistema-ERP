@@ -1,3 +1,10 @@
+/**
+ * command.tsx — Paleta de comandos / buscador con lista filtrable (librería cmdk).
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 "use client";
 
 import * as React from "react";
@@ -13,6 +20,7 @@ import {
   DialogTitle,
 } from "./dialog";
 
+/** Contenedor de la paleta; filtra automáticamente los elementos al escribir. */
 function Command({
   className,
   ...props
@@ -29,6 +37,7 @@ function Command({
   );
 }
 
+/** Paleta de comandos dentro de un Dialog modal. */
 function CommandDialog({
   title = "Command Palette",
   description = "Search for a command to run...",
@@ -53,6 +62,7 @@ function CommandDialog({
   );
 }
 
+/** Campo de búsqueda con icono de lupa. */
 function CommandInput({
   className,
   ...props
@@ -75,6 +85,7 @@ function CommandInput({
   );
 }
 
+/** Lista desplazable de resultados. */
 function CommandList({
   className,
   ...props
@@ -91,6 +102,7 @@ function CommandList({
   );
 }
 
+/** Mensaje que se muestra si no hay resultados. */
 function CommandEmpty({
   ...props
 }: React.ComponentProps<typeof CommandPrimitive.Empty>) {
@@ -103,6 +115,7 @@ function CommandEmpty({
   );
 }
 
+/** Grupo de resultados con encabezado. */
 function CommandGroup({
   className,
   ...props
@@ -119,6 +132,7 @@ function CommandGroup({
   );
 }
 
+/** Línea divisoria entre grupos. */
 function CommandSeparator({
   className,
   ...props
@@ -132,6 +146,7 @@ function CommandSeparator({
   );
 }
 
+/** Resultado seleccionable. */
 function CommandItem({
   className,
   ...props
@@ -148,6 +163,7 @@ function CommandItem({
   );
 }
 
+/** Texto del atajo de teclado alineado a la derecha. */
 function CommandShortcut({
   className,
   ...props

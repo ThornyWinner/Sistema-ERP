@@ -1,3 +1,10 @@
+/**
+ * tabs.tsx — Pestañas para alternar entre paneles de contenido (Radix Tabs).
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 "use client";
 
 import * as React from "react";
@@ -5,6 +12,7 @@ import * as TabsPrimitive from "@radix-ui/react-tabs";
 
 import { cn } from "./utils";
 
+/** Contenedor; controla la pestaña activa (`value` / `defaultValue`). */
 function Tabs({
   className,
   ...props
@@ -18,6 +26,7 @@ function Tabs({
   );
 }
 
+/** Barra que agrupa los botones de pestaña. */
 function TabsList({
   className,
   ...props
@@ -34,6 +43,7 @@ function TabsList({
   );
 }
 
+/** Botón de una pestaña; se resalta cuando está activa. */
 function TabsTrigger({
   className,
   ...props
@@ -50,6 +60,7 @@ function TabsTrigger({
   );
 }
 
+/** Panel que se muestra cuando su pestaña está activa. */
 function TabsContent({
   className,
   ...props

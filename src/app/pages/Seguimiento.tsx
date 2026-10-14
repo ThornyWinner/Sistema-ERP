@@ -1,8 +1,21 @@
+/**
+ * Seguimiento.tsx — Vista global del avance de producción (ruta /seguimiento).
+ *
+ * Secciones:
+ *  1. Carga por taller: cuántos productos están "en proceso" en cada taller; el más
+ *     cargado (con más de 2) se marca como "Alta carga".
+ *  2. Flujo de órdenes: tabla con cada producto de cada orden, el estado en cada
+ *     taller (✓ completado, reloj en proceso, círculo pendiente, "-" no aplica) y el
+ *     porcentaje de avance (talleres completados / talleres asignados).
+ *  3. Cuellos de botella: los 3 talleres con más trabajos en proceso.
+ *  4. Eficiencia por taller: % de productos completados sobre los asignados a cada taller.
+ */
 import { Card, CardContent, CardHeader, CardTitle } from "../components/Card";
 import { useErpData } from "../context/ErpDataContext";
 import StatusBadge from "../components/StatusBadge";
 import { AlertTriangle, CheckCircle2, Clock } from "lucide-react";
 
+// Talleres en orden del flujo, con la clave interna y su nombre visible.
 const talleres = [
   { key: "diseno", label: "Diseño" },
   { key: "sublimacion", label: "Sublimación" },
@@ -12,7 +25,9 @@ const talleres = [
 ];
 
 export default function Seguimiento() {
+  // Órdenes reales de Supabase (alias mockOrdenes del prototipo).
   const { ordenes: mockOrdenes } = useErpData();
+  // Icono de estado para las celdas de la tabla de flujo.
   const getEstadoIcon = (estado: string) => {
     switch (estado) {
       case "completed":
@@ -24,6 +39,10 @@ export default function Seguimiento() {
     }
   };
 
+  /**
+   * Cuenta, para cada taller, cuántos productos están actualmente "en proceso".
+   * Devuelve un objeto { diseno: n, sublimacion: n, ... }.
+   */
   const getCuellosDeBotella = () => {
     const talleresCarga: any = {};
     talleres.forEach((taller) => {
@@ -44,6 +63,7 @@ export default function Seguimiento() {
   };
 
   const cuellosDeBotella = getCuellosDeBotella();
+  // Par [clave, cantidad] del taller con más trabajos en proceso (orden descendente).
   const tallerMasCargado = Object.entries(cuellosDeBotella).sort(
     ([, a], [, b]) => (b as number) - (a as number)
   )[0];
@@ -57,9 +77,11 @@ export default function Seguimiento() {
         </p>
       </div>
 
+      {/* 1. Tarjetas de carga actual por taller */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         {talleres.map((taller) => {
           const enProceso = cuellosDeBotella[taller.key];
+          // Se considera cuello de botella si es el más cargado y tiene más de 2 trabajos.
           const esCuello = tallerMasCargado[0] === taller.key && enProceso > 2;
           return (
             <Card key={taller.key} className={esCuello ? "border-status-in-progress" : ""}>
@@ -79,6 +101,7 @@ export default function Seguimiento() {
         })}
       </div>
 
+      {/* 2. Tabla de flujo: una fila por producto de cada orden */}
       <Card>
         <CardHeader>
           <CardTitle>Flujo de Órdenes</CardTitle>
@@ -110,6 +133,8 @@ export default function Seguimiento() {
               <tbody className="divide-y divide-border">
                 {mockOrdenes.flatMap((orden) =>
                   orden.productos.map((producto) => {
+                    // Avance = talleres completados / talleres con registro de progreso.
+                    // Un producto sin talleres (p. ej. venta directa) cuenta como 100%.
                     const talleresList = Object.values(producto.progreso);
                     const completados = talleresList.filter((t) => t === "completed").length;
                     const progreso =
@@ -131,6 +156,7 @@ export default function Seguimiento() {
                           const estado = producto.progreso[
                             taller.key as keyof typeof producto.progreso
                           ];
+                          // Si el producto no pasa por este taller se muestra un guion.
                           const tallerActivo = producto.talleres.includes(taller.key as any);
                           return (
                             <td key={taller.key} className="px-6 py-4">
@@ -168,6 +194,7 @@ export default function Seguimiento() {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* 3. Top 3 de talleres con más trabajos en proceso */}
         <Card>
           <CardHeader>
             <CardTitle>Cuellos de Botella</CardTitle>
@@ -196,6 +223,7 @@ export default function Seguimiento() {
           </CardContent>
         </Card>
 
+        {/* 4. Eficiencia: productos completados / productos asignados en cada taller */}
         <Card>
           <CardHeader>
             <CardTitle>Eficiencia por Taller</CardTitle>

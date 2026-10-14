@@ -1,1 +1,8 @@
+/*
+ * fonts.css — Carga de tipografías externas.
+ * Importa la fuente "Work Sans" desde Google Fonts en los pesos 300–700.
+ * "display=swap" muestra primero una fuente del sistema y la reemplaza al terminar
+ * de descargarse, evitando texto invisible durante la carga.
+ * La fuente se aplica al body mediante la variable --font-family (ver theme.css).
+ */
 @import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@300;400;500;600;700&display=swap');

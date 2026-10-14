@@ -1,3 +1,10 @@
+/**
+ * context-menu.tsx — Menú contextual que se abre con clic derecho (Radix ContextMenu).
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 "use client";
 
 import * as React from "react";
@@ -6,12 +13,14 @@ import { CheckIcon, ChevronRightIcon, CircleIcon } from "lucide-react";
 
 import { cn } from "./utils";
 
+/** Raíz del menú contextual. */
 function ContextMenu({
   ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Root>) {
   return <ContextMenuPrimitive.Root data-slot="context-menu" {...props} />;
 }
 
+/** Zona sobre la que el clic derecho abre el menú. */
 function ContextMenuTrigger({
   ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Trigger>) {
@@ -20,6 +29,7 @@ function ContextMenuTrigger({
   );
 }
 
+/** Agrupa opciones relacionadas. */
 function ContextMenuGroup({
   ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Group>) {
@@ -28,6 +38,7 @@ function ContextMenuGroup({
   );
 }
 
+/** Renderiza el menú en un portal. */
 function ContextMenuPortal({
   ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Portal>) {
@@ -36,12 +47,14 @@ function ContextMenuPortal({
   );
 }
 
+/** Raíz de un submenú. */
 function ContextMenuSub({
   ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Sub>) {
   return <ContextMenuPrimitive.Sub data-slot="context-menu-sub" {...props} />;
 }
 
+/** Grupo de opciones de selección única. */
 function ContextMenuRadioGroup({
   ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.RadioGroup>) {
@@ -53,6 +66,7 @@ function ContextMenuRadioGroup({
   );
 }
 
+/** Opción que abre un submenú. */
 function ContextMenuSubTrigger({
   className,
   inset,
@@ -77,6 +91,7 @@ function ContextMenuSubTrigger({
   );
 }
 
+/** Panel del submenú. */
 function ContextMenuSubContent({
   className,
   ...props
@@ -93,6 +108,7 @@ function ContextMenuSubContent({
   );
 }
 
+/** Panel del menú contextual. */
 function ContextMenuContent({
   className,
   ...props
@@ -111,6 +127,7 @@ function ContextMenuContent({
   );
 }
 
+/** Opción del menú (admite variant="destructive" e inset). */
 function ContextMenuItem({
   className,
   inset,
@@ -134,6 +151,7 @@ function ContextMenuItem({
   );
 }
 
+/** Opción con casilla de verificación. */
 function ContextMenuCheckboxItem({
   className,
   children,
@@ -160,6 +178,7 @@ function ContextMenuCheckboxItem({
   );
 }
 
+/** Opción de selección única. */
 function ContextMenuRadioItem({
   className,
   children,
@@ -184,6 +203,7 @@ function ContextMenuRadioItem({
   );
 }
 
+/** Etiqueta no clicable. */
 function ContextMenuLabel({
   className,
   inset,
@@ -204,6 +224,7 @@ function ContextMenuLabel({
   );
 }
 
+/** Línea divisoria. */
 function ContextMenuSeparator({
   className,
   ...props
@@ -217,6 +238,7 @@ function ContextMenuSeparator({
   );
 }
 
+/** Texto del atajo de teclado. */
 function ContextMenuShortcut({
   className,
   ...props

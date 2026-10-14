@@ -1,4 +1,16 @@
-import React, { useState } from 'react';
+/**
+ * GestionUsuarios.tsx — Administración de usuarios del sistema (ruta /usuarios).
+ *
+ * Solo accesible para el administrador primario (los demás roles ven "Acceso Restringido").
+ * Permite:
+ *  - Listar usuarios (nombre, email, username, rol, estado y último acceso).
+ *  - Crear usuarios: registra la cuenta en Supabase Auth + el perfil en `usuarios`.
+ *  - Editar perfil (nombre, username, email, rol, estado). La contraseña no se edita aquí.
+ *  - Eliminar usuarios (no se permite eliminar al propio usuario conectado).
+ * Toda la lógica de datos vive en AuthContext; esta página solo gestiona la interfaz
+ * y muestra notificaciones (toast) con el resultado de cada operación.
+ */
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { UserRole } from '../types/auth';
 import { roleLabels } from '../utils/permissions';
@@ -34,9 +46,14 @@ import { UserPlus, Pencil, Trash2, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function GestionUsuarios() {
-  const { user: currentUser, users, addUser, updateUser, deleteUser } = useAuth();
+  const { user: currentUser, users, refreshUsers, addUser, updateUser, deleteUser } = useAuth();
+  // true mientras se guarda (deshabilita el botón de enviar).
+  const [saving, setSaving] = useState(false);
+  // Visibilidad del diálogo de alta/edición.
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  // Id del usuario en edición; null = modo creación.
   const [editingUser, setEditingUser] = useState<string | null>(null);
+  // Campos del formulario del diálogo.
   const [formData, setFormData] = useState({
     nombre: '',
     username: '',
@@ -45,6 +62,13 @@ export default function GestionUsuarios() {
     email: '',
     estado: 'activo' as 'activo' | 'inactivo',
   });
+
+  // Carga la lista de usuarios al entrar (solo si el usuario es admin primario).
+  useEffect(() => {
+    if (currentUser?.rol === 'admin_primario') {
+      refreshUsers().catch(() => toast.error('No se pudo cargar la lista de usuarios'));
+    }
+  }, [currentUser?.rol]);
 
   // Solo admins primarios pueden acceder
   if (currentUser?.rol !== 'admin_primario') {
@@ -61,33 +85,45 @@ export default function GestionUsuarios() {
     );
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  /**
+   * Guarda el formulario: si hay un usuario en edición lo actualiza; si no, crea uno
+   * nuevo con la contraseña indicada. Muestra un toast con el resultado y, si todo
+   * sale bien, limpia el formulario y cierra el diálogo.
+   */
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (editingUser) {
-      updateUser(editingUser, {
-        nombre: formData.nombre,
-        username: formData.username,
-        rol: formData.rol,
-        email: formData.email,
-        estado: formData.estado,
-      });
-      toast.success('Usuario actualizado correctamente');
-    } else {
-      addUser({
-        nombre: formData.nombre,
-        username: formData.username,
-        rol: formData.rol,
-        email: formData.email,
-        estado: formData.estado,
-        ultimoAcceso: 'Nunca',
-      }, formData.password);
-      toast.success('Usuario creado correctamente');
+    setSaving(true);
+
+    try {
+      if (editingUser) {
+        await updateUser(editingUser, {
+          nombre: formData.nombre,
+          username: formData.username,
+          rol: formData.rol,
+          email: formData.email,
+          estado: formData.estado,
+        });
+        toast.success('Usuario actualizado correctamente');
+      } else {
+        await addUser({
+          nombre: formData.nombre,
+          username: formData.username,
+          rol: formData.rol,
+          email: formData.email,
+          estado: formData.estado,
+          ultimoAcceso: 'Nunca',
+        }, formData.password);
+        toast.success('Usuario creado correctamente');
+      }
+      resetForm();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo guardar el usuario');
+    } finally {
+      setSaving(false);
     }
-    
-    resetForm();
   };
 
+  // Restablece el formulario a sus valores por defecto y cierra el diálogo.
   const resetForm = () => {
     setFormData({
       nombre: '',
@@ -101,6 +137,7 @@ export default function GestionUsuarios() {
     setIsDialogOpen(false);
   };
 
+  // Precarga los datos del usuario elegido en el formulario y abre el diálogo en modo edición.
   const handleEdit = (userId: string) => {
     const user = users.find(u => u.id === userId);
     if (user) {
@@ -117,11 +154,16 @@ export default function GestionUsuarios() {
     }
   };
 
-  const handleDelete = (userId: string) => {
+  // Pide confirmación con el diálogo nativo del navegador y elimina el usuario.
+  const handleDelete = async (userId: string) => {
     const user = users.find(u => u.id === userId);
     if (user && confirm(`¿Estás seguro de eliminar al usuario ${user.nombre}?`)) {
-      deleteUser(userId);
-      toast.success('Usuario eliminado correctamente');
+      try {
+        await deleteUser(userId);
+        toast.success('Usuario eliminado correctamente');
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'No se pudo eliminar el usuario');
+      }
     }
   };
 
@@ -133,7 +175,9 @@ export default function GestionUsuarios() {
           <p className="text-neutral-500">Administra usuarios y permisos del sistema</p>
         </div>
         
+        {/* Diálogo compartido para crear y editar usuarios */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          {/* El botón "Nuevo Usuario" abre el diálogo en modo creación */}
           <DialogTrigger asChild>
             <Button className="bg-[#059669] hover:bg-[#047857]" onClick={() => setEditingUser(null)}>
               <UserPlus className="w-4 h-4 mr-2" />
@@ -176,19 +220,21 @@ export default function GestionUsuarios() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="password">
-                  Contraseña {editingUser && '(dejar en blanco para no cambiar)'}
-                </Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder="••••••••"
-                  required={!editingUser}
-                />
-              </div>
+              {/* La contraseña solo se pide al crear (mínimo 6 caracteres, requisito de Supabase) */}
+              {!editingUser && (
+                <div className="space-y-2">
+                  <Label htmlFor="password">Contraseña</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    placeholder="••••••••"
+                    minLength={6}
+                    required
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
@@ -198,6 +244,7 @@ export default function GestionUsuarios() {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="correo@ejemplo.com"
+                  required
                 />
               </div>
 
@@ -211,6 +258,7 @@ export default function GestionUsuarios() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    {/* Una opción por cada rol definido en roleLabels */}
                     {Object.entries(roleLabels).map(([key, label]) => (
                       <SelectItem key={key} value={key}>
                         {label}
@@ -240,8 +288,8 @@ export default function GestionUsuarios() {
                 <Button type="button" variant="outline" onClick={resetForm}>
                   Cancelar
                 </Button>
-                <Button type="submit" className="bg-[#059669] hover:bg-[#047857]">
-                  {editingUser ? 'Actualizar' : 'Crear Usuario'}
+                <Button type="submit" disabled={saving} className="bg-[#059669] hover:bg-[#047857]">
+                  {saving ? 'Guardando...' : editingUser ? 'Actualizar' : 'Crear Usuario'}
                 </Button>
               </DialogFooter>
             </form>
@@ -249,6 +297,7 @@ export default function GestionUsuarios() {
         </Dialog>
       </div>
 
+      {/* Tabla de usuarios */}
       <div className="bg-white rounded-lg border border-neutral-200">
         <Table>
           <TableHeader>
@@ -298,6 +347,7 @@ export default function GestionUsuarios() {
                     >
                       <Pencil className="w-4 h-4" />
                     </Button>
+                    {/* Deshabilitado para el propio usuario: evita que se elimine a sí mismo */}
                     <Button
                       variant="ghost"
                       size="sm"

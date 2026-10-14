@@ -1,3 +1,16 @@
+/**
+ * Reportes.tsx — Reportes y análisis de producción (ruta /reportes).
+ *
+ * Contenido:
+ *  - Selector de periodo (semana / mes / trimestre / año).
+ *  - 4 indicadores: producción total, órdenes completadas, entregas a tiempo e ingresos.
+ *  - Gráficas (recharts): producción por día (líneas), consumo de materiales (barras),
+ *    productos más vendidos (pastel) y eficiencia por taller (barras de progreso).
+ *  - Resumen de inventario calculado con datos reales: materiales, productos y valor total.
+ *
+ * Importante: salvo el "Resumen de Inventario", los indicadores y gráficas usan datos
+ * de ejemplo fijos y el selector de periodo todavía no filtra nada.
+ */
 import { Card, CardContent, CardHeader, CardTitle } from "../components/Card";
 import { useErpData } from "../context/ErpDataContext";
 import {
@@ -18,9 +31,14 @@ import { TrendingUp, Package, Shirt, DollarSign, Calendar } from "lucide-react";
 import { useState } from "react";
 
 export default function Reportes() {
+  // Datos reales de Supabase (con los alias mock* del prototipo).
   const { ordenes: mockOrdenes, materiales: mockMateriales, productos: mockProductos } = useErpData();
+  // Periodo seleccionado (aún no se aplica a los cálculos).
   const [periodo, setPeriodo] = useState("mes");
 
+  // --- Datos de ejemplo para las gráficas ---
+
+  // Prendas producidas por día de la semana (gráfica de líneas).
   const produccionPorDia = [
     { dia: "Lun", prendas: 85 },
     { dia: "Mar", prendas: 92 },
@@ -30,6 +48,7 @@ export default function Reportes() {
     { dia: "Sáb", prendas: 45 },
   ];
 
+  // Consumo por material (gráfica de barras horizontales).
   const consumoMateriales = [
     { material: "Tela Gabardina", consumo: 250 },
     { material: "Tela Drill", consumo: 180 },
@@ -38,6 +57,7 @@ export default function Reportes() {
     { material: "Botones", consumo: 500 },
   ];
 
+  // Unidades vendidas por producto con su color en el pastel y la leyenda.
   const productosMasVendidos = [
     { nombre: "Camisa Industrial", cantidad: 156, color: "#059669" },
     { nombre: "Pantalón Cargo", cantidad: 132, color: "#3B82F6" },
@@ -45,6 +65,7 @@ export default function Reportes() {
     { nombre: "Chaleco", cantidad: 245, color: "#8B5CF6" },
   ];
 
+  // Eficiencia (%) de cada taller.
   const rendimientoTalleres = [
     { taller: "Diseño", eficiencia: 95 },
     { taller: "Sublimación", eficiencia: 88 },
@@ -55,6 +76,7 @@ export default function Reportes() {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Encabezado con selector de periodo */}
       <div className="flex items-center justify-between">
         <div>
           <h1>Reportes y Análisis</h1>
@@ -74,6 +96,7 @@ export default function Reportes() {
         </select>
       </div>
 
+      {/* Indicadores principales (valores de ejemplo) */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardContent className="p-6">
@@ -138,6 +161,7 @@ export default function Reportes() {
             <CardTitle>Producción por Día</CardTitle>
           </CardHeader>
           <CardContent>
+            {/* ResponsiveContainer ajusta la gráfica al ancho de la tarjeta */}
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={produccionPorDia}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
@@ -168,6 +192,7 @@ export default function Reportes() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
+              {/* layout="vertical": barras horizontales con los materiales en el eje Y */}
               <BarChart data={consumoMateriales} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis type="number" tick={{ fontSize: 12 }} />
@@ -203,6 +228,7 @@ export default function Reportes() {
                     dataKey="cantidad"
                     label={(entry) => entry.cantidad}
                   >
+                    {/* Un <Cell> por porción para asignarle su color */}
                     {productosMasVendidos.map((entry, index) => (
                       <Cell key={`producto-vendido-${entry.nombre}-${index}`} fill={entry.color} />
                     ))}
@@ -210,6 +236,7 @@ export default function Reportes() {
                   <Tooltip />
                 </PieChart>
               </ResponsiveContainer>
+              {/* Leyenda del pastel */}
               <div className="space-y-3">
                 {productosMasVendidos.map((producto) => (
                   <div key={producto.nombre} className="flex items-center gap-3">
@@ -244,6 +271,7 @@ export default function Reportes() {
                       {taller.eficiencia}%
                     </span>
                   </div>
+                  {/* Color de la barra: verde ≥ 90%, ámbar ≥ 80%, rojo < 80% */}
                   <div className="w-full h-3 bg-secondary rounded-full overflow-hidden">
                     <div
                       className={`h-full transition-all ${
@@ -263,6 +291,8 @@ export default function Reportes() {
         </Card>
       </div>
 
+      {/* Resumen de inventario con datos reales.
+          Valor total = Σ(stock × precio) de materiales + Σ(stock × precio) de productos */}
       <Card>
         <CardHeader>
           <CardTitle>Resumen de Inventario</CardTitle>

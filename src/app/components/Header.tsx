@@ -1,3 +1,11 @@
+/**
+ * Header.tsx — Barra superior de la aplicación (parte de RootLayout).
+ *
+ * Contiene:
+ *  - Un campo de búsqueda global (por ahora solo visual, sin lógica de búsqueda).
+ *  - Un botón de notificaciones con indicador (también decorativo por ahora).
+ *  - El menú de usuario: nombre, rol, email y opción de cerrar sesión.
+ */
 import { Search, Bell, User, LogOut, ChevronDown } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { roleLabels } from "../utils/permissions";
@@ -16,13 +24,17 @@ export default function Header() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
+  // El header solo tiene sentido con un usuario autenticado.
   if (!user) return null;
 
+  // Cierra la sesión en Supabase y lleva al usuario a la pantalla de login.
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
+  // Color de la insignia de rol: verde para admin primario, amarillo para
+  // admin secundario y gris para el resto de roles.
   const getRoleBadgeColor = (rol: string) => {
     if (rol === 'admin_primario') return 'bg-[#059669] text-white';
     if (rol === 'admin_secundario') return 'bg-yellow-100 text-yellow-800';
@@ -31,6 +43,7 @@ export default function Header() {
 
   return (
     <header className="h-16 bg-card border-b border-border px-6 flex items-center justify-between">
+      {/* Buscador (icono posicionado dentro del input) */}
       <div className="flex-1 max-w-xl">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -43,13 +56,16 @@ export default function Header() {
       </div>
 
       <div className="flex items-center gap-4">
+        {/* Campana de notificaciones con punto rojo de aviso */}
         <button className="relative p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors">
           <Bell className="w-5 h-5" />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-status-pending rounded-full"></span>
         </button>
 
         <div className="flex items-center gap-3 pl-4 border-l border-border">
+          {/* Menú desplegable del usuario */}
           <DropdownMenu>
+            {/* Disparador: nombre, insignia de rol y avatar */}
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-3 hover:bg-secondary px-3 py-2 rounded-lg transition-colors">
                 <div className="text-right">
@@ -64,6 +80,7 @@ export default function Header() {
                 <ChevronDown className="w-4 h-4 text-muted-foreground" />
               </button>
             </DropdownMenuTrigger>
+            {/* Contenido del menú, alineado al borde derecho del disparador */}
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
               <DropdownMenuSeparator />

@@ -1,3 +1,12 @@
+/**
+ * TallerDiseno.tsx — Tablero Kanban del taller de Diseño (ruta /talleres/diseno).
+ *
+ * Muestra todos los productos de todas las órdenes cuyo flujo incluye "diseno",
+ * repartidos por su estado en este taller. Los botones Iniciar/Completar actualizan
+ * el avance en Supabase. Además, cada tarjeta ofrece botones "Aprobar"/"Rechazar"
+ * del diseño (por ahora solo visuales, sin lógica asociada), que se ocultan para el
+ * administrador secundario (solo lectura).
+ */
 import TallerKanban from "../../components/TallerKanban";
 import { useErpData } from "../../context/ErpDataContext";
 import { CheckCircle2, XCircle, Lock } from "lucide-react";
@@ -7,20 +16,25 @@ export default function TallerDiseno() {
   const { user } = useAuth();
   const { ordenes, actualizarProgresoTaller } = useErpData();
 
+  // El administrador secundario solo puede consultar.
   const isReadOnly = user?.rol === 'admin_secundario';
 
+  // Convierte órdenes → tarjetas: una tarjeta por cada producto que pasa por Diseño.
   const ordenesTaller = ordenes
     .flatMap((orden) =>
       orden.productos
         .filter((producto) => producto.talleres.includes("diseno"))
         .map((producto) => ({
+          // Id compuesto "ordenId::productoId" para identificar la tarjeta de forma única.
           id: `${orden.id}::${producto.id}`,
           numero: `${orden.numero} - ${producto.nombre}`,
           cliente: orden.cliente,
           producto: producto.nombre,
           cantidad: producto.cantidad,
           fechaEntrega: orden.fechaEntrega,
+          // Estado del producto en este taller (pendiente si aún no tiene registro).
           estado: producto.progreso.diseno || "pending",
+          // Contenido extra de la tarjeta: aprobación del diseño.
           detalles: (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">Estado del diseño:</p>
@@ -48,6 +62,8 @@ export default function TallerDiseno() {
         }))
     );
 
+  // Al pulsar Iniciar/Completar: extrae el id del producto (orden_detalle) del id
+  // compuesto y guarda el nuevo estado de Diseño en la base de datos.
   const handleChangeEstado = (itemId: string, nuevoEstado: any) => {
     const [, productoId] = itemId.split("::");
     void actualizarProgresoTaller(productoId, "diseno", nuevoEstado);

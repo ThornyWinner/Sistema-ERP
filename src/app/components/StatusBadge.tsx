@@ -1,11 +1,21 @@
+/**
+ * StatusBadge.tsx — Etiqueta (píldora) de color que indica un estado.
+ *
+ * Muestra un punto de color y un texto: rojo = Pendiente, ámbar = En Proceso,
+ * verde = Terminado. Los colores salen de las variables --status-* de theme.css.
+ * Ejemplo: <StatusBadge status="in-progress" size="sm" />
+ */
 type Status = "pending" | "in-progress" | "completed";
 
 interface StatusBadgeProps {
   status: Status;
+  /** Texto a mostrar; si se omite se usa la etiqueta por defecto del estado. */
   label?: string;
+  /** Tamaño: "sm" (compacto, para tablas/tarjetas) o "md" (por defecto). */
   size?: "sm" | "md";
 }
 
+// Etiqueta y clases de Tailwind (fondo, texto y punto) para cada estado.
 const statusConfig = {
   pending: {
     label: "Pendiente",
@@ -37,6 +47,7 @@ export default function StatusBadge({ status, label, size = "md" }: StatusBadgeP
         size === "sm" ? "px-2 py-0.5 text-xs" : "px-3 py-1 text-sm"
       }`}
     >
+      {/* Punto indicador del color del estado */}
       <span className={`w-1.5 h-1.5 rounded-full ${config.dotColor}`}></span>
       {displayLabel}
     </span>

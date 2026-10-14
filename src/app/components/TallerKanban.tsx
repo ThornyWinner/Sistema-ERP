@@ -1,16 +1,31 @@
+/**
+ * TallerKanban.tsx — Tablero Kanban reutilizable para las páginas de cada taller.
+ *
+ * Reparte los trabajos en tres columnas: Pendiente → En Proceso → Terminado.
+ * Cada tarjeta muestra folio, cliente, producto, cantidad y fecha de entrega, más un
+ * bloque opcional de detalles específicos del taller (p. ej. colores de hilo en Bordado).
+ *
+ * Si se pasa `onChangeEstado`, las tarjetas incluyen botones para avanzar el trabajo:
+ * "Iniciar" (pendiente → en proceso) y "Completar" (en proceso → terminado).
+ */
 import { ReactNode } from "react";
 import StatusBadge from "./StatusBadge";
 import { Card, CardContent } from "./Card";
 import { Clock, User, Package } from "lucide-react";
 
+/** Trabajo que se muestra en el tablero (normalmente un producto de una orden). */
 interface OrdenTaller {
+  /** Identificador único de la tarjeta (se devuelve en onChangeEstado). */
   id: string;
+  /** Folio de la orden. */
   numero: string;
   cliente: string;
   producto: string;
   cantidad: number;
   fechaEntrega: string;
+  /** Estado en este taller; determina la columna en la que aparece. */
   estado: "pending" | "in-progress" | "completed";
+  /** Contenido adicional propio del taller. */
   detalles?: ReactNode;
 }
 
@@ -18,6 +33,7 @@ interface TallerKanbanProps {
   titulo: string;
   descripcion: string;
   ordenes: OrdenTaller[];
+  /** Callback al pulsar Iniciar/Completar. Si se omite, el tablero es de solo lectura. */
   onChangeEstado?: (ordenId: string, nuevoEstado: "pending" | "in-progress" | "completed") => void;
 }
 
@@ -27,6 +43,7 @@ export default function TallerKanban({
   ordenes,
   onChangeEstado,
 }: TallerKanbanProps) {
+  // Agrupa los trabajos por estado para llenar cada columna.
   const ordenesPorEstado = {
     pending: ordenes.filter((o) => o.estado === "pending"),
     "in-progress": ordenes.filter((o) => o.estado === "in-progress"),
@@ -40,7 +57,9 @@ export default function TallerKanban({
         <p className="text-muted-foreground mt-1">{descripcion}</p>
       </div>
 
+      {/* Tres columnas en escritorio, una sola en móvil */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* ===== Columna: Pendiente ===== */}
         <div className="bg-status-pending-bg/30 rounded-lg border-2 border-status-pending-bg">
           <div className="p-4 border-b border-status-pending-bg">
             <div className="flex items-center justify-between">
@@ -78,6 +97,7 @@ export default function TallerKanban({
                     </p>
                   </div>
                   {orden.detalles && <div className="pt-2 border-t border-border">{orden.detalles}</div>}
+                  {/* Pasa el trabajo a "En Proceso" */}
                   {onChangeEstado && (
                     <button
                       onClick={() => onChangeEstado(orden.id, "in-progress")}
@@ -97,6 +117,7 @@ export default function TallerKanban({
           </div>
         </div>
 
+        {/* ===== Columna: En Proceso ===== */}
         <div className="bg-status-in-progress-bg/30 rounded-lg border-2 border-status-in-progress-bg">
           <div className="p-4 border-b border-status-in-progress-bg">
             <div className="flex items-center justify-between">
@@ -134,6 +155,7 @@ export default function TallerKanban({
                     </p>
                   </div>
                   {orden.detalles && <div className="pt-2 border-t border-border">{orden.detalles}</div>}
+                  {/* Marca el trabajo como terminado en este taller */}
                   {onChangeEstado && (
                     <button
                       onClick={() => onChangeEstado(orden.id, "completed")}
@@ -153,6 +175,7 @@ export default function TallerKanban({
           </div>
         </div>
 
+        {/* ===== Columna: Terminado (con scroll propio porque se acumulan) ===== */}
         <div className="bg-status-completed-bg/30 rounded-lg border-2 border-status-completed-bg">
           <div className="p-4 border-b border-status-completed-bg">
             <div className="flex items-center justify-between">

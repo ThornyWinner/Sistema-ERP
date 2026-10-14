@@ -1,3 +1,10 @@
+/**
+ * sheet.tsx — Panel lateral deslizable (basado en Radix Dialog). Lo usa sidebar.tsx en móviles.
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 "use client";
 
 import * as React from "react";
@@ -6,28 +13,33 @@ import { XIcon } from "lucide-react";
 
 import { cn } from "./utils";
 
+/** Raíz del panel. */
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />;
 }
 
+/** Elemento que abre el panel. */
 function SheetTrigger({
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Trigger>) {
   return <SheetPrimitive.Trigger data-slot="sheet-trigger" {...props} />;
 }
 
+/** Elemento que cierra el panel. */
 function SheetClose({
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Close>) {
   return <SheetPrimitive.Close data-slot="sheet-close" {...props} />;
 }
 
+/** Renderiza el panel en un portal. */
 function SheetPortal({
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Portal>) {
   return <SheetPrimitive.Portal data-slot="sheet-portal" {...props} />;
 }
 
+/** Fondo oscuro detrás del panel. */
 function SheetOverlay({
   className,
   ...props
@@ -44,6 +56,7 @@ function SheetOverlay({
   );
 }
 
+/** Panel que entra desde un lado (`side`: top | right | bottom | left) con botón X. */
 function SheetContent({
   className,
   children,
@@ -81,6 +94,7 @@ function SheetContent({
   );
 }
 
+/** Cabecera del panel. */
 function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -91,6 +105,7 @@ function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/** Pie del panel (se coloca al final). */
 function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -101,6 +116,7 @@ function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/** Título del panel. */
 function SheetTitle({
   className,
   ...props
@@ -114,6 +130,7 @@ function SheetTitle({
   );
 }
 
+/** Descripción del panel. */
 function SheetDescription({
   className,
   ...props

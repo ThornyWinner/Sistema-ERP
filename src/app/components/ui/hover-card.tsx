@@ -1,3 +1,10 @@
+/**
+ * hover-card.tsx — Tarjeta flotante que aparece al pasar el cursor sobre un elemento (Radix HoverCard).
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 "use client";
 
 import * as React from "react";
@@ -5,12 +12,14 @@ import * as HoverCardPrimitive from "@radix-ui/react-hover-card";
 
 import { cn } from "./utils";
 
+/** Raíz de la tarjeta flotante. */
 function HoverCard({
   ...props
 }: React.ComponentProps<typeof HoverCardPrimitive.Root>) {
   return <HoverCardPrimitive.Root data-slot="hover-card" {...props} />;
 }
 
+/** Elemento que muestra la tarjeta al pasar el cursor. */
 function HoverCardTrigger({
   ...props
 }: React.ComponentProps<typeof HoverCardPrimitive.Trigger>) {
@@ -19,6 +28,7 @@ function HoverCardTrigger({
   );
 }
 
+/** Contenido de la tarjeta (en portal). */
 function HoverCardContent({
   className,
   align = "center",

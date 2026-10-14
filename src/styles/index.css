@@ -1,3 +1,10 @@
+/*
+ * index.css — Hoja de estilos principal (importada en main.tsx).
+ * Reúne el resto de hojas en el orden correcto:
+ *  1. fonts.css:    tipografías externas (los @import de URL deben ir primero).
+ *  2. tailwind.css: framework Tailwind CSS v4 y animaciones.
+ *  3. theme.css:    variables de color/tema y estilos base del proyecto.
+ */
 @import './fonts.css';
 @import './tailwind.css';
 @import './theme.css';

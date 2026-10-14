@@ -1,3 +1,11 @@
+/**
+ * dialog.tsx — Ventana modal (Radix Dialog). Usado en GestionUsuarios y UserGuide.
+ * Gestiona foco, tecla Esc y bloqueo del scroll de fondo automáticamente.
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 "use client";
 
 import * as React from "react";
@@ -6,30 +14,35 @@ import { XIcon } from "lucide-react";
 
 import { cn } from "./utils";
 
+/** Raíz del diálogo; se controla con `open` / `onOpenChange`. */
 function Dialog({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Root>) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />;
 }
 
+/** Elemento que abre el diálogo. */
 function DialogTrigger({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Trigger>) {
   return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />;
 }
 
+/** Renderiza el contenido al final de <body> para que quede por encima de todo. */
 function DialogPortal({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Portal>) {
   return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
 }
 
+/** Elemento que cierra el diálogo. */
 function DialogClose({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Close>) {
   return <DialogPrimitive.Close data-slot="dialog-close" {...props} />;
 }
 
+/** Fondo oscuro semitransparente detrás del diálogo (con animación de fundido). */
 const DialogOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
@@ -46,6 +59,7 @@ const DialogOverlay = React.forwardRef<
 ));
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
+/** Ventana centrada del diálogo; incluye el overlay y un botón X para cerrar. */
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
@@ -71,6 +85,7 @@ const DialogContent = React.forwardRef<
 ));
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
+/** Cabecera (título + descripción). */
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -81,6 +96,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/** Pie con los botones de acción (en columna en móvil, en fila en escritorio). */
 function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -94,6 +110,7 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/** Título del diálogo (lo anuncian los lectores de pantalla). */
 function DialogTitle({
   className,
   ...props
@@ -107,6 +124,7 @@ function DialogTitle({
   );
 }
 
+/** Descripción secundaria del diálogo. */
 function DialogDescription({
   className,
   ...props

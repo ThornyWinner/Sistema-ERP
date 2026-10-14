@@ -1,3 +1,11 @@
+/*
+ * tailwind.css — Configuración de Tailwind CSS v4.
+ * - source(none) desactiva la detección automática de archivos.
+ * - @source indica explícitamente dónde buscar clases utilizadas: todos los
+ *   archivos JS/TS/JSX/TSX dentro de src/. Solo se generan las clases encontradas.
+ * - tw-animate-css añade utilidades de animación (animate-in, fade-in, zoom-in...)
+ *   que usan los componentes de ui/ (diálogos, menús, tooltips...).
+ */
 @import 'tailwindcss' source(none);
 @source '../**/*.{js,ts,jsx,tsx}';
 

@@ -1,3 +1,10 @@
+/**
+ * input-otp.tsx — Campo para códigos de un solo uso (OTP), una casilla por carácter (librería input-otp).
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 "use client";
 
 import * as React from "react";
@@ -6,6 +13,7 @@ import { MinusIcon } from "lucide-react";
 
 import { cn } from "./utils";
 
+/** Campo OTP completo. */
 function InputOTP({
   className,
   containerClassName,
@@ -26,6 +34,7 @@ function InputOTP({
   );
 }
 
+/** Agrupa varias casillas. */
 function InputOTPGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -36,6 +45,7 @@ function InputOTPGroup({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/** Casilla de un carácter (`index`); muestra un cursor parpadeante si está activa. */
 function InputOTPSlot({
   index,
   className,
@@ -66,6 +76,7 @@ function InputOTPSlot({
   );
 }
 
+/** Separador visual entre grupos de casillas. */
 function InputOTPSeparator({ ...props }: React.ComponentProps<"div">) {
   return (
     <div data-slot="input-otp-separator" role="separator" {...props}>

@@ -1,3 +1,14 @@
+/**
+ * FlujosUsuario.tsx — Página informativa con los flujos de trabajo de cada rol.
+ *
+ * Muestra:
+ *  1. El flujo del rol del usuario actual, como una lista numerada de pasos.
+ *  2. Una tarjeta por cada rol con sus pasos (resaltando el del usuario actual).
+ *  3. Una tabla resumen de accesos por módulo (Total / Lectura / Sin acceso / Solo su módulo).
+ *
+ * Es documentación dentro de la app: el contenido está escrito a mano y no se deriva de
+ * utils/permissions.ts. Actualmente esta página no está registrada en routes.tsx.
+ */
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { roleLabels } from '../utils/permissions';
@@ -20,6 +31,7 @@ import {
 export default function FlujosUsuario() {
   const { user } = useAuth();
 
+  // Definición de cada rol: icono, color de la insignia y pasos de su flujo de trabajo.
   const flujos = [
     {
       rol: 'admin_primario',
@@ -137,6 +149,7 @@ export default function FlujosUsuario() {
     },
   ];
 
+  // Flujo correspondiente al rol del usuario conectado.
   const currentFlujo = flujos.find(f => f.rol === user?.rol);
 
   return (
@@ -154,6 +167,7 @@ export default function FlujosUsuario() {
           <CardHeader className="bg-[#059669]/5">
             <div className="flex items-center gap-3">
               <div className={`p-3 ${currentFlujo.color} rounded-lg`}>
+                {/* El icono se renderiza directamente desde la propiedad del objeto */}
                 <currentFlujo.icon className="w-6 h-6" />
               </div>
               <div>
@@ -173,6 +187,7 @@ export default function FlujosUsuario() {
                   </div>
                   <div className="flex-1 flex items-center gap-2">
                     <p className="text-neutral-700">{paso}</p>
+                    {/* Flecha entre pasos (no se muestra tras el último) */}
                     {index < currentFlujo.flujo.length - 1 && (
                       <ArrowRight className="w-4 h-4 text-neutral-400 flex-shrink-0" />
                     )}
@@ -227,7 +242,8 @@ export default function FlujosUsuario() {
         </div>
       </div>
 
-      {/* Resumen de accesos */}
+      {/* Resumen de accesos: verde = Total, amarillo = Lectura, rojo = Sin acceso,
+          azul = Solo su módulo */}
       <Card>
         <CardHeader>
           <CardTitle>Resumen de Accesos por Rol</CardTitle>

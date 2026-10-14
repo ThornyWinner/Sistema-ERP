@@ -1,3 +1,16 @@
+/**
+ * Sidebar.tsx — Menú lateral de navegación (parte de RootLayout).
+ *
+ * Construye el menú a partir de los módulos que el rol del usuario puede ver
+ * (getAccessibleRoutes). Estructura:
+ *  - Dashboard
+ *  - Inventario ▸ (Materiales, Productos)         — sección desplegable
+ *  - Órdenes de Producción
+ *  - Talleres ▸ (Diseño, Sublimación, Corte, Costura, Bordado) — sección desplegable
+ *  - Seguimiento Global, Proveedores, Reportes, Gestión de Usuarios
+ * Las secciones o enlaces sin permiso no se muestran. Los módulos de solo lectura
+ * llevan una insignia "Solo lectura". El enlace de la página actual se resalta.
+ */
 import { Link, useLocation } from "react-router";
 import {
   LayoutDashboard,
@@ -25,13 +38,16 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/t
 export default function Sidebar() {
   const location = useLocation();
   const { user } = useAuth();
+  // Secciones desplegables abiertas; ambas empiezan expandidas.
   const [expandedSections, setExpandedSections] = useState<string[]>(["Inventario", "Talleres"]);
 
   if (!user) return null;
 
+  // Solo los módulos que el rol puede ver (canView = true).
   const accessibleRoutes = getAccessibleRoutes(user.rol);
   
   // Organizar rutas en estructura de menú
+  // Cada entrada es la ruta accesible o `undefined` si el rol no tiene acceso.
   const menuStructure = {
     dashboard: accessibleRoutes.find(r => r.route === '/'),
     inventario: {
@@ -52,6 +68,7 @@ export default function Sidebar() {
     usuarios: accessibleRoutes.find(r => r.route === '/usuarios'),
   };
 
+  // Traduce el nombre de icono guardado en permissions.ts al componente de lucide-react.
   const iconMap: Record<string, any> = {
     LayoutDashboard,
     Package,
@@ -68,18 +85,25 @@ export default function Sidebar() {
     Users,
   };
 
+  // Abre o cierra una sección desplegable (añade o quita su nombre de la lista).
   const toggleSection = (label: string) => {
     setExpandedSections((prev) =>
       prev.includes(label) ? prev.filter((s) => s !== label) : [...prev, label]
     );
   };
 
+  // true si la ruta coincide exactamente con la página actual (para resaltarla).
   const isActive = (path: string) => location.pathname === path;
 
+  /**
+   * Dibuja un enlace de primer nivel del menú con su icono. Si el módulo es de
+   * solo lectura añade una insignia y un tooltip explicativo.
+   */
   const renderMenuItem = (route: any) => {
     if (!route) return null;
-    
+
     const Icon = iconMap[route.icon];
+    // Solo lectura = puede ver pero no crear, editar ni eliminar.
     const isReadOnly = !route.permission.canCreate && !route.permission.canEdit && !route.permission.canDelete;
 
     return (
@@ -117,6 +141,7 @@ export default function Sidebar() {
 
   return (
     <aside className="w-64 bg-card border-r border-border flex flex-col">
+      {/* Logotipo y nombre del sistema */}
       <div className="p-6 border-b border-border">
         <h1 className="font-semibold text-foreground flex items-center gap-2">
           <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
@@ -130,9 +155,10 @@ export default function Sidebar() {
         {/* Dashboard */}
         {menuStructure.dashboard && renderMenuItem(menuStructure.dashboard)}
 
-        {/* Inventario */}
+        {/* Inventario: se muestra si el rol puede ver al menos uno de sus submódulos */}
         {(menuStructure.inventario.materiales || menuStructure.inventario.productos) && (
           <div>
+            {/* Cabecera de la sección; la flecha gira 180° cuando está abierta */}
             <button
               onClick={() => toggleSection('Inventario')}
               className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
@@ -191,7 +217,8 @@ export default function Sidebar() {
         {/* Órdenes */}
         {menuStructure.ordenes && renderMenuItem(menuStructure.ordenes)}
 
-        {/* Talleres */}
+        {/* Talleres: se muestra si el rol puede ver al menos un taller
+            (los roles de taller solo verán el suyo) */}
         {(menuStructure.talleres.diseno || menuStructure.talleres.sublimacion || 
           menuStructure.talleres.corte || menuStructure.talleres.costura || 
           menuStructure.talleres.bordado) && (

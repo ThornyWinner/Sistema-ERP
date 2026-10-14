@@ -1,3 +1,10 @@
+/**
+ * tooltip.tsx — Mensaje flotante al pasar el cursor (Radix Tooltip). Usado en Sidebar y PermissionButton.
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 "use client";
 
 import * as React from "react";
@@ -5,6 +12,7 @@ import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 
 import { cn } from "./utils";
 
+/** Proveedor que configura el retraso de aparición (0 ms por defecto). */
 function TooltipProvider({
   delayDuration = 0,
   ...props
@@ -18,6 +26,7 @@ function TooltipProvider({
   );
 }
 
+/** Raíz del tooltip; incluye su propio TooltipProvider para poder usarse de forma aislada. */
 function Tooltip({
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Root>) {
@@ -28,12 +37,14 @@ function Tooltip({
   );
 }
 
+/** Elemento que muestra el tooltip al pasar el cursor o enfocar. */
 function TooltipTrigger({
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
   return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
 }
 
+/** Burbuja con el texto; se renderiza en un portal (fuera del árbol DOM) con flecha. */
 function TooltipContent({
   className,
   sideOffset = 0,

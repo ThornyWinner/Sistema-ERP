@@ -1,7 +1,16 @@
+/**
+ * card.tsx — Tarjeta contenedora (versión shadcn/ui). La usan Login, FlujosUsuario, AccessDenied y RolePreview.
+ * No confundir con components/Card.tsx, la tarjeta simplificada propia del proyecto.
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 import * as React from "react";
 
 import { cn } from "./utils";
 
+/** Contenedor principal de la tarjeta (fondo, borde redondeado y espaciado vertical). */
 function Card({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -15,6 +24,7 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/** Cabecera; usa grid para colocar título/descripción y, opcionalmente, una acción a la derecha. */
 function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -28,6 +38,7 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/** Título de la tarjeta. */
 function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <h4
@@ -38,6 +49,7 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/** Texto secundario bajo el título. */
 function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <p
@@ -48,6 +60,7 @@ function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/** Acción (p. ej. un botón) alineada a la derecha de la cabecera. */
 function CardAction({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -61,6 +74,7 @@ function CardAction({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/** Cuerpo de la tarjeta. */
 function CardContent({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -71,6 +85,7 @@ function CardContent({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/** Pie de la tarjeta. */
 function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div

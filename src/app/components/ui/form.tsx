@@ -1,3 +1,11 @@
+/**
+ * form.tsx — Integración de react-hook-form con los componentes de ui/ (etiquetas, mensajes de error, accesibilidad).
+ * Estructura típica: <Form> → <FormField> → <FormItem> → <FormLabel/> <FormControl/> <FormMessage/>.
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 "use client";
 
 import * as React from "react";
@@ -16,6 +24,7 @@ import {
 import { cn } from "./utils";
 import { Label } from "./label";
 
+/** Proveedor del formulario (alias de FormProvider de react-hook-form). */
 const Form = FormProvider;
 
 type FormFieldContextValue<
@@ -25,10 +34,12 @@ type FormFieldContextValue<
   name: TName;
 };
 
+/** Contexto con el nombre del campo actual. */
 const FormFieldContext = React.createContext<FormFieldContextValue>(
   {} as FormFieldContextValue,
 );
 
+/** Conecta un campo con react-hook-form (Controller) y publica su nombre en el contexto. */
 const FormField = <
   TFieldValues extends FieldValues = FieldValues,
   TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>,
@@ -42,6 +53,7 @@ const FormField = <
   );
 };
 
+/** Hook que devuelve el estado del campo actual (error, ids para accesibilidad...). */
 const useFormField = () => {
   const fieldContext = React.useContext(FormFieldContext);
   const itemContext = React.useContext(FormItemContext);
@@ -69,10 +81,12 @@ type FormItemContextValue = {
   id: string;
 };
 
+/** Contexto con un id único por elemento del formulario. */
 const FormItemContext = React.createContext<FormItemContextValue>(
   {} as FormItemContextValue,
 );
 
+/** Envoltorio de un campo; genera el id único que enlaza etiqueta, control y mensajes. */
 function FormItem({ className, ...props }: React.ComponentProps<"div">) {
   const id = React.useId();
 
@@ -87,6 +101,7 @@ function FormItem({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/** Etiqueta del campo; se pinta en rojo si hay error. */
 function FormLabel({
   className,
   ...props
@@ -104,6 +119,7 @@ function FormLabel({
   );
 }
 
+/** Envuelve el input y le añade los atributos aria (aria-invalid, aria-describedby). */
 function FormControl({ ...props }: React.ComponentProps<typeof Slot>) {
   const { error, formItemId, formDescriptionId, formMessageId } =
     useFormField();
@@ -123,6 +139,7 @@ function FormControl({ ...props }: React.ComponentProps<typeof Slot>) {
   );
 }
 
+/** Texto de ayuda bajo el campo. */
 function FormDescription({ className, ...props }: React.ComponentProps<"p">) {
   const { formDescriptionId } = useFormField();
 
@@ -136,6 +153,7 @@ function FormDescription({ className, ...props }: React.ComponentProps<"p">) {
   );
 }
 
+/** Mensaje de error de validación (o el contenido pasado como hijo). */
 function FormMessage({ className, ...props }: React.ComponentProps<"p">) {
   const { error, formMessageId } = useFormField();
   const body = error ? String(error?.message ?? "") : props.children;

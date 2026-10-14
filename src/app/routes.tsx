@@ -1,3 +1,14 @@
+/**
+ * routes.tsx — Definición de las rutas de la aplicación (React Router v7).
+ *
+ * Estructura:
+ *  - "/login": página pública de inicio de sesión.
+ *  - "/":      ruta protegida (requiere sesión). Renderiza RootLayout (sidebar +
+ *              header) y, dentro de su <Outlet />, la página hija que coincida.
+ *
+ * Nota: ProtectedRoute solo verifica que exista sesión; los permisos por rol
+ * se aplican en el menú y dentro de las páginas (ver utils/permissions.ts).
+ */
 import { createBrowserRouter } from "react-router";
 import RootLayout from "./layouts/RootLayout";
 import Dashboard from "./pages/Dashboard";
@@ -19,10 +30,12 @@ import GestionUsuarios from "./pages/GestionUsuarios";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 export const router = createBrowserRouter([
+  // Ruta pública: formulario de acceso.
   {
     path: "/login",
     Component: Login,
   },
+  // Ruta raíz protegida: si no hay sesión, ProtectedRoute redirige a /login.
   {
     path: "/",
     Component: () => (
@@ -30,19 +43,26 @@ export const router = createBrowserRouter([
         <RootLayout />
       </ProtectedRoute>
     ),
+    // Páginas que se muestran dentro del layout principal (en su <Outlet />).
     children: [
+      // "/" → panel principal con indicadores.
       { index: true, Component: Dashboard },
+      // Inventario de materia prima y de productos terminados.
       { path: "inventario/materiales", Component: InventarioMateriales },
       { path: "inventario/productos", Component: InventarioProductos },
+      // El mismo formulario sirve para crear y para editar (según exista :id).
       { path: "productos/nuevo", Component: ProductoForm },
       { path: "productos/editar/:id", Component: ProductoForm },
+      // Órdenes: listado y detalle de una orden concreta.
       { path: "ordenes", Component: Ordenes },
       { path: "ordenes/:id", Component: OrdenDetalle },
+      // Tableros de cada taller del flujo de producción.
       { path: "talleres/diseno", Component: TallerDiseno },
       { path: "talleres/sublimacion", Component: TallerSublimacion },
       { path: "talleres/corte", Component: TallerCorte },
       { path: "talleres/costura", Component: TallerCostura },
       { path: "talleres/bordado", Component: TallerBordado },
+      // Secciones de seguimiento y administración.
       { path: "seguimiento", Component: Seguimiento },
       { path: "proveedores", Component: Proveedores },
       { path: "reportes", Component: Reportes },

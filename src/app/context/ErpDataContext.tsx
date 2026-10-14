@@ -1,3 +1,22 @@
+/**
+ * ErpDataContext.tsx — Contexto global con los datos de negocio del ERP.
+ *
+ * Carga desde Supabase y comparte con toda la app:
+ *  - materiales (inventario de materia prima),
+ *  - productos (con sus variantes de talla/color),
+ *  - proveedores,
+ *  - órdenes (con detalles, producción por taller, personalizaciones y pagos).
+ *
+ * También expone operaciones de escritura:
+ *  - crearOrden:               inserta una orden completa (cliente, detalles, talleres, pagos).
+ *  - actualizarProgresoTaller: cambia el estado de producción de un producto en un taller.
+ *
+ * Las filas de la base de datos (snake_case, con joins anidados) se transforman a los
+ * tipos de la UI definidos en data/mockData.ts, de modo que las páginas no dependen
+ * de la estructura exacta de las tablas.
+ *
+ * Uso: envolver la app con <ErpDataProvider> y consumir con el hook useErpData().
+ */
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type {
@@ -11,15 +30,21 @@ import type {
   TallerEstado,
 } from '../data/mockData';
 
+/** Valores y funciones que expone el contexto. */
 type ErpData = {
   materiales: Material[];
   productos: Producto[];
   proveedores: Proveedor[];
   ordenes: Orden[];
+  /** true mientras se cargan los datos desde Supabase. */
   loading: boolean;
+  /** Mensaje del primer error de carga, o null si todo fue bien. */
   error: string | null;
+  /** Vuelve a descargar todos los datos. */
   refresh: () => Promise<void>;
+  /** Guarda una orden nueva y devuelve su folio (generado por la base de datos). */
   crearOrden: (orden: Orden) => Promise<string>;
+  /** Cambia el estado (pendiente / en proceso / completado) de un producto en un taller. */
   actualizarProgresoTaller: (
     ordenDetalleId: string,
     taller: Taller,
@@ -32,6 +57,10 @@ const ErpDataContext = createContext<ErpData | undefined>(undefined);
 // --- Catálogos: mapeo entre los valores de negocio usados en la UI y los
 // nombres exactos guardados en las tablas catálogo de Supabase. ---
 
+// Sufijo _DB: valor de la app → nombre en la tabla catálogo (para escribir).
+// Sufijo _APP: nombre en la tabla (en minúsculas) → valor de la app (para leer).
+
+// Tipos de venta (tabla `tipos_venta`).
 const TIPO_VENTA_DB: Record<string, string> = {
   directa: 'Venta Rápida',
   fabricacion: 'Fabricacion',
@@ -46,6 +75,7 @@ const TIPO_VENTA_APP: Record<string, Orden['tipoVenta']> = {
   mixto: 'mixta',
 };
 
+// Métodos de pago (tabla `metodos_pago`). Tarjeta de crédito y débito se agrupan como 'tarjeta'.
 const METODO_PAGO_DB: Record<string, string> = {
   efectivo: 'Efectivo',
   transferencia: 'Transferencia',
@@ -63,6 +93,7 @@ const METODO_PAGO_APP: Record<string, Orden['metodoPago']> = {
   'crédito': 'credito',
 };
 
+// Estados de pago (tabla `estados_pago`). En la UI "pagado" se muestra como 'liquidado'.
 const ESTADO_PAGO_APP: Record<string, Orden['estadoPago']> = {
   pendiente: 'pendiente',
   anticipo: 'anticipo',
@@ -71,6 +102,7 @@ const ESTADO_PAGO_APP: Record<string, Orden['estadoPago']> = {
   vencido: 'vencido',
 };
 
+// Estados de producción en taller (tabla `estados_produccion`).
 const ESTADO_PRODUCCION_DB: Record<TallerEstado, string> = {
   pending: 'Pendiente',
   'in-progress': 'En proceso',
@@ -81,6 +113,7 @@ const ESTADO_PRODUCCION_DB: Record<TallerEstado, string> = {
 // UI) se deriva de estados_orden.orden_visualizacion, que refleja el orden
 // real del flujo de producción, en vez de intentar adivinarlo por substring
 // del nombre (lo cual fallaba para todos los estados existentes).
+// Regla: posición ≤ 1 → pendiente; ≥ 9 → completada; intermedia → en proceso.
 const estadoGeneral = (nombre?: string | null, ordenVisualizacion?: number | null): Orden['estado'] => {
   if (nombre === 'Cancelada') return 'pending';
   if (ordenVisualizacion == null) return 'pending';
@@ -89,12 +122,20 @@ const estadoGeneral = (nombre?: string | null, ordenVisualizacion?: number | nul
   return 'in-progress';
 };
 
+// --- Consultas SELECT de Supabase (PostgREST). Las tablas entre paréntesis son joins
+// por llave foránea, p. ej. `proveedores(nombre)` trae el nombre del proveedor. ---
+
 const SELECT_MATERIALES =
   'id,nombre,tipo,unidad,stock_actual,stock_minimo,precio_unitario,proveedores(nombre)';
 const SELECT_PRODUCTOS =
   'id,nombre,tipo_prenda,categorias_producto(nombre),variantes_producto(id,talla,color,stock,precio,sku)';
 const SELECT_PROVEEDORES =
   'id,nombre,contacto,telefono,email,calificacion,materiales(nombre)';
+// Consulta de órdenes con todo su árbol de datos:
+//  - usuarios!ordenes_vendedor_id_fkey: el vendedor (se indica la FK porque `ordenes`
+//    tiene varias relaciones con `usuarios`).
+//  - orden_detalles: cada producto de la orden, con su variante, su avance en cada
+//    taller (produccion_taller) y su personalización (bordado, logo, hilos).
 const SELECT_ORDENES =
   'id,folio,fecha_creacion,fecha_entrega,prioridad,total,anticipo,notas,' +
   'usuarios!ordenes_vendedor_id_fkey(id,nombre),clientes(razon_social),' +
@@ -106,6 +147,7 @@ const SELECT_ORDENES =
 const SELECT_PAGOS = 'id,orden_id,fecha,monto,metodo_pago,metodos_pago(nombre)';
 
 export function ErpDataProvider({ children }: { children: React.ReactNode }) {
+  // Estado con las cuatro colecciones de datos (las funciones y banderas van aparte).
   const [data, setData] = useState<Omit<ErpData, 'loading' | 'error' | 'refresh' | 'crearOrden' | 'actualizarProgresoTaller'>>({
     materiales: [],
     productos: [],
@@ -115,9 +157,14 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * Descarga todos los datos del ERP en paralelo y los transforma al formato de la UI.
+   * useCallback mantiene la misma referencia entre renders para usarla en dependencias.
+   */
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
+    // Las cinco consultas se lanzan a la vez para reducir el tiempo de carga.
     const [materialesResult, productosResult, proveedoresResult, ordenesResult, pagosResult] = await Promise.all([
       supabase.from('materiales').select(SELECT_MATERIALES).order('nombre'),
       supabase.from('productos').select(SELECT_PRODUCTOS).order('nombre'),
@@ -125,6 +172,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
       supabase.from('ordenes').select(SELECT_ORDENES).order('created_at', { ascending: false }),
       supabase.from('pagos').select(SELECT_PAGOS).order('fecha'),
     ]);
+    // Si cualquier consulta falla, se muestra el primer error y no se actualizan los datos.
     const firstError =
       materialesResult.error || productosResult.error || proveedoresResult.error || ordenesResult.error || pagosResult.error;
     if (firstError) {
@@ -133,6 +181,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // Agrupa los pagos por id de orden para adjuntarlos después a cada orden.
     const pagosPorOrden = new Map<string, Pago[]>();
     for (const p of pagosResult.data ?? []) {
       const lista = pagosPorOrden.get((p as any).orden_id) ?? [];
@@ -145,6 +194,8 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
       pagosPorOrden.set((p as any).orden_id, lista);
     }
 
+    // Transformación de filas de la BD (snake_case) a objetos de la UI (camelCase).
+    // Number(...) convierte los campos numeric de PostgreSQL, que llegan como texto.
     setData({
       materiales: (materialesResult.data ?? []).map((m: any) => ({
         id: m.id,
@@ -165,6 +216,10 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
           precio: Number(v.precio ?? 0),
           sku: v.sku ?? null,
         }));
+        // Datos agregados a partir de las variantes:
+        //  - tallas/colores: valores únicos (Set) sin vacíos.
+        //  - stock: suma del stock de todas las variantes.
+        //  - precio: el de la primera variante, como precio de referencia.
         return {
           id: p.id,
           nombre: p.nombre,
@@ -187,6 +242,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
         insumos: (p.materiales ?? []).map((m: any) => m.nombre),
       })),
       ordenes: (ordenesResult.data ?? []).map((o: any) => {
+        // Los nombres de catálogo se comparan en minúsculas; si no hay coincidencia se usa un valor por defecto.
         const tipoVenta = TIPO_VENTA_APP[o.tipos_venta?.nombre?.toLowerCase()] ?? 'fabricacion';
         const metodoPago = METODO_PAGO_APP[o.metodos_pago?.nombre?.toLowerCase()] ?? 'efectivo';
         const estadoPago = ESTADO_PAGO_APP[o.estados_pago?.nombre?.toLowerCase()] ?? 'pendiente';
@@ -208,14 +264,17 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
           pagos: pagosPorOrden.get(o.id) ?? [],
           notas: o.notas ?? undefined,
           productos: (o.orden_detalles ?? []).map((d: any): ProductoOrden => {
+            // Talleres por los que debe pasar este producto (p. ej. ['corte', 'costura']).
             const talleres: Taller[] = (d.produccion_taller ?? [])
               .map((x: any) => x.talleres?.nombre)
               .filter(Boolean);
+            // Objeto { taller: estado } con el avance del producto en cada taller.
             const progreso = Object.fromEntries(
               (d.produccion_taller ?? [])
                 .filter((x: any) => x.talleres?.nombre)
                 .map((x: any) => [x.talleres.nombre, x.estado ?? 'pending'])
             );
+            // Solo se usa la primera personalización registrada del producto.
             const personalizacionRaw = d.personalizaciones?.[0];
             return {
               id: d.id,
@@ -225,6 +284,8 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
               color: d.variantes_producto?.color ?? '',
               cantidad: d.cantidad,
               precioUnitario: Number(d.precio_unitario ?? 0),
+              // Usa el tipo de producción guardado en el detalle si es válido; si no,
+              // lo deduce del tipo de venta de la orden.
               tipoProduccion: (['directa', 'fabricacion', 'comercializacion'] as const).includes(d.tipo_produccion)
                 ? d.tipo_produccion
                 : tipoVenta === 'directa'
@@ -251,8 +312,21 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
+  /**
+   * Crea una orden completa en Supabase. Pasos:
+   *  1. Busca los ids de catálogo (estado inicial, tipo de venta, método de pago).
+   *  2. Busca el cliente por razón social o lo crea si no existe.
+   *  3. Inserta la orden (la BD genera el folio).
+   *  4. Por cada producto: inserta el detalle, su personalización (y colores de hilo)
+   *     y una fila de produccion_taller "pendiente" por cada taller asignado.
+   *  5. Registra los pagos (o el anticipo como respaldo).
+   *  6. Recarga los datos y devuelve el folio.
+   * Nota: las inserciones no son transaccionales; si un paso falla, los anteriores ya
+   * quedaron guardados.
+   */
   const crearOrden = useCallback(
     async (orden: Orden) => {
+      // Una venta ya completada (p. ej. venta rápida) nace como 'Entregada'.
       const estadoInicialNombre = orden.estado === 'completed' ? 'Entregada' : 'Pendiente';
       const [{ data: estadoRow }, { data: tipoVentaRow }, { data: metodoPagoRow }] = await Promise.all([
         supabase.from('estados_orden').select('id').eq('nombre', estadoInicialNombre).maybeSingle(),
@@ -268,6 +342,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
           .maybeSingle(),
       ]);
 
+      // Reutiliza el cliente si ya existe con la misma razón social; si no, lo crea.
       let clienteId: string | null = null;
       if (orden.cliente) {
         const { data: clienteExistente } = await supabase
@@ -288,6 +363,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      // Inserta la cabecera de la orden y recupera el id y el folio generados.
       const { data: ordenRow, error: ordenError } = await supabase
         .from('ordenes')
         .insert({
@@ -308,6 +384,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
         .single();
       if (ordenError) throw ordenError;
 
+      // Id del estado "Pendiente" para las filas iniciales de produccion_taller.
       const { data: estadoProduccionPendiente } = await supabase
         .from('estados_produccion')
         .select('id')
@@ -318,6 +395,8 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
         let productoId: string | null = producto.productoId ?? null;
         let varianteId: string | null = producto.varianteId ?? null;
 
+        // Si el formulario no indicó la variante, se intenta localizar por talla + color
+        // + nombre del producto (comparación sin distinguir mayúsculas).
         if (!varianteId && producto.talla && producto.color) {
           const { data: variantesEncontradas } = await supabase
             .from('variantes_producto')
@@ -333,6 +412,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
+        // Línea de detalle de la orden (un producto con su cantidad y precio).
         const { data: detalleRow, error: detalleError } = await supabase
           .from('orden_detalles')
           .insert({
@@ -348,6 +428,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
           .single();
         if (detalleError) throw detalleError;
 
+        // Guarda la personalización solo si tiene algún dato útil (lugar, logo o hilos).
         if (producto.personalizacion && (producto.personalizacion.lugarBordado || producto.personalizacion.logotipo || producto.personalizacion.coloresHilo?.length)) {
           const { data: personalizacionRow, error: personalizacionError } = await supabase
             .from('personalizaciones')
@@ -368,6 +449,8 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
+        // Crea el registro de producción "pendiente" en cada taller asignado; así el
+        // producto aparece en el tablero Kanban de esos talleres.
         if (producto.talleres?.length) {
           const { data: talleresRows } = await supabase.from('talleres').select('id, nombre').in('nombre', producto.talleres);
           const rows = (talleresRows ?? []).map((t: any) => ({
@@ -386,6 +469,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
       // se registra ese anticipo como respaldo.
       const pagosARegistrar = orden.pagos.length > 0 ? orden.pagos : orden.anticipo > 0 ? [{ fecha: orden.fechaCreacion, monto: orden.anticipo, metodo: orden.metodoPago }] : [];
       for (const pago of pagosARegistrar) {
+        // Reutiliza el id del método de pago de la orden si coincide; si no, lo consulta.
         const { data: metodoPagoDelPago } = pago.metodo && pago.metodo !== orden.metodoPago
           ? await supabase.from('metodos_pago').select('id').eq('nombre', METODO_PAGO_DB[pago.metodo] ?? 'Efectivo').maybeSingle()
           : { data: metodoPagoRow };
@@ -405,6 +489,11 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
     [refresh]
   );
 
+  /**
+   * Actualiza el estado de un producto (orden_detalle) en un taller concreto.
+   * Además registra la fecha de inicio al pasar a "en proceso" y la de fin al
+   * completarse. Al terminar recarga los datos para reflejar el cambio.
+   */
   const actualizarProgresoTaller = useCallback(
     async (ordenDetalleId: string, taller: Taller, nuevoEstado: TallerEstado) => {
       const nombreEstado = ESTADO_PRODUCCION_DB[nuevoEstado] ?? 'Pendiente';
@@ -412,6 +501,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
         supabase.from('estados_produccion').select('id').eq('nombre', nombreEstado).maybeSingle(),
         supabase.from('talleres').select('id').eq('nombre', taller).maybeSingle(),
       ]);
+      // Si el taller no existe en la BD no hay nada que actualizar.
       if (!tallerRow) return;
       const patch: Record<string, unknown> = { estado: nuevoEstado, estado_id: estadoRow?.id ?? null };
       if (nuevoEstado === 'in-progress') patch.fecha_inicio = new Date().toISOString();
@@ -427,6 +517,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
     [refresh]
   );
 
+  // Carga inicial de datos al montar el proveedor.
   useEffect(() => {
     void refresh();
   }, [refresh]);
@@ -438,6 +529,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Hook para acceder a los datos del ERP. Debe usarse dentro de <ErpDataProvider>. */
 export function useErpData() {
   const value = useContext(ErpDataContext);
   if (!value) throw new Error('useErpData debe usarse dentro de ErpDataProvider');

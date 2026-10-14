@@ -1,3 +1,19 @@
+/**
+ * NuevaOrdenMultiProducto.tsx — Formulario modal para crear una orden de producción
+ * con uno o varios productos (lo usa la página Órdenes).
+ *
+ * Secciones:
+ *  1. Información general: cliente, fecha de entrega, método de pago, anticipo y prioridad.
+ *  2. Productos: lista de tarjetas plegables; cada producto tiene su tipo de producción
+ *     (venta directa / fabricación / comercialización), prenda, talla, color, marca,
+ *     cantidad, precio, proveedor (si es comercialización), talleres del flujo (si no es
+ *     venta directa) y configuración de bordado (si el flujo incluye bordado).
+ *  3. Notas generales de la orden.
+ *
+ * El tipo de venta de la orden se calcula solo a partir de los tipos de producción de
+ * sus productos (si hay mezcla de tipos → "mixta"). Al enviar, el formulario arma el
+ * objeto orden y lo entrega al padre con `onSubmit`, que es quien lo guarda.
+ */
 import { useState } from "react";
 import { Taller, TipoVenta, MetodoPago, ProductoOrden } from "../data/mockData";
 import { useErpData } from "../context/ErpDataContext";
@@ -22,9 +38,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "./Card";
 interface NuevaOrdenMultiProductoProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Recibe la orden construida (el folio definitivo lo asigna la base de datos). */
   onSubmit: (orden: any) => void;
 }
 
+// Talleres en el orden real del flujo de producción.
 const todosLosTalleres: Taller[] = [
   "diseno",
   "sublimacion",
@@ -33,6 +51,7 @@ const todosLosTalleres: Taller[] = [
   "bordado",
 ];
 
+// Nombres legibles de cada taller.
 const tallerLabels: Record<Taller, string> = {
   diseno: "Diseño",
   sublimacion: "Sublimación",
@@ -46,8 +65,10 @@ export default function NuevaOrdenMultiProducto({
   onClose,
   onSubmit,
 }: NuevaOrdenMultiProductoProps) {
+  // Proveedores reales de Supabase (se conserva el alias mockProveedores del prototipo).
   const { proveedores: mockProveedores } = useErpData();
   const { user } = useAuth();
+  // Datos generales de la orden.
   const [formData, setFormData] = useState({
     cliente: "",
     fechaEntrega: "",
@@ -58,6 +79,8 @@ export default function NuevaOrdenMultiProducto({
     notas: "",
   });
 
+  // Lista de productos capturados. Los campos bordado* se guardan planos aquí y al
+  // enviar se convierten en el objeto `personalizacion`. Empieza con un producto vacío.
   const [productos, setProductos] = useState<
     Array<{
       nombre: string;
@@ -93,12 +116,14 @@ export default function NuevaOrdenMultiProducto({
     },
   ]);
 
+  // Índices de los productos cuya tarjeta está desplegada (el primero empieza abierto).
   const [productosExpandidos, setProductosExpandidos] = useState<Set<number>>(
     new Set([0])
   );
 
   if (!isOpen) return null;
 
+  // Añade un producto vacío al final y lo deja desplegado para capturarlo.
   const agregarProducto = () => {
     setProductos([
       ...productos,
@@ -121,6 +146,10 @@ export default function NuevaOrdenMultiProducto({
     setProductosExpandidos(new Set([...productosExpandidos, productos.length]));
   };
 
+  /**
+   * Elimina un producto (siempre debe quedar al menos uno).
+   * Nota: los índices desplegados posteriores no se recalculan tras borrar.
+   */
   const eliminarProducto = (index: number) => {
     if (productos.length === 1) {
       alert("Debe haber al menos un producto");
@@ -132,6 +161,11 @@ export default function NuevaOrdenMultiProducto({
     setProductosExpandidos(nuevosExpandidos);
   };
 
+  /**
+   * Actualiza un campo de un producto y recalcula el tipo de venta de la orden:
+   *  - varios tipos de producción distintos → "mixta"
+   *  - un único tipo → ese mismo tipo.
+   */
   const actualizarProducto = (index: number, campo: string, valor: any) => {
     const nuevosProductos = [...productos];
     (nuevosProductos[index] as any)[campo] = valor;
@@ -155,6 +189,7 @@ export default function NuevaOrdenMultiProducto({
     setProductos(nuevosProductos);
   };
 
+  // Activa/desactiva un taller en un producto, manteniendo el orden oficial del flujo.
   const toggleTaller = (indexProducto: number, taller: Taller) => {
     const producto = productos[indexProducto];
     const talleres = producto.talleres.includes(taller)
@@ -165,6 +200,7 @@ export default function NuevaOrdenMultiProducto({
     actualizarProducto(indexProducto, "talleres", talleres);
   };
 
+  // Despliega o pliega la tarjeta de un producto.
   const toggleExpandido = (index: number) => {
     const nuevosExpandidos = new Set(productosExpandidos);
     if (nuevosExpandidos.has(index)) {
@@ -175,6 +211,7 @@ export default function NuevaOrdenMultiProducto({
     setProductosExpandidos(nuevosExpandidos);
   };
 
+  // Total de la orden = Σ (cantidad × precio unitario) de todos los productos.
   const calcularTotal = () => {
     return productos.reduce(
       (acc, p) => acc + p.cantidad * p.precioUnitario,
@@ -182,6 +219,13 @@ export default function NuevaOrdenMultiProducto({
     );
   };
 
+  /**
+   * Construye el objeto orden y lo envía al padre. Reglas:
+   *  - Venta directa nace como "completed"; el resto como "pending".
+   *  - Estado de pago según el anticipo: ≥ total → liquidado; > 0 → anticipo; 0 → pendiente.
+   *  - Si hay anticipo se registra como primer pago (con concepto y porcentaje).
+   *  - Cada producto arranca con progreso "pending" en todos sus talleres.
+   */
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -192,6 +236,7 @@ export default function NuevaOrdenMultiProducto({
       vendedor: user?.nombre || "Usuario",
       vendedorId: user?.id || "0",
       cliente: formData.cliente,
+      // Folio provisional; ErpDataContext.crearOrden no lo usa (la BD genera el real).
       numero: `ORD-2026-${String(Date.now()).slice(-3)}`,
       fechaCreacion: new Date().toISOString().split("T")[0],
       fechaEntrega: formData.fechaEntrega,
@@ -237,6 +282,7 @@ export default function NuevaOrdenMultiProducto({
         proveedorNombre: p.proveedorId
           ? mockProveedores.find((pr) => pr.id === p.proveedorId)?.nombre
           : undefined,
+        // Los colores de hilo se escriben separados por comas: "Azul, Blanco" → ["Azul", "Blanco"].
         personalizacion: p.requiereBordado
           ? {
               lugarBordado: p.bordadoUbicacion,
@@ -255,6 +301,7 @@ export default function NuevaOrdenMultiProducto({
     onClose();
   };
 
+  // Colores de la etiqueta del tipo de venta mostrada en el encabezado.
   const getTipoVentaColor = (tipo: TipoVenta) => {
     switch (tipo) {
       case "directa":
@@ -269,8 +316,10 @@ export default function NuevaOrdenMultiProducto({
   };
 
   return (
+    // Overlay oscuro a pantalla completa con la ventana modal centrada.
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-background rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+        {/* Encabezado fijo: título, etiqueta del tipo de venta calculado y botón cerrar */}
         <div className="sticky top-0 bg-background border-b border-border px-6 py-4 flex items-center justify-between z-10">
           <div className="flex items-center gap-3">
             <h2>Nueva Orden de Producción</h2>
@@ -365,6 +414,7 @@ export default function NuevaOrdenMultiProducto({
                     min="0"
                     step="0.01"
                     value={formData.anticipo}
+                    // Si el campo queda vacío (NaN) se toma como 0.
                     onChange={(e) =>
                       setFormData({
                         ...formData,
@@ -401,7 +451,7 @@ export default function NuevaOrdenMultiProducto({
             </CardContent>
           </Card>
 
-          {/* Productos */}
+          {/* Productos: lista de tarjetas plegables + total y saldo */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -426,6 +476,7 @@ export default function NuevaOrdenMultiProducto({
                     key={index}
                     className="border border-border rounded-lg overflow-hidden"
                   >
+                    {/* Cabecera clicable del producto: resumen (nombre, unidades, importe) */}
                     <div
                       className="flex items-center justify-between p-4 bg-secondary cursor-pointer"
                       onClick={() => toggleExpandido(index)}
@@ -450,6 +501,7 @@ export default function NuevaOrdenMultiProducto({
                           <button
                             type="button"
                             onClick={(e) => {
+                              // Evita que el clic también pliegue/despliegue la tarjeta.
                               e.stopPropagation();
                               eliminarProducto(index);
                             }}
@@ -466,6 +518,7 @@ export default function NuevaOrdenMultiProducto({
                       </div>
                     </div>
 
+                    {/* Campos del producto (solo si la tarjeta está desplegada) */}
                     {expandido && (
                       <div className="p-4 space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -614,6 +667,7 @@ export default function NuevaOrdenMultiProducto({
                           </div>
                         </div>
 
+                        {/* Proveedor: solo para productos de comercialización (se compran a terceros) */}
                         {producto.tipoProduccion === "comercializacion" && (
                           <div>
                             <label className="block text-sm font-medium mb-2">
@@ -641,6 +695,7 @@ export default function NuevaOrdenMultiProducto({
                           </div>
                         )}
 
+                        {/* Talleres: no aplican a la venta directa (producto ya terminado) */}
                         {producto.tipoProduccion !== "directa" && (
                           <div>
                             <label className="block text-sm font-medium mb-2">
@@ -669,6 +724,7 @@ export default function NuevaOrdenMultiProducto({
                           </div>
                         )}
 
+                        {/* Bordado: solo si el flujo incluye el taller de bordado */}
                         {producto.talleres.includes("bordado") && (
                           <div className="p-4 border border-border rounded-lg space-y-3">
                             <div className="flex items-center gap-2">
@@ -758,6 +814,7 @@ export default function NuevaOrdenMultiProducto({
                           </div>
                         )}
 
+                        {/* Subtotal del producto */}
                         <div className="flex items-center justify-between p-3 bg-primary/5 rounded-lg">
                           <span className="font-medium">Subtotal:</span>
                           <span className="text-xl font-bold text-primary">
@@ -773,6 +830,7 @@ export default function NuevaOrdenMultiProducto({
                 );
               })}
 
+              {/* Total general de la orden */}
               <div className="flex items-center justify-between p-4 bg-secondary rounded-lg border-2 border-primary">
                 <span className="text-lg font-semibold">Total de la Orden:</span>
                 <span className="text-2xl font-bold text-primary">
@@ -780,6 +838,7 @@ export default function NuevaOrdenMultiProducto({
                 </span>
               </div>
 
+              {/* Desglose de anticipo y saldo pendiente (solo si hay anticipo) */}
               {formData.anticipo > 0 && (
                 <div className="grid grid-cols-2 gap-4 p-4 bg-blue-500/5 rounded-lg border border-blue-500/20">
                   <div>
@@ -820,6 +879,7 @@ export default function NuevaOrdenMultiProducto({
             </CardContent>
           </Card>
 
+          {/* Botones de acción fijos en la parte inferior del modal */}
           <div className="flex justify-end gap-3 pt-4 border-t border-border sticky bottom-0 bg-background pb-4">
             <button
               type="button"

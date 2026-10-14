@@ -1,3 +1,11 @@
+/**
+ * chart.tsx — Envoltorio de gráficas recharts con tooltips y leyendas estilizados según el tema.
+ * Las páginas Dashboard y Reportes usan recharts directamente, sin este envoltorio.
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 "use client";
 
 import * as React from "react";
@@ -6,6 +14,7 @@ import * as RechartsPrimitive from "recharts";
 import { cn } from "./utils";
 
 // Format: { THEME_NAME: CSS_SELECTOR }
+/** Selectores CSS de cada tema: "" para el claro y ".dark" para el oscuro. */
 const THEMES = { light: "", dark: ".dark" } as const;
 
 export type ChartConfig = {
@@ -18,12 +27,15 @@ export type ChartConfig = {
   );
 };
 
+/** El contexto guarda la configuración de la gráfica (nombre, icono y color de cada serie). */
 type ChartContextProps = {
   config: ChartConfig;
 };
 
+/** Contexto con la configuración de la gráfica. */
 const ChartContext = React.createContext<ChartContextProps | null>(null);
 
+/** Hook para leer la configuración de la gráfica (solo dentro de <ChartContainer>). */
 function useChart() {
   const context = React.useContext(ChartContext);
 
@@ -34,6 +46,7 @@ function useChart() {
   return context;
 }
 
+/** Contenedor de la gráfica: aplica estilos, genera los colores CSS y la hace responsiva. */
 function ChartContainer({
   id,
   className,
@@ -69,6 +82,7 @@ function ChartContainer({
   );
 }
 
+/** Genera una etiqueta <style> con variables --color-<serie> para cada tema, a partir de `config`. */
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
   const colorConfig = Object.entries(config).filter(
     ([, config]) => config.theme || config.color,
@@ -102,8 +116,10 @@ ${colorConfig
   );
 };
 
+/** Tooltip de recharts (reexportado). */
 const ChartTooltip = RechartsPrimitive.Tooltip;
 
+/** Contenido del tooltip con etiqueta, indicador de color (punto, línea o guiones) y valores. */
 function ChartTooltipContent({
   active,
   payload,
@@ -248,8 +264,10 @@ function ChartTooltipContent({
   );
 }
 
+/** Leyenda de recharts (reexportada). */
 const ChartLegend = RechartsPrimitive.Legend;
 
+/** Contenido de la leyenda con el color y el nombre de cada serie. */
 function ChartLegendContent({
   className,
   hideIcon = false,

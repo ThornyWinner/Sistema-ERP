@@ -1,3 +1,17 @@
+/**
+ * ProductoForm.tsx — Formulario de alta y edición de productos.
+ *
+ * Se usa en dos rutas:
+ *  - /productos/nuevo        → modo creación (formulario vacío).
+ *  - /productos/editar/:id   → modo edición (precarga los datos del producto con ese id).
+ *
+ * Campos: nombre, tipo de prenda, categoría, precio, stock inicial, tallas y colores
+ * (seleccionados de listas predefinidas). La columna derecha incluye una zona de
+ * imagen de referencia (solo visual) y un resumen en vivo.
+ *
+ * Nota: el guardado todavía no está conectado a Supabase; al enviar solo se imprime
+ * el formulario en la consola y se vuelve al inventario de productos.
+ */
 import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/Card";
@@ -6,14 +20,19 @@ import { useErpData } from "../context/ErpDataContext";
 
 export default function ProductoForm() {
   const { productos: mockProductos } = useErpData();
+  // `id` existe solo en la ruta de edición.
   const { id } = useParams();
   const navigate = useNavigate();
   const isEditing = !!id;
 
+  // Producto a editar (null en modo creación).
   const productoExistente = isEditing
     ? mockProductos.find((p) => p.id === id)
     : null;
 
+  // Valores iniciales: los del producto existente o vacíos.
+  // Nota: useState solo usa este valor en el primer render; si los productos aún no
+  // habían cargado, el formulario quedará vacío.
   const [formData, setFormData] = useState({
     nombre: productoExistente?.nombre || "",
     tipo: productoExistente?.tipo || "camisa",
@@ -24,9 +43,11 @@ export default function ProductoForm() {
     colores: productoExistente?.colores || [],
   });
 
+  // Valor seleccionado en los desplegables de talla/color antes de pulsar "Agregar".
   const [nuevaTalla, setNuevaTalla] = useState("");
   const [nuevoColor, setNuevoColor] = useState("");
 
+  // Catálogos de opciones para tallas (letras y números de cintura) y colores.
   const tallasDisponibles = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "28", "30", "32", "34", "36", "38", "40"];
   const coloresDisponibles = [
     "Azul Marino",
@@ -40,6 +61,7 @@ export default function ProductoForm() {
     "Rojo",
   ];
 
+  // Añade la talla si no está vacía ni repetida y limpia el desplegable.
   const agregarTalla = (talla: string) => {
     if (talla && !formData.tallas.includes(talla)) {
       setFormData({ ...formData, tallas: [...formData.tallas, talla] });
@@ -54,6 +76,7 @@ export default function ProductoForm() {
     });
   };
 
+  // Añade el color si no está vacío ni repetido y limpia el desplegable.
   const agregarColor = (color: string) => {
     if (color && !formData.colores.includes(color)) {
       setFormData({ ...formData, colores: [...formData.colores, color] });
@@ -68,6 +91,7 @@ export default function ProductoForm() {
     });
   };
 
+  // Guardado pendiente de implementar: por ahora solo registra en consola y regresa.
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     console.log("Guardando producto:", formData);
@@ -76,6 +100,7 @@ export default function ProductoForm() {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Encabezado con flecha para volver; el título cambia según el modo */}
       <div className="flex items-center gap-4">
         <Link
           to="/inventario/productos"
@@ -94,6 +119,7 @@ export default function ProductoForm() {
       </div>
 
       <form onSubmit={handleSubmit}>
+        {/* Diseño en 3 columnas: 2 para los datos y 1 para imagen/resumen/acciones */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
             <Card>
@@ -201,6 +227,8 @@ export default function ProductoForm() {
               </CardContent>
             </Card>
 
+            {/* Variantes: tallas y colores como etiquetas que se pueden quitar con la X.
+                Los desplegables ocultan las opciones ya agregadas. */}
             <Card>
               <CardHeader>
                 <CardTitle>Variantes</CardTitle>
@@ -312,6 +340,7 @@ export default function ProductoForm() {
           </div>
 
           <div className="space-y-6">
+            {/* Zona de carga de imagen (solo visual, aún sin funcionalidad) */}
             <Card>
               <CardHeader>
                 <CardTitle>Imagen de Referencia</CardTitle>
@@ -343,6 +372,7 @@ export default function ProductoForm() {
               </CardContent>
             </Card>
 
+            {/* Resumen que se actualiza mientras se llena el formulario */}
             <Card>
               <CardHeader>
                 <CardTitle>Resumen</CardTitle>

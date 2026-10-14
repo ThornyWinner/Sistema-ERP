@@ -1,6 +1,15 @@
+/**
+ * mockUsers.ts — Usuarios y credenciales de demostración (datos de prueba).
+ *
+ * Proviene de la versión inicial del prototipo, cuando el login era local.
+ * Actualmente la autenticación y los usuarios se gestionan en Supabase
+ * (ver context/AuthContext.tsx) y este archivo no se importa en ninguna parte.
+ * Se conserva solo como referencia de los roles y usuarios de ejemplo.
+ */
 import { User } from '../types/auth';
 
 // Contraseñas (en producción estarían hasheadas)
+// Mapa username → contraseña en texto plano. Solo para demostración.
 export const userCredentials: Record<string, string> = {
   'admin': 'admin123',
   'admin2': 'admin456',
@@ -12,6 +21,7 @@ export const userCredentials: Record<string, string> = {
   'bordado1': 'bordado123',
 };
 
+// Un usuario de ejemplo por cada rol del sistema.
 export const mockUsers: User[] = [
   {
     id: '1',

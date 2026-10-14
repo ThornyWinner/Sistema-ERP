@@ -1,37 +1,61 @@
+/*
+ * theme.css — Tema visual del ERP (colores, tipografía, radios y estilos base).
+ *
+ * Funciona en tres capas:
+ *  1. :root / .dark   → variables CSS con los valores reales (tema claro y oscuro).
+ *  2. @theme inline   → expone esas variables a Tailwind como colores/utilidades
+ *                        (p. ej. --color-primary habilita bg-primary, text-primary...).
+ *  3. @layer base     → estilos por defecto de etiquetas HTML (body, h1–h4, label...).
+ *
+ * Para cambiar un color en toda la aplicación basta con modificar su variable en :root.
+ */
+
+/* Variante "dark:" de Tailwind: se activa cuando un ancestro tiene la clase .dark */
 @custom-variant dark (&:is(.dark *));
 
+/* ===== Tema claro (por defecto) ===== */
 :root {
+  /* Tipografía base */
   --font-size: 16px;
   --font-family: 'Work Sans', system-ui, -apple-system, sans-serif;
+  /* Fondos y texto generales; cada color "-foreground" es el texto que va sobre su fondo */
   --background: #F9FAFB;
   --foreground: #111827;
   --card: #ffffff;
   --card-foreground: #111827;
   --popover: #ffffff;
   --popover-foreground: #111827;
+  /* Color de marca (verde esmeralda): botones principales, enlaces activos, foco */
   --primary: #059669;
   --primary-foreground: #ffffff;
+  /* Colores neutros para botones secundarios, textos atenuados y estados hover */
   --secondary: #F3F4F6;
   --secondary-foreground: #111827;
   --muted: #F3F4F6;
   --muted-foreground: #6B7280;
   --accent: #E5E7EB;
   --accent-foreground: #111827;
+  /* Acciones peligrosas (eliminar) y mensajes de error */
   --destructive: #DC2626;
   --destructive-foreground: #ffffff;
+  /* Bordes, campos de formulario e interruptores */
   --border: #E5E7EB;
   --input: transparent;
   --input-background: #ffffff;
   --switch-background: #D1D5DB;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
+  /* Anillo de foco visible al navegar con teclado */
   --ring: #059669;
+  /* Paleta de las gráficas (recharts) */
   --chart-1: #059669;
   --chart-2: #3B82F6;
   --chart-3: #F59E0B;
   --chart-4: #8B5CF6;
   --chart-5: #EC4899;
+  /* Radio de esquinas base; de él se derivan radius-sm/md/lg/xl */
   --radius: 0.5rem;
+  /* Colores del menú lateral */
   --sidebar: #ffffff;
   --sidebar-foreground: #111827;
   --sidebar-primary: #059669;
@@ -41,6 +65,8 @@
   --sidebar-border: #E5E7EB;
   --sidebar-ring: #059669;
 
+  /* Colores propios del ERP para estados de órdenes/tareas (usados por StatusBadge):
+     pendiente = rojo, en proceso = ámbar, completado = verde, stock bajo = rojo intenso */
   --status-pending: #EF4444;
   --status-pending-bg: #FEE2E2;
   --status-pending-text: #991B1B;
@@ -53,6 +79,9 @@
   --status-low-stock: #DC2626;
 }
 
+/* ===== Tema oscuro =====
+   Se aplica cuando un elemento ancestro tiene la clase .dark. Usa colores en formato
+   OKLCH (valores por defecto de shadcn/ui). Actualmente la app no activa este modo. */
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
@@ -90,6 +119,10 @@
   --sidebar-ring: oklch(0.439 0 0);
 }
 
+/* ===== Registro de variables en Tailwind =====
+   Cada --color-X genera las utilidades bg-X, text-X, border-X, etc.
+   "inline" hace que Tailwind use directamente var(--X), de modo que el cambio de
+   tema (claro/oscuro) se refleja sin regenerar CSS. */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -141,7 +174,9 @@
   --color-status-low-stock: var(--status-low-stock);
 }
 
+/* ===== Estilos base de elementos HTML ===== */
 @layer base {
+  /* Todos los elementos usan el color de borde del tema y un anillo de foco semitransparente */
   * {
     @apply border-border outline-ring/50;
   }

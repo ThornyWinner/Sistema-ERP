@@ -1,3 +1,11 @@
+/**
+ * alert-dialog.tsx — Diálogo de confirmación que exige una respuesta (Radix AlertDialog).
+ * A diferencia de Dialog, no se cierra al hacer clic fuera.
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 "use client";
 
 import * as React from "react";
@@ -6,12 +14,14 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import { cn } from "./utils";
 import { buttonVariants } from "./button";
 
+/** Raíz del diálogo de alerta. */
 function AlertDialog({
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Root>) {
   return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />;
 }
 
+/** Elemento que abre el diálogo. */
 function AlertDialogTrigger({
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Trigger>) {
@@ -20,6 +30,7 @@ function AlertDialogTrigger({
   );
 }
 
+/** Renderiza el diálogo en un portal. */
 function AlertDialogPortal({
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Portal>) {
@@ -28,6 +39,7 @@ function AlertDialogPortal({
   );
 }
 
+/** Fondo oscuro detrás del diálogo. */
 function AlertDialogOverlay({
   className,
   ...props
@@ -44,6 +56,7 @@ function AlertDialogOverlay({
   );
 }
 
+/** Ventana centrada del diálogo (incluye portal y overlay). */
 function AlertDialogContent({
   className,
   ...props
@@ -63,6 +76,7 @@ function AlertDialogContent({
   );
 }
 
+/** Cabecera (título + descripción). */
 function AlertDialogHeader({
   className,
   ...props
@@ -76,6 +90,7 @@ function AlertDialogHeader({
   );
 }
 
+/** Pie con los botones de acción. */
 function AlertDialogFooter({
   className,
   ...props
@@ -92,6 +107,7 @@ function AlertDialogFooter({
   );
 }
 
+/** Título del diálogo. */
 function AlertDialogTitle({
   className,
   ...props
@@ -105,6 +121,7 @@ function AlertDialogTitle({
   );
 }
 
+/** Texto explicativo. */
 function AlertDialogDescription({
   className,
   ...props
@@ -118,6 +135,7 @@ function AlertDialogDescription({
   );
 }
 
+/** Botón de confirmación (estilo de botón principal). */
 function AlertDialogAction({
   className,
   ...props
@@ -130,6 +148,7 @@ function AlertDialogAction({
   );
 }
 
+/** Botón de cancelar (estilo outline). */
 function AlertDialogCancel({
   className,
   ...props

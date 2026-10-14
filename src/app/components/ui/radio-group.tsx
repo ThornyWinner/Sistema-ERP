@@ -1,3 +1,10 @@
+/**
+ * radio-group.tsx — Grupo de botones de opción única (Radix RadioGroup).
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 "use client";
 
 import * as React from "react";
@@ -6,6 +13,7 @@ import { CircleIcon } from "lucide-react";
 
 import { cn } from "./utils";
 
+/** Contenedor del grupo; maneja el valor seleccionado. */
 function RadioGroup({
   className,
   ...props
@@ -19,6 +27,7 @@ function RadioGroup({
   );
 }
 
+/** Opción individual; muestra un círculo relleno cuando está seleccionada. */
 function RadioGroupItem({
   className,
   ...props

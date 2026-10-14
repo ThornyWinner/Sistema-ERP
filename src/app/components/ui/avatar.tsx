@@ -1,3 +1,10 @@
+/**
+ * avatar.tsx — Imagen circular de perfil con alternativa si no carga (Radix Avatar).
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 "use client";
 
 import * as React from "react";
@@ -5,6 +12,7 @@ import * as AvatarPrimitive from "@radix-ui/react-avatar";
 
 import { cn } from "./utils";
 
+/** Contenedor circular del avatar. */
 function Avatar({
   className,
   ...props
@@ -21,6 +29,7 @@ function Avatar({
   );
 }
 
+/** Imagen del avatar. */
 function AvatarImage({
   className,
   ...props
@@ -34,6 +43,7 @@ function AvatarImage({
   );
 }
 
+/** Contenido alternativo (p. ej. iniciales) mientras la imagen carga o si falla. */
 function AvatarFallback({
   className,
   ...props

@@ -1,3 +1,19 @@
+/**
+ * Dashboard.tsx — Panel principal (ruta "/"), accesible para todos los roles.
+ *
+ * Contenido:
+ *  - Guía de usuario (UserGuide) que se abre automáticamente la primera vez que cada
+ *    usuario entra (se recuerda en localStorage) y con el botón "Ver guía de usuario".
+ *  - KPIs: ingresos totales, órdenes activas, saldo por cobrar de anticipos y
+ *    materiales con stock bajo.
+ *  - Conteo de órdenes por tipo de venta (directa, fabricación, comercialización, mixta)
+ *    y gráfica de dona con esa distribución.
+ *  - Top 3 vendedores por importe vendido.
+ *  - Tabla de las 5 órdenes más recientes.
+ *  - Alertas de stock bajo y resumen financiero.
+ *
+ * Los vendedores solo ven métricas de sus propias órdenes.
+ */
 import { useState, useEffect } from "react";
 import StatCard from "../components/StatCard";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/Card";
@@ -34,12 +50,15 @@ import UserGuide from "../components/UserGuide";
 import { Button } from "../components/ui/button";
 
 export default function Dashboard() {
+  // Datos reales de Supabase (con los alias mock* del prototipo).
   const { ordenes: mockOrdenes, materiales: mockMateriales } = useErpData();
   const { user } = useAuth();
+  // Visibilidad del diálogo de guía de usuario.
   const [showGuide, setShowGuide] = useState(false);
 
   useEffect(() => {
     // Mostrar guía solo la primera vez que se accede
+    // (la marca se guarda por usuario en localStorage, por lo que es por navegador).
     const hasSeenGuide = localStorage.getItem(`guide_seen_${user?.id}`);
     if (!hasSeenGuide && user) {
       setShowGuide(true);
@@ -52,9 +71,11 @@ export default function Dashboard() {
     ? mockOrdenes.filter((o) => o.vendedorId === user.id)
     : mockOrdenes;
 
+  // Conteos por estado general de la orden.
   const ordenesEnProceso = ordenesVisibles.filter((o) => o.estado === "in-progress").length;
   const ordenesPendientes = ordenesVisibles.filter((o) => o.estado === "pending").length;
   const ordenesCompletadas = ordenesVisibles.filter((o) => o.estado === "completed").length;
+  // Materiales por debajo de su stock mínimo (no depende del rol).
   const materialesBajoStock = mockMateriales.filter((m) => m.stock < m.stockMinimo).length;
 
   // Nuevas métricas por tipo de venta
@@ -64,6 +85,9 @@ export default function Dashboard() {
   const ordenesMixtas = ordenesVisibles.filter((o) => o.tipoVenta === "mixta").length;
 
   // Métricas financieras
+  //  - totalIngresos: suma de los totales de las órdenes (vendido, no necesariamente cobrado).
+  //  - totalAnticipos: suma de los anticipos recibidos.
+  //  - anticiposPendientes: saldo por cobrar (total − anticipo) de órdenes en estado "anticipo".
   const totalIngresos = ordenesVisibles.reduce((acc, o) => acc + (o.total || 0), 0);
   const totalAnticipos = ordenesVisibles.reduce((acc, o) => acc + (o.anticipo || 0), 0);
   const anticiposPendientes = ordenesVisibles
@@ -71,6 +95,7 @@ export default function Dashboard() {
     .reduce((acc, o) => acc + ((o.total || 0) - (o.anticipo || 0)), 0);
 
   // Ventas por vendedor
+  // Agrupa las órdenes por nombre de vendedor acumulando importe y número de órdenes.
   const ventasPorVendedor = ordenesVisibles.reduce((acc, orden) => {
     const vendedor = orden.vendedor;
     if (!acc[vendedor]) {
@@ -81,10 +106,12 @@ export default function Dashboard() {
     return acc;
   }, {} as Record<string, { nombre: string; total: number; ordenes: number }>);
 
+  // Los 3 vendedores con mayor importe vendido.
   const topVendedores = Object.values(ventasPorVendedor)
     .sort((a, b) => b.total - a.total)
     .slice(0, 3);
 
+  // Datos para la gráfica de dona por tipo de venta.
   const tiposVenta = [
     { name: "Venta Directa", value: ventasDirectas, color: "#F97316" },
     { name: "Fabricación", value: ordenesEnFabricacion, color: "#10B981" },
@@ -92,6 +119,7 @@ export default function Dashboard() {
     { name: "Mixta", value: ordenesMixtas, color: "#A855F7" },
   ];
 
+  // Datos de ejemplo por taller y por estado (actualmente no se muestran en la página).
   const produccionPorTaller = [
     { taller: "Diseño", ordenes: 8, color: "#059669" },
     { taller: "Sublimación", ordenes: 6, color: "#3B82F6" },
@@ -110,6 +138,7 @@ export default function Dashboard() {
     <div className="p-6 space-y-6">
       <UserGuide open={showGuide} onClose={() => setShowGuide(false)} />
 
+      {/* Encabezado: saludo con nombre y rol + botón para reabrir la guía */}
       <div className="flex items-center justify-between">
         <div>
           <h1>Dashboard</h1>
@@ -127,6 +156,7 @@ export default function Dashboard() {
         </Button>
       </div>
 
+      {/* KPIs principales; los importes se muestran en miles ("k") */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           title="Ingresos Totales"
@@ -146,7 +176,7 @@ export default function Dashboard() {
           title="Anticipos Pendientes"
           value={`$${(anticiposPendientes / 1000).toFixed(0)}k`}
           icon={TrendingUp}
-          color="info"
+          color="success"
           footer={`De $${(totalAnticipos / 1000).toFixed(0)}k pagados`}
         />
         <StatCard
@@ -219,6 +249,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Gráfica de dona (innerRadius > 0) con su leyenda */}
         <Card>
           <CardHeader>
             <CardTitle>Órdenes por Tipo de Venta</CardTitle>
@@ -261,6 +292,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
+        {/* Ranking de vendedores */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -298,6 +330,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      {/* Últimas 5 órdenes (la lista ya viene ordenada de la más reciente a la más antigua) */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Órdenes Recientes</CardTitle>
@@ -339,6 +372,7 @@ export default function Dashboard() {
                     (acc, p) => acc + p.cantidad,
                     0
                   ) || 0;
+                  // Colores de la etiqueta de tipo de venta.
                   const getTipoColor = (tipo: string) => {
                     switch (tipo) {
                       case "directa":
@@ -400,6 +434,7 @@ export default function Dashboard() {
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Lista de materiales con stock por debajo del mínimo */}
         <Card>
           <CardHeader>
             <CardTitle>Alertas de Stock</CardTitle>
@@ -435,6 +470,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
+        {/* Resumen financiero: vendido, anticipos recibidos y saldo por cobrar */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

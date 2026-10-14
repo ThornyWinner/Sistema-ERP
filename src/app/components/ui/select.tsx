@@ -1,3 +1,10 @@
+/**
+ * select.tsx — Lista desplegable de selección personalizada (Radix Select). Usada en GestionUsuarios.
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 "use client";
 
 import * as React from "react";
@@ -10,24 +17,28 @@ import {
 
 import { cn } from "./utils";
 
+/** Raíz; se controla con `value` / `onValueChange`. */
 function Select({
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Root>) {
   return <SelectPrimitive.Root data-slot="select" {...props} />;
 }
 
+/** Agrupa opciones relacionadas. */
 function SelectGroup({
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Group>) {
   return <SelectPrimitive.Group data-slot="select-group" {...props} />;
 }
 
+/** Muestra el texto de la opción seleccionada (o el placeholder). */
 function SelectValue({
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Value>) {
   return <SelectPrimitive.Value data-slot="select-value" {...props} />;
 }
 
+/** Botón que abre la lista; `size` puede ser "sm" o "default". */
 function SelectTrigger({
   className,
   size = "default",
@@ -54,6 +65,7 @@ function SelectTrigger({
   );
 }
 
+/** Panel de opciones (en portal) con botones de desplazamiento arriba/abajo. */
 function SelectContent({
   className,
   children,
@@ -89,6 +101,7 @@ function SelectContent({
   );
 }
 
+/** Etiqueta de un grupo de opciones. */
 function SelectLabel({
   className,
   ...props
@@ -102,6 +115,7 @@ function SelectLabel({
   );
 }
 
+/** Opción seleccionable; muestra una palomita si está elegida. */
 function SelectItem({
   className,
   children,
@@ -126,6 +140,7 @@ function SelectItem({
   );
 }
 
+/** Línea divisoria entre opciones. */
 function SelectSeparator({
   className,
   ...props
@@ -139,6 +154,7 @@ function SelectSeparator({
   );
 }
 
+/** Botón para desplazar la lista hacia arriba. */
 function SelectScrollUpButton({
   className,
   ...props
@@ -157,6 +173,7 @@ function SelectScrollUpButton({
   );
 }
 
+/** Botón para desplazar la lista hacia abajo. */
 function SelectScrollDownButton({
   className,
   ...props

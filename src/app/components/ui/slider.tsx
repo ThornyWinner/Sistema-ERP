@@ -1,3 +1,10 @@
+/**
+ * slider.tsx — Control deslizante para elegir uno o varios valores numéricos (Radix Slider).
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 "use client";
 
 import * as React from "react";
@@ -5,6 +12,7 @@ import * as SliderPrimitive from "@radix-ui/react-slider";
 
 import { cn } from "./utils";
 
+/** Deslizador. Calcula cuántos "thumbs" (manijas) dibujar a partir de value/defaultValue. */
 function Slider({
   className,
   defaultValue,

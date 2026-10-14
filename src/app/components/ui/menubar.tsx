@@ -1,3 +1,10 @@
+/**
+ * menubar.tsx — Barra de menús horizontal estilo aplicación de escritorio (Radix Menubar).
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 "use client";
 
 import * as React from "react";
@@ -6,6 +13,7 @@ import { CheckIcon, ChevronRightIcon, CircleIcon } from "lucide-react";
 
 import { cn } from "./utils";
 
+/** Barra contenedora de los menús. */
 function Menubar({
   className,
   ...props
@@ -22,24 +30,28 @@ function Menubar({
   );
 }
 
+/** Un menú dentro de la barra. */
 function MenubarMenu({
   ...props
 }: React.ComponentProps<typeof MenubarPrimitive.Menu>) {
   return <MenubarPrimitive.Menu data-slot="menubar-menu" {...props} />;
 }
 
+/** Agrupa opciones relacionadas. */
 function MenubarGroup({
   ...props
 }: React.ComponentProps<typeof MenubarPrimitive.Group>) {
   return <MenubarPrimitive.Group data-slot="menubar-group" {...props} />;
 }
 
+/** Renderiza el menú en un portal. */
 function MenubarPortal({
   ...props
 }: React.ComponentProps<typeof MenubarPrimitive.Portal>) {
   return <MenubarPrimitive.Portal data-slot="menubar-portal" {...props} />;
 }
 
+/** Grupo de opciones de selección única. */
 function MenubarRadioGroup({
   ...props
 }: React.ComponentProps<typeof MenubarPrimitive.RadioGroup>) {
@@ -48,6 +60,7 @@ function MenubarRadioGroup({
   );
 }
 
+/** Botón de la barra que abre su menú. */
 function MenubarTrigger({
   className,
   ...props
@@ -64,6 +77,7 @@ function MenubarTrigger({
   );
 }
 
+/** Panel desplegable del menú. */
 function MenubarContent({
   className,
   align = "start",
@@ -88,6 +102,7 @@ function MenubarContent({
   );
 }
 
+/** Opción del menú (admite variant="destructive" e inset). */
 function MenubarItem({
   className,
   inset,
@@ -111,6 +126,7 @@ function MenubarItem({
   );
 }
 
+/** Opción con casilla de verificación. */
 function MenubarCheckboxItem({
   className,
   children,
@@ -137,6 +153,7 @@ function MenubarCheckboxItem({
   );
 }
 
+/** Opción de selección única. */
 function MenubarRadioItem({
   className,
   children,
@@ -161,6 +178,7 @@ function MenubarRadioItem({
   );
 }
 
+/** Etiqueta no clicable. */
 function MenubarLabel({
   className,
   inset,
@@ -181,6 +199,7 @@ function MenubarLabel({
   );
 }
 
+/** Línea divisoria. */
 function MenubarSeparator({
   className,
   ...props
@@ -194,6 +213,7 @@ function MenubarSeparator({
   );
 }
 
+/** Texto del atajo de teclado. */
 function MenubarShortcut({
   className,
   ...props
@@ -210,12 +230,14 @@ function MenubarShortcut({
   );
 }
 
+/** Raíz de un submenú. */
 function MenubarSub({
   ...props
 }: React.ComponentProps<typeof MenubarPrimitive.Sub>) {
   return <MenubarPrimitive.Sub data-slot="menubar-sub" {...props} />;
 }
 
+/** Opción que abre un submenú. */
 function MenubarSubTrigger({
   className,
   inset,
@@ -240,6 +262,7 @@ function MenubarSubTrigger({
   );
 }
 
+/** Panel del submenú. */
 function MenubarSubContent({
   className,
   ...props

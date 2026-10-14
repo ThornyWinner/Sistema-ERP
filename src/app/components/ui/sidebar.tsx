@@ -1,3 +1,11 @@
+/**
+ * sidebar.tsx — Sistema completo de barra lateral de shadcn/ui (plegable, con modo móvil y atajo Ctrl/Cmd+B).
+ * Nota: la app usa su propio components/Sidebar.tsx; este componente no se utiliza actualmente.
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 "use client";
 
 import * as React from "react";
@@ -25,13 +33,20 @@ import {
   TooltipTrigger,
 } from "./tooltip";
 
+/** Nombre de la cookie que recuerda si la barra estaba abierta o cerrada. */
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
+/** Duración de la cookie: 7 días (en segundos). */
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
+/** Ancho de la barra expandida en escritorio. */
 const SIDEBAR_WIDTH = "16rem";
+/** Ancho de la barra en móviles. */
 const SIDEBAR_WIDTH_MOBILE = "18rem";
+/** Ancho de la barra contraída (solo iconos). */
 const SIDEBAR_WIDTH_ICON = "3rem";
+/** Tecla del atajo (Ctrl/Cmd + B) para mostrar u ocultar la barra. */
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
 
+/** Estado compartido: expandida/contraída, apertura en móvil y función para alternarla. */
 type SidebarContextProps = {
   state: "expanded" | "collapsed";
   open: boolean;
@@ -42,8 +57,10 @@ type SidebarContextProps = {
   toggleSidebar: () => void;
 };
 
+/** Contexto con el estado de la barra lateral. */
 const SidebarContext = React.createContext<SidebarContextProps | null>(null);
 
+/** Hook para leer y controlar la barra lateral (solo dentro de <SidebarProvider>). */
 function useSidebar() {
   const context = React.useContext(SidebarContext);
   if (!context) {
@@ -53,6 +70,7 @@ function useSidebar() {
   return context;
 }
 
+/** Proveedor del estado: lo guarda en cookie, registra el atajo de teclado y detecta móvil. */
 function SidebarProvider({
   defaultOpen = true,
   open: openProp,
@@ -151,6 +169,10 @@ function SidebarProvider({
   );
 }
 
+/**
+ * Barra lateral. En móvil se muestra como Sheet; en escritorio admite variantes
+ * (sidebar | floating | inset) y modos de plegado (offcanvas | icon | none).
+ */
 function Sidebar({
   side = "left",
   variant = "sidebar",
@@ -253,6 +275,7 @@ function Sidebar({
   );
 }
 
+/** Botón que muestra u oculta la barra. */
 function SidebarTrigger({
   className,
   onClick,
@@ -279,6 +302,7 @@ function SidebarTrigger({
   );
 }
 
+/** Franja fina en el borde de la barra que permite alternarla con un clic. */
 function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
   const { toggleSidebar } = useSidebar();
 
@@ -304,6 +328,7 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
   );
 }
 
+/** Área de contenido principal que se adapta al estado de la barra. */
 function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
   return (
     <main
@@ -318,6 +343,7 @@ function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
   );
 }
 
+/** Campo de entrada estilizado para la barra (p. ej. buscador). */
 function SidebarInput({
   className,
   ...props
@@ -332,6 +358,7 @@ function SidebarInput({
   );
 }
 
+/** Cabecera de la barra. */
 function SidebarHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -343,6 +370,7 @@ function SidebarHeader({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/** Pie de la barra. */
 function SidebarFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -354,6 +382,7 @@ function SidebarFooter({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/** Línea divisoria. */
 function SidebarSeparator({
   className,
   ...props
@@ -368,6 +397,7 @@ function SidebarSeparator({
   );
 }
 
+/** Zona central desplazable de la barra. */
 function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -382,6 +412,7 @@ function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/** Grupo de elementos del menú. */
 function SidebarGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -393,6 +424,7 @@ function SidebarGroup({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/** Título del grupo (se oculta en modo icono). */
 function SidebarGroupLabel({
   className,
   asChild = false,
@@ -414,6 +446,7 @@ function SidebarGroupLabel({
   );
 }
 
+/** Botón de acción en la cabecera de un grupo. */
 function SidebarGroupAction({
   className,
   asChild = false,
@@ -437,6 +470,7 @@ function SidebarGroupAction({
   );
 }
 
+/** Contenido del grupo. */
 function SidebarGroupContent({
   className,
   ...props
@@ -451,6 +485,7 @@ function SidebarGroupContent({
   );
 }
 
+/** Lista de elementos del menú. */
 function SidebarMenu({ className, ...props }: React.ComponentProps<"ul">) {
   return (
     <ul
@@ -462,6 +497,7 @@ function SidebarMenu({ className, ...props }: React.ComponentProps<"ul">) {
   );
 }
 
+/** Elemento de la lista. */
 function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
   return (
     <li
@@ -473,6 +509,7 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
   );
 }
 
+/** Variantes del botón de menú: variant (default | outline) y size (default | sm | lg). */
 const sidebarMenuButtonVariants = cva(
   "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-hidden ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
   {
@@ -495,6 +532,7 @@ const sidebarMenuButtonVariants = cva(
   },
 );
 
+/** Botón/enlace del menú; muestra un tooltip con su nombre cuando la barra está contraída. */
 function SidebarMenuButton({
   asChild = false,
   isActive = false,
@@ -545,6 +583,7 @@ function SidebarMenuButton({
   );
 }
 
+/** Acción secundaria a la derecha de un elemento; `showOnHover` la muestra solo al pasar el cursor. */
 function SidebarMenuAction({
   className,
   asChild = false,
@@ -577,6 +616,7 @@ function SidebarMenuAction({
   );
 }
 
+/** Insignia (p. ej. un contador) a la derecha de un elemento. */
 function SidebarMenuBadge({
   className,
   ...props
@@ -599,6 +639,7 @@ function SidebarMenuBadge({
   );
 }
 
+/** Marcador de carga para un elemento; usa un ancho aleatorio para parecer natural. */
 function SidebarMenuSkeleton({
   className,
   showIcon = false,
@@ -637,6 +678,7 @@ function SidebarMenuSkeleton({
   );
 }
 
+/** Submenú anidado. */
 function SidebarMenuSub({ className, ...props }: React.ComponentProps<"ul">) {
   return (
     <ul
@@ -652,6 +694,7 @@ function SidebarMenuSub({ className, ...props }: React.ComponentProps<"ul">) {
   );
 }
 
+/** Elemento del submenú. */
 function SidebarMenuSubItem({
   className,
   ...props
@@ -666,6 +709,7 @@ function SidebarMenuSubItem({
   );
 }
 
+/** Botón/enlace del submenú. */
 function SidebarMenuSubButton({
   asChild = false,
   size = "md",

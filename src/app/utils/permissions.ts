@@ -1,5 +1,16 @@
+/**
+ * permissions.ts — Control de acceso por rol (RBAC) en el frontend.
+ *
+ * Define qué secciones (rutas) puede ver cada rol y qué acciones puede realizar
+ * en ellas (ver / crear / editar / eliminar). Lo usan el Sidebar (para mostrar solo
+ * los módulos accesibles) y las páginas/botones (para habilitar u ocultar acciones).
+ *
+ * Importante: esto solo controla la interfaz. La seguridad real de los datos la
+ * aplican las políticas RLS de Supabase en la base de datos.
+ */
 import { UserRole, Permission, RoutePermission } from '../types/auth';
 
+/** Nombre legible de cada rol para mostrar en la interfaz. */
 export const roleLabels: Record<UserRole, string> = {
   admin_primario: 'Administrador Primario',
   admin_secundario: 'Administrador Secundario',
@@ -12,12 +23,19 @@ export const roleLabels: Record<UserRole, string> = {
 };
 
 // Permisos base
+// fullPermission: control total; readOnlyPermission: solo consulta; noPermission: sin acceso (oculto en el menú).
 const fullPermission: Permission = { canView: true, canCreate: true, canEdit: true, canDelete: true };
 const readOnlyPermission: Permission = { canView: true, canCreate: false, canEdit: false, canDelete: false };
 const noPermission: Permission = { canView: false, canCreate: false, canEdit: false, canDelete: false };
 
 // Define rutas y permisos por rol
+/**
+ * Devuelve la lista completa de módulos del sistema con los permisos que tiene el rol
+ * indicado en cada uno. El orden de la lista es el orden en que aparecen en el menú.
+ */
 export const getRoutePermissions = (role: UserRole): RoutePermission[] => {
+  // Catálogo de módulos; todos empiezan sin permisos y luego se habilitan según el rol.
+  // `icon` es el nombre de un icono de lucide-react (lo traduce el Sidebar).
   const routes: RoutePermission[] = [
     {
       route: '/',
@@ -101,12 +119,15 @@ export const getRoutePermissions = (role: UserRole): RoutePermission[] => {
 
   // Aplicar permisos según rol
   switch (role) {
+    // Administrador primario: acceso total a todos los módulos.
     case 'admin_primario':
       return routes.map(r => ({ ...r, permission: fullPermission }));
-    
+
+    // Administrador secundario: puede ver todos los módulos pero sin modificar nada.
     case 'admin_secundario':
       return routes.map(r => ({ ...r, permission: readOnlyPermission }));
-    
+
+    // Vendedor: control total del Dashboard y Órdenes; inventarios en solo lectura.
     case 'vendedor':
       return routes.map(r => {
         if (r.route === '/' || r.route === '/ordenes') {
@@ -118,6 +139,7 @@ export const getRoutePermissions = (role: UserRole): RoutePermission[] => {
         return r;
       });
     
+    // Roles de taller: solo el Dashboard y el tablero de su propio taller.
     case 'disenador':
       return routes.map(r => {
         if (r.route === '/' || r.route === '/talleres/diseno') {
@@ -158,11 +180,17 @@ export const getRoutePermissions = (role: UserRole): RoutePermission[] => {
         return r;
       });
     
+    // Rol desconocido: sin acceso a ningún módulo.
     default:
       return routes;
   }
 };
 
+/**
+ * Indica si un rol puede realizar una acción concreta en una ruta.
+ * Ejemplo: hasPermission('vendedor', '/ordenes', 'canCreate') → true.
+ * La ruta debe coincidir exactamente con la definida en getRoutePermissions.
+ */
 export const hasPermission = (role: UserRole, route: string, action: keyof Permission): boolean => {
   const permissions = getRoutePermissions(role);
   const routePermission = permissions.find(p => p.route === route);
@@ -172,6 +200,7 @@ export const hasPermission = (role: UserRole, route: string, action: keyof Permi
   return routePermission.permission[action];
 };
 
+/** Devuelve solo los módulos que el rol puede ver (usado para construir el menú lateral). */
 export const getAccessibleRoutes = (role: UserRole): RoutePermission[] => {
   const permissions = getRoutePermissions(role);
   return permissions.filter(p => p.permission.canView);

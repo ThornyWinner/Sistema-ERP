@@ -1,9 +1,18 @@
+/**
+ * table.tsx — Tabla estilizada con scroll horizontal. Usada en GestionUsuarios.
+ * Cada pieza es la etiqueta HTML equivalente (<table>, <thead>, <tr>, <td>...) con estilos.
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 "use client";
 
 import * as React from "react";
 
 import { cn } from "./utils";
 
+/** Tabla envuelta en un contenedor con scroll horizontal para pantallas pequeñas. */
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
@@ -19,6 +28,7 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
   );
 }
 
+/** Encabezado de la tabla (<thead>). */
 function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
@@ -29,6 +39,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   );
 }
 
+/** Cuerpo de la tabla (<tbody>). */
 function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
   return (
     <tbody
@@ -39,6 +50,7 @@ function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
   );
 }
 
+/** Pie de la tabla (<tfoot>). */
 function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
   return (
     <tfoot
@@ -52,6 +64,7 @@ function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
   );
 }
 
+/** Fila; se resalta al pasar el cursor o al estar seleccionada. */
 function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   return (
     <tr
@@ -65,6 +78,7 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   );
 }
 
+/** Celda de encabezado (<th>). */
 function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   return (
     <th
@@ -78,6 +92,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   );
 }
 
+/** Celda de datos (<td>). */
 function TableCell({ className, ...props }: React.ComponentProps<"td">) {
   return (
     <td
@@ -91,6 +106,7 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
   );
 }
 
+/** Título/leyenda de la tabla. */
 function TableCaption({
   className,
   ...props

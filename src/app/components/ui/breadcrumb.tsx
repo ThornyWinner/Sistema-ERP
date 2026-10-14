@@ -1,13 +1,22 @@
+/**
+ * breadcrumb.tsx — Ruta de navegación tipo "migas de pan" (Inicio › Sección › Página).
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { ChevronRight, MoreHorizontal } from "lucide-react";
 
 import { cn } from "./utils";
 
+/** Contenedor <nav> con aria-label="breadcrumb". */
 function Breadcrumb({ ...props }: React.ComponentProps<"nav">) {
   return <nav aria-label="breadcrumb" data-slot="breadcrumb" {...props} />;
 }
 
+/** Lista ordenada de elementos. */
 function BreadcrumbList({ className, ...props }: React.ComponentProps<"ol">) {
   return (
     <ol
@@ -21,6 +30,7 @@ function BreadcrumbList({ className, ...props }: React.ComponentProps<"ol">) {
   );
 }
 
+/** Elemento de la ruta. */
 function BreadcrumbItem({ className, ...props }: React.ComponentProps<"li">) {
   return (
     <li
@@ -31,6 +41,7 @@ function BreadcrumbItem({ className, ...props }: React.ComponentProps<"li">) {
   );
 }
 
+/** Enlace a una página anterior; con `asChild` puede envolver un <Link> del router. */
 function BreadcrumbLink({
   asChild,
   className,
@@ -49,6 +60,7 @@ function BreadcrumbLink({
   );
 }
 
+/** Página actual (no clicable, con aria-current="page"). */
 function BreadcrumbPage({ className, ...props }: React.ComponentProps<"span">) {
   return (
     <span
@@ -62,6 +74,7 @@ function BreadcrumbPage({ className, ...props }: React.ComponentProps<"span">) {
   );
 }
 
+/** Separador entre elementos (por defecto un chevron ›). */
 function BreadcrumbSeparator({
   children,
   className,
@@ -80,6 +93,7 @@ function BreadcrumbSeparator({
   );
 }
 
+/** Puntos suspensivos para rutas largas recortadas. */
 function BreadcrumbEllipsis({
   className,
   ...props

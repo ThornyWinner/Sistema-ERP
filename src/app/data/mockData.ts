@@ -1,14 +1,31 @@
+/**
+ * mockData.ts — Modelo de datos del ERP (tipos TypeScript) y datos de ejemplo.
+ *
+ * Contiene dos cosas:
+ *  1. Interfaces y tipos (Material, Producto, Orden, Proveedor...) que usa toda la UI.
+ *     ErpDataContext convierte las filas de Supabase a estos tipos.
+ *  2. Arreglos mock* con datos de demostración de la versión inicial del prototipo.
+ *     Ya no se importan: las páginas usan los datos reales de useErpData()
+ *     (algunas conservan los nombres mock* como alias de esas variables).
+ */
+
+/** Materia prima del inventario (telas, hilos, accesorios). */
 export interface Material {
   id: string;
   nombre: string;
   tipo: "tela" | "hilo" | "accesorio";
+  /** Existencia actual, expresada en `unidad`. */
   stock: number;
   unidad: "metros" | "piezas" | "kg";
+  /** Umbral de alerta: si stock < stockMinimo se considera "stock bajo". */
   stockMinimo: number;
+  /** Nombre del proveedor principal. */
   proveedor: string;
+  /** Precio por unidad. */
   precio: number;
 }
 
+/** Combinación concreta de talla + color de un producto, con su propio stock y precio. */
 export interface VarianteProducto {
   id: string;
   talla: string;
@@ -18,13 +35,17 @@ export interface VarianteProducto {
   sku: string | null;
 }
 
+/** Producto terminado del catálogo (prenda). */
 export interface Producto {
   id: string;
   nombre: string;
   tipo: "camisa" | "pantalon" | "overol" | "chaleco";
+  /** Tallas y colores disponibles (derivados de las variantes). */
   tallas: string[];
   colores: string[];
+  /** Stock total = suma del stock de todas las variantes. */
   stock: number;
+  /** Precio de referencia (el de la primera variante). */
   precio: number;
   categoria: string;
   imagen?: string;
@@ -33,12 +54,23 @@ export interface Producto {
   variantes: VarianteProducto[];
 }
 
+/** Estado de un producto dentro de un taller: pendiente, en proceso o completado. */
 export type TallerEstado = "pending" | "in-progress" | "completed";
+/** Talleres del flujo de producción (el nombre coincide con la tabla `talleres`). */
 export type Taller = "diseno" | "sublimacion" | "corte" | "costura" | "bordado";
+/**
+ * Tipo de venta de una orden:
+ *  - directa:          venta rápida de producto en existencia.
+ *  - fabricacion:      se fabrica en los talleres propios.
+ *  - comercializacion: se compra a un proveedor y se revende.
+ *  - mixta:            combina varios de los anteriores.
+ */
 export type TipoVenta = "directa" | "fabricacion" | "comercializacion" | "mixta";
 export type MetodoPago = "efectivo" | "transferencia" | "tarjeta" | "cheque" | "credito";
+/** Situación de cobro de la orden ("liquidado" = pagada por completo). */
 export type EstadoPago = "pendiente" | "anticipo" | "liquidado" | "cancelado" | "vencido";
 
+/** Detalle de bordado (estructura antigua; actualmente se usa PersonalizacionProducto). */
 export interface OrdenBordadoDetalle {
   lugarBordar: "bolsillo" | "personalizado" | "espalda";
   logotipo?: string;
@@ -46,6 +78,7 @@ export interface OrdenBordadoDetalle {
   notasAdicionales?: string;
 }
 
+/** Personalización de una prenda: dónde bordar, logotipo y colores de hilo. */
 export interface PersonalizacionProducto {
   lugarBordado?: "bolsillo" | "espalda" | "frente" | "personalizado";
   logotipo?: string;
@@ -53,6 +86,7 @@ export interface PersonalizacionProducto {
   notas?: string;
 }
 
+/** Renglón (producto) dentro de una orden; corresponde a la tabla `orden_detalles`. */
 export interface ProductoOrden {
   id: string;
   nombre: string;
@@ -62,9 +96,13 @@ export interface ProductoOrden {
   color: string;
   cantidad: number;
   precioUnitario: number;
+  /** Cómo se surte este producto (ver TipoVenta). */
   tipoProduccion: "directa" | "fabricacion" | "comercializacion";
+  /** Talleres por los que debe pasar, en orden. Vacío si no requiere fabricación. */
   talleres: Taller[];
+  /** Estado del producto en cada uno de sus talleres. */
   progreso: Partial<Record<Taller, TallerEstado>>;
+  /** Proveedor, cuando el producto es de comercialización. */
   proveedorId?: string;
   proveedorNombre?: string;
   personalizacion?: PersonalizacionProducto;
@@ -78,6 +116,7 @@ export interface ProductoOrden {
   varianteId?: string;
 }
 
+/** Pago o abono registrado para una orden. */
 export interface Pago {
   fecha: string;
   monto: number;
@@ -85,35 +124,51 @@ export interface Pago {
   referencia?: string;
 }
 
+/** Orden de venta/producción (tabla `ordenes`) con sus productos y pagos. */
 export interface Orden {
   id: string;
+  /** Folio visible de la orden (p. ej. "ORD-2026-001"). */
   numero: string;
+  /** Nombre e id (tabla `usuarios`) del vendedor que la registró. */
   vendedor: string;
   vendedorId: string;
+  /** Razón social del cliente. */
   cliente: string;
+  /** Fechas en formato ISO "AAAA-MM-DD". */
   fechaCreacion: string;
   fechaEntrega: string;
   tipoVenta: TipoVenta;
   productos: ProductoOrden[];
+  /** Estado general simplificado (se deriva del estado detallado en la BD). */
   estado: "pending" | "in-progress" | "completed";
   prioridad: "alta" | "media" | "baja";
   metodoPago: MetodoPago;
   estadoPago: EstadoPago;
+  /** Importe total y monto adelantado por el cliente. */
   total: number;
   anticipo: number;
+  /** Historial de pagos registrados. */
   pagos: Pago[];
   notas?: string;
 }
 
+/** Proveedor de materiales o productos. */
 export interface Proveedor {
   id: string;
   nombre: string;
+  /** Persona de contacto. */
   contacto: string;
   telefono: string;
   email: string;
+  /** Nombres de los materiales que suministra. */
   insumos: string[];
+  /** Calificación de 0 a 5. */
   calificacion: number;
 }
+
+// ---------------------------------------------------------------------------
+// Datos de demostración (no se usan en la app actual; ver comentario superior).
+// ---------------------------------------------------------------------------
 
 export const mockMateriales: Material[] = [
   {

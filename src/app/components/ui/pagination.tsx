@@ -1,3 +1,10 @@
+/**
+ * pagination.tsx — Controles de paginación (anterior, números de página, siguiente).
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 import * as React from "react";
 import {
   ChevronLeftIcon,
@@ -8,6 +15,7 @@ import {
 import { cn } from "./utils";
 import { Button, buttonVariants } from "./button";
 
+/** Contenedor <nav> de la paginación. */
 function Pagination({ className, ...props }: React.ComponentProps<"nav">) {
   return (
     <nav
@@ -20,6 +28,7 @@ function Pagination({ className, ...props }: React.ComponentProps<"nav">) {
   );
 }
 
+/** Lista de controles. */
 function PaginationContent({
   className,
   ...props
@@ -33,15 +42,18 @@ function PaginationContent({
   );
 }
 
+/** Elemento de la lista. */
 function PaginationItem({ ...props }: React.ComponentProps<"li">) {
   return <li data-slot="pagination-item" {...props} />;
 }
 
+/** Props de un enlace de página: `isActive` resalta la página actual y `size` usa los tamaños de Button. */
 type PaginationLinkProps = {
   isActive?: boolean;
 } & Pick<React.ComponentProps<typeof Button>, "size"> &
   React.ComponentProps<"a">;
 
+/** Enlace a una página, con aspecto de botón (outline si está activa). */
 function PaginationLink({
   className,
   isActive,
@@ -65,6 +77,7 @@ function PaginationLink({
   );
 }
 
+/** Enlace "Previous" a la página anterior. */
 function PaginationPrevious({
   className,
   ...props
@@ -82,6 +95,7 @@ function PaginationPrevious({
   );
 }
 
+/** Enlace "Next" a la página siguiente. */
 function PaginationNext({
   className,
   ...props
@@ -99,6 +113,7 @@ function PaginationNext({
   );
 }
 
+/** Puntos suspensivos para páginas omitidas. */
 function PaginationEllipsis({
   className,
   ...props

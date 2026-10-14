@@ -1,3 +1,15 @@
+/**
+ * InventarioMateriales.tsx — Inventario de materia prima (ruta /inventario/materiales).
+ *
+ * Tabla de telas, hilos y accesorios con su stock, stock mínimo, proveedor y precio.
+ * Un material está en "Stock Bajo" cuando stock < stockMinimo (se resalta en rojo).
+ * Filtros: búsqueda por nombre/proveedor, tipo de material y nivel de stock.
+ * Al final muestra: total de materiales, cuántos tienen stock bajo y el valor del
+ * inventario (Σ stock × precio).
+ *
+ * El botón "Agregar Material" usa PermissionButton (deshabilitado si el rol no puede
+ * crear) y el administrador secundario ve un aviso de modo solo lectura.
+ */
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/Card";
 import { Material } from "../data/mockData";
@@ -8,12 +20,15 @@ import { useAuth } from "../context/AuthContext";
 import { Badge } from "../components/ui/badge";
 
 export default function InventarioMateriales() {
+  // Materiales reales de Supabase (alias mockMateriales del prototipo).
   const { materiales: mockMateriales } = useErpData();
   const { user } = useAuth();
+  // Estado de los filtros: texto, tipo ("all" | tela | hilo | accesorio) y stock ("all" | bajo | normal).
   const [searchTerm, setSearchTerm] = useState("");
   const [filterTipo, setFilterTipo] = useState<string>("all");
   const [filterStock, setFilterStock] = useState<string>("all");
 
+  // Materiales que cumplen los tres filtros a la vez.
   const filteredMateriales = mockMateriales.filter((material) => {
     const matchesSearch =
       material.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -31,6 +46,7 @@ export default function InventarioMateriales() {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Aviso de solo lectura para el administrador secundario */}
       {user?.rol === 'admin_secundario' && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start gap-3">
           <Lock className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
@@ -50,7 +66,8 @@ export default function InventarioMateriales() {
             Gestión de telas, hilos y accesorios
           </p>
         </div>
-        <PermissionButton 
+        {/* Botón con control de permisos (por ahora sin acción de alta asociada) */}
+        <PermissionButton
           requiredPermission="canCreate"
           className="flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
         >
@@ -59,6 +76,7 @@ export default function InventarioMateriales() {
         </PermissionButton>
       </div>
 
+      {/* Filtros + tabla de materiales */}
       <Card>
         <CardHeader>
           <div className="flex flex-col md:flex-row gap-4">
@@ -125,6 +143,7 @@ export default function InventarioMateriales() {
               </thead>
               <tbody className="divide-y divide-border">
                 {filteredMateriales.map((material) => {
+                  // Alerta de reabastecimiento: existencia por debajo del mínimo.
                   const stockBajo = material.stock < material.stockMinimo;
                   return (
                     <tr
@@ -187,6 +206,7 @@ export default function InventarioMateriales() {
         </CardContent>
       </Card>
 
+      {/* Indicadores calculados sobre todos los materiales (sin aplicar filtros) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardContent className="p-6">

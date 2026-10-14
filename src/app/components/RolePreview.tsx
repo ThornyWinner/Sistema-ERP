@@ -1,3 +1,14 @@
+/**
+ * RolePreview.tsx — Tarjeta resumen de lo que puede hacer un rol.
+ *
+ * Muestra, para los módulos principales (Dashboard, Inventario, Órdenes, Talleres,
+ * Reportes, Usuarios), si el rol tiene acceso completo, solo lectura, acceso a un
+ * taller específico o ningún acceso. Actualmente no se importa en ninguna página;
+ * está disponible como ayuda visual (p. ej. para la gestión de usuarios).
+ *
+ * Nota: la tabla de permisos de este componente es solo informativa y está escrita a
+ * mano; los permisos efectivos de la aplicación están en utils/permissions.ts.
+ */
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
@@ -11,6 +22,8 @@ interface RolePreviewProps {
 }
 
 export default function RolePreview({ role, className = '' }: RolePreviewProps) {
+  // Resumen por rol: access = puede entrar, edit = puede modificar,
+  // specific = texto aclaratorio cuando el acceso es parcial (un solo taller).
   const permissions = {
     admin_primario: {
       dashboard: { access: true, edit: true },
@@ -80,6 +93,11 @@ export default function RolePreview({ role, className = '' }: RolePreviewProps) 
 
   const rolePermissions = permissions[role];
 
+  /**
+   * Devuelve el indicador visual (icono + texto) de un permiso. Prioridad:
+   * sin acceso (✗ rojo) → solo lectura (ojo amarillo) → acceso parcial (✓ azul)
+   * → acceso completo (✓ verde).
+   */
   const renderPermission = (perm: { access: boolean; edit: boolean; specific?: string }) => {
     if (!perm.access) {
       return (
@@ -118,12 +136,14 @@ export default function RolePreview({ role, className = '' }: RolePreviewProps) 
 
   return (
     <Card className={className}>
+      {/* Cabecera: nombre legible del rol y su identificador interno */}
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">{roleLabels[role]}</CardTitle>
           <Badge variant="outline">{role}</Badge>
         </div>
       </CardHeader>
+      {/* Una fila por módulo con su nivel de acceso */}
       <CardContent>
         <div className="space-y-3">
           <div className="flex items-center justify-between py-2 border-b border-neutral-200">

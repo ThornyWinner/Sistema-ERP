@@ -1,3 +1,10 @@
+/**
+ * drawer.tsx — Cajón que se desliza desde un borde, pensado para móviles (librería "vaul").
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 "use client";
 
 import * as React from "react";
@@ -5,30 +12,35 @@ import { Drawer as DrawerPrimitive } from "vaul";
 
 import { cn } from "./utils";
 
+/** Raíz del cajón. */
 function Drawer({
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) {
   return <DrawerPrimitive.Root data-slot="drawer" {...props} />;
 }
 
+/** Elemento que abre el cajón. */
 function DrawerTrigger({
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Trigger>) {
   return <DrawerPrimitive.Trigger data-slot="drawer-trigger" {...props} />;
 }
 
+/** Renderiza el cajón en un portal. */
 function DrawerPortal({
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Portal>) {
   return <DrawerPrimitive.Portal data-slot="drawer-portal" {...props} />;
 }
 
+/** Elemento que cierra el cajón. */
 function DrawerClose({
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Close>) {
   return <DrawerPrimitive.Close data-slot="drawer-close" {...props} />;
 }
 
+/** Fondo oscuro detrás del cajón. */
 function DrawerOverlay({
   className,
   ...props
@@ -45,6 +57,7 @@ function DrawerOverlay({
   );
 }
 
+/** Contenido del cajón; adapta bordes y tamaño según la dirección. Desde abajo muestra una "manija". */
 function DrawerContent({
   className,
   children,
@@ -72,6 +85,7 @@ function DrawerContent({
   );
 }
 
+/** Cabecera del cajón. */
 function DrawerHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -82,6 +96,7 @@ function DrawerHeader({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/** Pie del cajón. */
 function DrawerFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -92,6 +107,7 @@ function DrawerFooter({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/** Título del cajón. */
 function DrawerTitle({
   className,
   ...props
@@ -105,6 +121,7 @@ function DrawerTitle({
   );
 }
 
+/** Descripción del cajón. */
 function DrawerDescription({
   className,
   ...props

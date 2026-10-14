@@ -1,3 +1,16 @@
+/**
+ * NuevaOrdenDialog.tsx — Formulario modal (versión anterior) para crear una orden
+ * de producción de UN solo producto.
+ *
+ * Fue reemplazado por NuevaOrdenMultiProducto.tsx (varios productos por orden) y ya
+ * no se importa en ninguna página; se conserva como referencia.
+ *
+ * Secciones del formulario:
+ *  1. Cliente y nombre del producto.
+ *  2. Especificaciones: tipo de prenda, marca, talla, color, cantidad, entrega, prioridad.
+ *  3. Flujo de producción: talleres participantes (manual o con "flujos comunes").
+ *  4. Detalles de bordado (solo si el flujo incluye el taller de bordado).
+ */
 import { useState } from "react";
 import { Taller } from "../data/mockData";
 import { useAuth } from "../context/AuthContext";
@@ -21,9 +34,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "./Card";
 interface NuevaOrdenDialogProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Recibe la orden construida con los datos del formulario. */
   onSubmit: (orden: any) => void;
 }
 
+// Todos los talleres en el orden real del flujo de producción.
 const todosLosTalleres: Taller[] = [
   "diseno",
   "sublimacion",
@@ -38,8 +53,11 @@ export default function NuevaOrdenDialog({
   onSubmit,
 }: NuevaOrdenDialogProps) {
   const { user } = useAuth();
+  // Controla si se muestra el panel de "Flujos Comunes" (plantillas de talleres).
   const [showFlujosComunes, setShowFlujosComunes] = useState(false);
 
+  // Estado de todos los campos del formulario con sus valores iniciales.
+  // Por defecto el flujo es Corte → Costura.
   const [formData, setFormData] = useState({
     cliente: "",
     producto: "",
@@ -59,6 +77,10 @@ export default function NuevaOrdenDialog({
 
   if (!isOpen) return null;
 
+  /**
+   * Activa o desactiva un taller del flujo. Al añadirlo, la lista se reordena según
+   * el orden oficial (todosLosTalleres) para que el flujo siempre sea coherente.
+   */
   const toggleTaller = (taller: Taller) => {
     setFormData((prev) => ({
       ...prev,
@@ -70,11 +92,13 @@ export default function NuevaOrdenDialog({
     }));
   };
 
+  // Sustituye los talleres por los de una plantilla y cierra el panel.
   const aplicarFlujoComun = (flujo: Taller[]) => {
     setFormData((prev) => ({ ...prev, talleres: flujo }));
     setShowFlujosComunes(false);
   };
 
+  // Plantillas de flujos de producción habituales para seleccionarlos con un clic.
   const flujosComunes = [
     {
       nombre: "Flujo Completo",
@@ -102,6 +126,11 @@ export default function NuevaOrdenDialog({
     },
   ];
 
+  /**
+   * Arma la orden a partir del formulario: añade vendedor, un folio provisional
+   * (últimos 3 dígitos del timestamp), fecha de creación, estado inicial pendiente
+   * y el progreso "pending" en cada taller seleccionado.
+   */
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -115,6 +144,7 @@ export default function NuevaOrdenDialog({
       progreso: Object.fromEntries(
         formData.talleres.map((t) => [t, "pending"])
       ),
+      // Detalle de bordado solo si se marcó; se descartan colores de hilo vacíos.
       bordadoDetalle: formData.requiereBordado
         ? {
             lugarBordar: formData.lugarBordar,
@@ -128,6 +158,7 @@ export default function NuevaOrdenDialog({
     onClose();
   };
 
+  // Nombres legibles de los talleres para las casillas de selección.
   const tallerLabels: Record<Taller, string> = {
     diseno: "Diseño",
     sublimacion: "Sublimación",
@@ -137,8 +168,10 @@ export default function NuevaOrdenDialog({
   };
 
   return (
+    // Overlay oscuro a pantalla completa que contiene la ventana modal.
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-background rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        {/* Encabezado fijo con título y botón de cerrar */}
         <div className="sticky top-0 bg-background border-b border-border px-6 py-4 flex items-center justify-between">
           <h2>Nueva Orden de Producción</h2>
           <button
@@ -277,6 +310,7 @@ export default function NuevaOrdenDialog({
                     type="number"
                     required
                     min="1"
+                    // Con cantidad 0 se muestra el campo vacío en lugar de "0".
                     value={formData.cantidad || ""}
                     onChange={(e) =>
                       setFormData({
@@ -303,6 +337,7 @@ export default function NuevaOrdenDialog({
                   />
                 </div>
               </div>
+              {/* Prioridad: botones de radio baja / media / alta */}
               <div>
                 <label className="block text-sm font-medium mb-2">Prioridad</label>
                 <div className="flex gap-3">
@@ -351,6 +386,7 @@ export default function NuevaOrdenDialog({
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Panel de plantillas de flujo (visible al pulsar "Flujos Comunes") */}
               {showFlujosComunes && (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 pb-4 border-b border-border">
                   {flujosComunes.map((flujo) => (
@@ -369,6 +405,7 @@ export default function NuevaOrdenDialog({
                 <p className="text-sm text-muted-foreground mb-3">
                   Selecciona los talleres que participarán en esta orden:
                 </p>
+                {/* Casillas de taller; la seleccionada se resalta con borde verde */}
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                   {todosLosTalleres.map((taller) => (
                     <label
@@ -395,7 +432,8 @@ export default function NuevaOrdenDialog({
             </CardContent>
           </Card>
 
-          {/* Detalles de Bordado */}
+          {/* Detalles de Bordado: solo si el flujo incluye bordado; los campos
+              aparecen al marcar la casilla "Detalles de Bordado" */}
           {formData.talleres.includes("bordado") && (
             <Card>
               <CardHeader>
@@ -443,6 +481,7 @@ export default function NuevaOrdenDialog({
                       <label className="block text-sm font-medium mb-2">
                         Colores de Hilo
                       </label>
+                      {/* Todos los colores se capturan en un único texto (primer elemento del arreglo) */}
                       <input
                         type="text"
                         value={formData.coloresHilo[0]}
@@ -480,6 +519,7 @@ export default function NuevaOrdenDialog({
             </Card>
           )}
 
+          {/* Botones de acción */}
           <div className="flex justify-end gap-3 pt-4 border-t border-border">
             <button
               type="button"

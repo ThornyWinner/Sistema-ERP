@@ -1,3 +1,10 @@
+/**
+ * toggle-group.tsx — Grupo de botones conmutables (selección simple o múltiple) (Radix ToggleGroup).
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 "use client";
 
 import * as React from "react";
@@ -7,6 +14,7 @@ import { type VariantProps } from "class-variance-authority";
 import { cn } from "./utils";
 import { toggleVariants } from "./toggle";
 
+/** Contexto que comparte variant/size del grupo con todos sus elementos. */
 const ToggleGroupContext = React.createContext<
   VariantProps<typeof toggleVariants>
 >({
@@ -14,6 +22,7 @@ const ToggleGroupContext = React.createContext<
   variant: "default",
 });
 
+/** Contenedor del grupo; propaga su variante y tamaño a los hijos mediante el contexto. */
 function ToggleGroup({
   className,
   variant,
@@ -40,6 +49,7 @@ function ToggleGroup({
   );
 }
 
+/** Elemento del grupo; usa la variante del contexto o, si no hay, la suya propia. */
 function ToggleGroupItem({
   className,
   children,

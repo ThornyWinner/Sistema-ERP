@@ -1,3 +1,14 @@
+/**
+ * VentaRapidaDialog.tsx — Ventana modal de "Venta Rápida" (venta de mostrador).
+ *
+ * Permite vender productos que ya están en existencia sin pasar por los talleres:
+ *  1. Se captura el cliente y el método de pago.
+ *  2. Se eligen variantes (talla + color) con stock disponible y se agregan al carrito.
+ *  3. Se ajustan cantidades (nunca por encima del stock de la variante).
+ *  4. Al completar, se genera una orden de tipo "directa", ya entregada ("completed")
+ *     y liquidada, con un único pago por el total. La orden se entrega al padre
+ *     mediante `onSubmit`, que es quien la guarda.
+ */
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import type { MetodoPago, Producto } from "../data/mockData";
@@ -14,10 +25,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "./Card";
 interface VentaRapidaDialogProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Recibe la orden construida (sin id ni folio, que asigna la base de datos). */
   onSubmit: (orden: any) => void;
+  /** Catálogo de productos con sus variantes y stock. */
   productos: Producto[];
 }
 
+/** Renglón del carrito: una variante concreta con la cantidad a vender. */
 type ItemCarrito = {
   productoId: string;
   varianteId: string;
@@ -26,6 +40,7 @@ type ItemCarrito = {
   talla: string;
   color: string;
   precio: number;
+  /** Stock de la variante al momento de agregarla; límite máximo de `cantidad`. */
   stockDisponible: number;
   cantidad: number;
 };
@@ -36,7 +51,9 @@ export default function VentaRapidaDialog({
   onSubmit,
   productos,
 }: VentaRapidaDialogProps) {
+  // Usuario actual: queda registrado como vendedor de la orden.
   const { user } = useAuth();
+  // Datos del formulario (cliente y forma de pago).
   const [formData, setFormData] = useState<{ cliente: string; metodoPago: MetodoPago }>({
     cliente: "",
     metodoPago: "efectivo",
@@ -44,8 +61,14 @@ export default function VentaRapidaDialog({
 
   const [carrito, setCarrito] = useState<ItemCarrito[]>([]);
 
+  // Cerrado: no se renderiza nada (los hooks ya se declararon arriba, como exige React).
   if (!isOpen) return null;
 
+  /**
+   * Agrega una variante al carrito. Si ya estaba, suma 1 a su cantidad siempre que
+   * no supere el stock disponible. El precio de la variante tiene prioridad sobre el
+   * precio general del producto.
+   */
   const agregarVariante = (producto: Producto, varianteId: string) => {
     const variante = producto.variantes.find((v) => v.id === varianteId);
     if (!variante) return;
@@ -72,10 +95,15 @@ export default function VentaRapidaDialog({
     });
   };
 
+  // Quita por completo una variante del carrito.
   const removerVariante = (varianteId: string) => {
     setCarrito((prev) => prev.filter((p) => p.varianteId !== varianteId));
   };
 
+  /**
+   * Suma o resta (`delta` = +1 / -1) a la cantidad de una variante.
+   * Si llega a 0 se elimina del carrito; si superaría el stock, no cambia.
+   */
   const ajustarCantidad = (varianteId: string, delta: number) => {
     setCarrito((prev) =>
       prev
@@ -90,9 +118,15 @@ export default function VentaRapidaDialog({
     );
   };
 
+  // Suma de precio × cantidad de todos los renglones del carrito.
   const calcularTotal = () => carrito.reduce((acc, item) => acc + item.precio * item.cantidad, 0);
 
+  /**
+   * Construye la orden de venta directa a partir del carrito y la envía al padre.
+   * Fecha de creación y de entrega = hoy, porque el producto se entrega en el acto.
+   */
   const handleSubmit = (e: React.FormEvent) => {
+    // Evita que el formulario recargue la página.
     e.preventDefault();
 
     if (carrito.length === 0) {
@@ -101,6 +135,7 @@ export default function VentaRapidaDialog({
     }
 
     const total = calcularTotal();
+    // Fecha actual en formato "AAAA-MM-DD" (UTC).
     const hoy = new Date().toISOString().split("T")[0];
 
     const nuevaOrden = {
@@ -116,6 +151,7 @@ export default function VentaRapidaDialog({
       estadoPago: "liquidado" as const,
       total,
       anticipo: 0,
+      // Un solo pago por el total: la venta queda liquidada al momento.
       pagos: [
         {
           monto: total,
@@ -123,6 +159,8 @@ export default function VentaRapidaDialog({
           metodo: formData.metodoPago,
         },
       ],
+      // Cada renglón del carrito se convierte en un ProductoOrden sin talleres.
+      // productoId/varianteId permiten identificar exactamente la variante vendida.
       productos: carrito.map((item) => ({
         id: item.varianteId,
         nombre: item.nombre,
@@ -139,11 +177,13 @@ export default function VentaRapidaDialog({
       })),
     };
 
+    // Entrega la orden, vacía el carrito y cierra el diálogo.
     onSubmit(nuevaOrden);
     setCarrito([]);
     onClose();
   };
 
+  // Lista plana de todas las variantes con stock > 0 (de todos los productos).
   const variantesDisponibles = productos.flatMap((producto) =>
     producto.variantes
       .filter((v) => v.stock > 0)
@@ -151,8 +191,10 @@ export default function VentaRapidaDialog({
   );
 
   return (
+    // Fondo oscuro semitransparente que cubre toda la pantalla (overlay del modal).
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-background rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        {/* Encabezado fijo (sticky) con título y botón de cerrar */}
         <div className="sticky top-0 bg-background border-b border-border px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <ShoppingCart className="w-6 h-6 text-primary" />
@@ -167,6 +209,7 @@ export default function VentaRapidaDialog({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Sección 1: datos del cliente y método de pago */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Información del Cliente</CardTitle>
@@ -216,6 +259,7 @@ export default function VentaRapidaDialog({
             </CardContent>
           </Card>
 
+          {/* Sección 2: catálogo de variantes en existencia; el botón + las agrega al carrito */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">
@@ -253,6 +297,7 @@ export default function VentaRapidaDialog({
             </CardContent>
           </Card>
 
+          {/* Sección 3: carrito con controles de cantidad y total (solo si hay productos) */}
           {carrito.length > 0 && (
             <Card>
               <CardHeader>
@@ -314,6 +359,7 @@ export default function VentaRapidaDialog({
             </Card>
           )}
 
+          {/* Acciones: cancelar o completar (deshabilitado con el carrito vacío) */}
           <div className="flex justify-end gap-3 pt-4 border-t border-border">
             <button
               type="button"

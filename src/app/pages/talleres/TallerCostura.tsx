@@ -1,14 +1,24 @@
+/**
+ * TallerCostura.tsx — Tablero Kanban del taller de Costura (ruta /talleres/costura).
+ *
+ * Muestra los productos cuyo flujo incluye "costura" agrupados por su estado en este
+ * taller; Iniciar/Completar guardan el avance en Supabase. La barra de progreso (fija
+ * al 65%), el contador de prendas y la casilla de control de calidad son elementos
+ * de maqueta: no están conectados a datos reales.
+ */
 import TallerKanban from "../../components/TallerKanban";
 import { useErpData } from "../../context/ErpDataContext";
 
 export default function TallerCostura() {
   const { ordenes, actualizarProgresoTaller } = useErpData();
 
+  // Una tarjeta por cada producto (de cualquier orden) que pasa por Costura.
   const ordenesTaller = ordenes
     .flatMap((orden) =>
       orden.productos
         .filter((producto) => producto.talleres.includes("costura"))
         .map((producto) => ({
+          // Id compuesto "ordenId::productoId".
           id: `${orden.id}::${producto.id}`,
           numero: `${orden.numero} - ${producto.nombre}`,
           cliente: orden.cliente,
@@ -48,6 +58,7 @@ export default function TallerCostura() {
         }))
     );
 
+  // Extrae el id del producto y guarda el nuevo estado de Costura.
   const handleChangeEstado = (itemId: string, nuevoEstado: any) => {
     const [, productoId] = itemId.split("::");
     void actualizarProgresoTaller(productoId, "costura", nuevoEstado);

@@ -1,3 +1,16 @@
+/**
+ * Ordenes.tsx — Listado de órdenes de producción (ruta /ordenes).
+ *
+ * Funciones principales:
+ *  - Tabla de órdenes con tipo de venta, vendedor/cliente, productos, total y estado de
+ *    pago, fecha de entrega (con días restantes) y estado general + % de avance.
+ *    Al hacer clic en una fila se abre el detalle (/ordenes/:id).
+ *  - Búsqueda por folio, cliente o vendedor; filtros por estado y por vendedor.
+ *  - Los vendedores solo ven sus propias órdenes; el resto de roles ve todas.
+ *  - Botones "Venta Rápida" (VentaRapidaDialog) y "Nueva Orden" (NuevaOrdenMultiProducto);
+ *    ambos guardan la orden con crearOrden() de ErpDataContext.
+ *  - Paneles inferiores: conteo por prioridad y próximas entregas.
+ */
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/Card";
 import StatusBadge from "../components/StatusBadge";
@@ -15,9 +28,11 @@ export default function Ordenes() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { ordenes, productos, crearOrden } = useErpData();
+  // Filtros de la tabla.
   const [searchTerm, setSearchTerm] = useState("");
   const [filterEstado, setFilterEstado] = useState<string>("all");
   const [filterVendedor, setFilterVendedor] = useState<string>("all");
+  // Visibilidad de los dos diálogos de creación.
   const [showNuevaOrden, setShowNuevaOrden] = useState(false);
   const [showVentaRapida, setShowVentaRapida] = useState(false);
 
@@ -26,10 +41,12 @@ export default function Ordenes() {
     ? ordenes.filter((o) => o.vendedorId === user.id)
     : ordenes;
 
+  // Lista de vendedores (sin repetir y ordenada) para el filtro por vendedor.
   const vendedoresUnicos = Array.from(
     new Set(ordenesVisibles.map((o) => o.vendedor))
   ).sort();
 
+  // Órdenes que cumplen búsqueda + estado + vendedor.
   const filteredOrdenes = ordenesVisibles.filter((orden) => {
     const matchesSearch =
       orden.numero.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -42,6 +59,10 @@ export default function Ordenes() {
     return matchesSearch && matchesEstado && matchesVendedor;
   });
 
+  /**
+   * Avance de la orden en %: pasos de taller completados / pasos de taller totales,
+   * sumando todos sus productos. Sin productos o sin talleres se considera 100%.
+   */
   const getProgresoTotal = (orden: Orden) => {
     if (!orden.productos || orden.productos.length === 0) return 100;
 
@@ -58,6 +79,8 @@ export default function Ordenes() {
     return Math.round((talleresCompletados / todosLosTalleres.length) * 100);
   };
 
+  // Guarda la orden recibida de cualquiera de los dos diálogos y notifica el resultado
+  // (en caso de éxito muestra el folio asignado por la base de datos).
   const handleNuevaOrden = async (nuevaOrden: Orden) => {
     try {
       const folio = await crearOrden(nuevaOrden);
@@ -71,6 +94,7 @@ export default function Ordenes() {
     }
   };
 
+  // Colores de la etiqueta de tipo de venta.
   const getTipoVentaColor = (tipo: string) => {
     switch (tipo) {
       case "directa":
@@ -86,6 +110,7 @@ export default function Ordenes() {
     }
   };
 
+  // Texto legible del tipo de venta.
   const getTipoVentaLabel = (tipo: string) => {
     switch (tipo) {
       case "directa":
@@ -103,6 +128,7 @@ export default function Ordenes() {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Encabezado con los botones de Venta Rápida y Nueva Orden */}
       <div className="flex items-center justify-between">
         <div>
           <h1>Órdenes de Producción</h1>
@@ -128,6 +154,7 @@ export default function Ordenes() {
         </div>
       </div>
 
+      {/* Filtros + tabla de órdenes */}
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-4">
@@ -206,16 +233,19 @@ export default function Ordenes() {
               <tbody className="divide-y divide-border">
                 {filteredOrdenes.map((orden) => {
                   const progreso = getProgresoTotal(orden);
+                  // Días hasta la entrega (redondeado hacia arriba; negativo = vencida).
                   const diasRestantes = Math.ceil(
                     (new Date(orden.fechaEntrega).getTime() - new Date().getTime()) /
                       (1000 * 60 * 60 * 24)
                   );
+                  // Suma de unidades de todos los productos de la orden.
                   const cantidadTotal = orden.productos?.reduce(
                     (acc, p) => acc + p.cantidad,
                     0
                   ) || 0;
 
                   return (
+                    // Toda la fila es clicable y abre el detalle de la orden.
                     <tr
                       key={orden.id}
                       onClick={() => navigate(`/ordenes/${orden.id}`)}
@@ -274,6 +304,7 @@ export default function Ordenes() {
                           <p className="font-semibold text-foreground">
                             ${(orden.total || 0).toLocaleString()}
                           </p>
+                          {/* Estado de pago: Pagado (verde), Anticipo (ámbar) o Pendiente (rojo) */}
                           <div className="flex items-center gap-2 mt-1">
                             <span
                               className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
@@ -300,6 +331,7 @@ export default function Ordenes() {
                             <p className="text-sm text-foreground">
                               {new Date(orden.fechaEntrega).toLocaleDateString()}
                             </p>
+                            {/* En rojo si faltan menos de 3 días */}
                             <p
                               className={`text-xs ${
                                 diasRestantes < 3
@@ -319,6 +351,7 @@ export default function Ordenes() {
                       <td className="px-6 py-4">
                         <div className="flex flex-col gap-2">
                           <StatusBadge status={orden.estado} size="sm" />
+                          {/* El % de avance no aplica a la venta directa */}
                           {orden.tipoVenta !== "directa" && (
                             <span className="text-xs text-muted-foreground">
                               {progreso}%
@@ -343,6 +376,7 @@ export default function Ordenes() {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Número de órdenes por prioridad (sobre todas las órdenes) */}
         <Card>
           <CardHeader>
             <CardTitle>Órdenes por Prioridad</CardTitle>
@@ -365,6 +399,8 @@ export default function Ordenes() {
           </CardContent>
         </Card>
 
+        {/* Próximas entregas: toma las 3 primeras órdenes de la lista (las más recientes)
+            y las ordena por fecha de entrega */}
         <Card>
           <CardHeader>
             <CardTitle>Próximas Entregas</CardTitle>
@@ -414,6 +450,7 @@ export default function Ordenes() {
         </Card>
       </div>
 
+      {/* Diálogos modales (se renderizan solo cuando están abiertos) */}
       <NuevaOrdenMultiProducto
         isOpen={showNuevaOrden}
         onClose={() => setShowNuevaOrden(false)}

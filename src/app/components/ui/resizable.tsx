@@ -1,3 +1,10 @@
+/**
+ * resizable.tsx — Paneles redimensionables arrastrando un separador (librería react-resizable-panels).
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 "use client";
 
 import * as React from "react";
@@ -6,6 +13,7 @@ import * as ResizablePrimitive from "react-resizable-panels";
 
 import { cn } from "./utils";
 
+/** Contenedor de paneles (dirección horizontal o vertical). */
 function ResizablePanelGroup({
   className,
   ...props
@@ -22,12 +30,14 @@ function ResizablePanelGroup({
   );
 }
 
+/** Panel individual cuyo tamaño puede ajustarse. */
 function ResizablePanel({
   ...props
 }: React.ComponentProps<typeof ResizablePrimitive.Panel>) {
   return <ResizablePrimitive.Panel data-slot="resizable-panel" {...props} />;
 }
 
+/** Separador arrastrable entre paneles; `withHandle` muestra un asa visible. */
 function ResizableHandle({
   withHandle,
   className,

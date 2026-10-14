@@ -1,3 +1,11 @@
+/**
+ * InventarioProductos.tsx — Inventario de productos terminados (ruta /inventario/productos).
+ *
+ * Tabla con todos los productos del catálogo: tipo, tallas, colores, stock total,
+ * precio y categoría. Permite buscar por nombre/categoría y filtrar por tipo de prenda.
+ * Cada fila enlaza al formulario de edición y el botón superior al de alta.
+ * Debajo, una tarjeta por tipo de prenda con el número de productos y el stock total.
+ */
 import { useState } from "react";
 import { Card, CardContent, CardHeader } from "../components/Card";
 import { useErpData } from "../context/ErpDataContext";
@@ -5,10 +13,13 @@ import { Search, Plus, Edit } from "lucide-react";
 import { Link } from "react-router";
 
 export default function InventarioProductos() {
+  // Productos reales de Supabase (alias mockProductos del prototipo).
   const { productos: mockProductos } = useErpData();
+  // Texto de búsqueda y filtro por tipo de prenda ("all" = todos).
   const [searchTerm, setSearchTerm] = useState("");
   const [filterTipo, setFilterTipo] = useState<string>("all");
 
+  // Productos que cumplen ambos criterios: búsqueda y tipo.
   const filteredProductos = mockProductos.filter((producto) => {
     const matchesSearch =
       producto.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -21,6 +32,7 @@ export default function InventarioProductos() {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Encabezado con botón para dar de alta un producto */}
       <div className="flex items-center justify-between">
         <div>
           <h1>Inventario de Productos</h1>
@@ -37,6 +49,7 @@ export default function InventarioProductos() {
         </Link>
       </div>
 
+      {/* Filtros + tabla de productos */}
       <Card>
         <CardHeader>
           <div className="flex flex-col md:flex-row gap-4">
@@ -111,6 +124,7 @@ export default function InventarioProductos() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
+                      {/* Muestra hasta 3 tallas y un contador "+N" con las restantes */}
                       <div className="flex flex-wrap gap-1">
                         {producto.tallas.slice(0, 3).map((talla) => (
                           <span
@@ -128,6 +142,7 @@ export default function InventarioProductos() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
+                      {/* Muestra hasta 2 colores y un contador "+N" con los restantes */}
                       <div className="flex flex-wrap gap-1">
                         {producto.colores.slice(0, 2).map((color) => (
                           <span
@@ -179,6 +194,7 @@ export default function InventarioProductos() {
         </CardContent>
       </Card>
 
+      {/* Resumen por tipo de prenda: número de productos y stock acumulado */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {["camisa", "pantalon", "overol", "chaleco"].map((tipo) => {
           const count = mockProductos.filter((p) => p.tipo === tipo).length;

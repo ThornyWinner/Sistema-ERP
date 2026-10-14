@@ -1,3 +1,10 @@
+/**
+ * scroll-area.tsx — Área con barras de desplazamiento personalizadas (Radix ScrollArea).
+ * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
+ * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
+ * `className` para añadir clases, que se combinan con las de por defecto mediante cn().
+ * El atributo `data-slot` identifica cada parte para poder estilizarla desde fuera.
+ */
 "use client";
 
 import * as React from "react";
@@ -5,6 +12,7 @@ import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 
 import { cn } from "./utils";
 
+/** Contenedor desplazable con barra de scroll estilizada. */
 function ScrollArea({
   className,
   children,
@@ -28,6 +36,7 @@ function ScrollArea({
   );
 }
 
+/** Barra de desplazamiento vertical u horizontal (`orientation`). */
 function ScrollBar({
   className,
   orientation = "vertical",

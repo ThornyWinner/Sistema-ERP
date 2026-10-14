@@ -1,12 +1,25 @@
+/**
+ * Proveedores.tsx — Directorio de proveedores (ruta /proveedores).
+ *
+ * Muestra una tarjeta por proveedor con contacto, teléfono, email, calificación e
+ * insumos que suministra, con un buscador por nombre, contacto o insumo. Al final,
+ * tres indicadores: total de proveedores, calificación promedio y órdenes de compra.
+ *
+ * Nota: los botones "Agregar Proveedor", "Contactar" y "Ver Historial" aún no tienen
+ * acción, y el indicador "Órdenes de Compra" es un valor fijo de ejemplo.
+ */
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/Card";
 import { useErpData } from "../context/ErpDataContext";
 import { Search, Plus, Star, Phone, Mail, Package } from "lucide-react";
 
 export default function Proveedores() {
+  // Proveedores reales de Supabase (con el alias mockProveedores del prototipo).
   const { proveedores: mockProveedores } = useErpData();
+  // Texto del buscador.
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Filtra (sin distinguir mayúsculas) por nombre, contacto o cualquiera de sus insumos.
   const filteredProveedores = mockProveedores.filter(
     (proveedor) =>
       proveedor.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -16,6 +29,7 @@ export default function Proveedores() {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Encabezado de la página */}
       <div className="flex items-center justify-between">
         <div>
           <h1>Proveedores</h1>
@@ -29,6 +43,7 @@ export default function Proveedores() {
         </button>
       </div>
 
+      {/* Buscador + cuadrícula de tarjetas de proveedores */}
       <Card>
         <CardHeader>
           <div className="flex-1 relative">
@@ -56,6 +71,7 @@ export default function Proveedores() {
                         {proveedor.contacto}
                       </p>
                     </div>
+                    {/* Calificación con estrella */}
                     <div className="flex items-center gap-1 px-2 py-1 bg-status-completed-bg rounded">
                       <Star className="w-4 h-4 text-status-completed fill-current" />
                       <span className="text-sm font-medium text-status-completed-text">
@@ -116,6 +132,7 @@ export default function Proveedores() {
         </CardContent>
       </Card>
 
+      {/* Indicadores resumen */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardContent className="p-6">
@@ -135,6 +152,7 @@ export default function Proveedores() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Calificación Promedio</p>
+                {/* Promedio con un decimal (NaN si no hay proveedores) */}
                 <p className="text-3xl font-semibold">
                   {(
                     mockProveedores.reduce((acc, p) => acc + p.calificacion, 0) /
