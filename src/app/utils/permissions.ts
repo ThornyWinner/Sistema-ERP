@@ -33,7 +33,7 @@ const noPermission: Permission = { canView: false, canCreate: false, canEdit: fa
  * Devuelve la lista completa de módulos del sistema con los permisos que tiene el rol
  * indicado en cada uno. El orden de la lista es el orden en que aparecen en el menú.
  */
-export const getRoutePermissions = (role: UserRole): RoutePermission[] => {
+const getRoutePermissions = (role: UserRole): RoutePermission[] => {
   // Catálogo de módulos; todos empiezan sin permisos y luego se habilitan según el rol.
   // `icon` es el nombre de un icono de lucide-react (lo traduce el Sidebar).
   const routes: RoutePermission[] = [

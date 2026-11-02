@@ -99,4 +99,3 @@
 | ordenes                 | 2                | folio               | text                     | text        | NO          | null              |
 | ordenes                 | 3                | cliente_id          | uuid                     | uuid        | YES         | null              |
 | ordenes                 | 4                | vendedor_id         | uuid                     | uuid        | YES         | null              |
-| ordenes                 | 7                | prioridad           | text                     | text        | YES         | 'media'::text     |

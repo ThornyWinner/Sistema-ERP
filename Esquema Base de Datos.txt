@@ -106,7 +106,6 @@ CREATE TABLE public.ordenes (
   folio text NOT NULL UNIQUE,
   cliente_id uuid,
   vendedor_id uuid,
-  prioridad text DEFAULT 'media'::text,
   fecha_creacion date,
   fecha_entrega date,
   subtotal numeric CHECK (subtotal >= 0::numeric),

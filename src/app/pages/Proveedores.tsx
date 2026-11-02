@@ -9,7 +9,7 @@
  * acción, y el indicador "Órdenes de Compra" es un valor fijo de ejemplo.
  */
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/Card";
+import { Card, CardContent, CardHeader } from "../components/Card";
 import { useErpData } from "../context/ErpDataContext";
 import { Search, Plus, Star, Phone, Mail, Package } from "lucide-react";
 

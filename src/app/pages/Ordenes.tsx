@@ -2,27 +2,35 @@
  * Ordenes.tsx — Listado de órdenes de producción (ruta /ordenes).
  *
  * Funciones principales:
- *  - Tabla de órdenes con tipo de venta, vendedor/cliente, productos, total y estado de
+ *  - Tabla de órdenes en orden FIFO (la más antigua primero) con su turno en la cola,
+ *    tipo de venta, vendedor/cliente, productos, total y estado de
  *    pago, fecha de entrega (con días restantes) y estado general + % de avance.
  *    Al hacer clic en una fila se abre el detalle (/ordenes/:id).
- *  - Búsqueda por folio, cliente o vendedor; filtros por estado y por vendedor.
+ *  - Búsqueda por folio, cliente (nombre, teléfono o correo) o vendedor; filtros por estado y por vendedor.
  *  - Los vendedores solo ven sus propias órdenes; el resto de roles ve todas.
  *  - Botones "Venta Rápida" (VentaRapidaDialog) y "Nueva Orden" (NuevaOrdenMultiProducto);
  *    ambos guardan la orden con crearOrden() de ErpDataContext.
- *  - Paneles inferiores: conteo por prioridad y próximas entregas.
+ *  - Panel inferior: próximas entregas.
  */
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/Card";
 import StatusBadge from "../components/StatusBadge";
-import WorkflowStepper from "../components/WorkflowStepper";
+import OrdenCerradaBadge, { esOrdenCerrada } from "../components/OrdenCerradaBadge";
 import NuevaOrdenMultiProducto from "../components/NuevaOrdenMultiProducto";
 import VentaRapidaDialog from "../components/VentaRapidaDialog";
 import { Orden } from "../data/mockData";
-import { Search, Plus, Calendar, User, Filter, Zap } from "lucide-react";
-import { Link, useNavigate } from "react-router";
+import { Search, Plus, Calendar, User, Filter, Zap, Phone, Mail } from "lucide-react";
+import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 import { useErpData } from "../context/ErpDataContext";
+import {
+  claseDiasRestantes,
+  diasRestantes as calcularDiasRestantes,
+  formatFecha,
+  parseFecha,
+  textoDiasRestantes,
+} from "../lib/fechas";
 
 export default function Ordenes() {
   const navigate = useNavigate();
@@ -48,16 +56,51 @@ export default function Ordenes() {
 
   // Órdenes que cumplen búsqueda + estado + vendedor.
   const filteredOrdenes = ordenesVisibles.filter((orden) => {
+    const termino = searchTerm.toLowerCase();
     const matchesSearch =
-      orden.numero.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      orden.cliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      orden.vendedor.toLowerCase().includes(searchTerm.toLowerCase());
+      orden.numero.toLowerCase().includes(termino) ||
+      orden.cliente.toLowerCase().includes(termino) ||
+      (orden.clienteTelefono ?? "").toLowerCase().includes(termino) ||
+      (orden.clienteEmail ?? "").toLowerCase().includes(termino) ||
+      orden.vendedor.toLowerCase().includes(termino);
 
     const matchesEstado = filterEstado === "all" || orden.estado === filterEstado;
     const matchesVendedor = filterVendedor === "all" || orden.vendedor === filterVendedor;
 
     return matchesSearch && matchesEstado && matchesVendedor;
   });
+
+  // Turno FIFO de cada orden no completada: 1 = la más antigua, la siguiente en
+  // atenderse. Se calcula sobre todas las órdenes (ya vienen de la más antigua a la
+  // más reciente) para que el turno no cambie al filtrar la tabla.
+  const turnos = new Map(
+    ordenes
+      .filter((o) => o.estado !== "completed")
+      .map((o, i) => [o.id, i + 1] as const)
+  );
+
+  // Órdenes visibles sin completar y con fecha de entrega válida, de la más
+  // próxima a la más lejana (solo las 3 primeras).
+  const proximasEntregas = ordenesVisibles
+    .filter((o) => o.estado !== "completed" && parseFecha(o.fechaEntrega))
+    .sort(
+      (a, b) =>
+        parseFecha(a.fechaEntrega)!.getTime() - parseFecha(b.fechaEntrega)!.getTime()
+    )
+    .slice(0, 3);
+
+  // Órdenes visibles ya entregadas y liquidadas, de la entrega más reciente a la más
+  // antigua (solo las 3 primeras). Con la misma fecha (o sin fecha) va primero la que
+  // se creó después; para eso se recorre la lista FIFO al revés antes de ordenar.
+  const entregasRecientes = [...ordenesVisibles]
+    .reverse()
+    .filter(esOrdenCerrada)
+    .sort(
+      (a, b) =>
+        (parseFecha(b.fechaEntrega)?.getTime() ?? 0) -
+        (parseFecha(a.fechaEntrega)?.getTime() ?? 0)
+    )
+    .slice(0, 3);
 
   /**
    * Avance de la orden en %: pasos de taller completados / pasos de taller totales,
@@ -130,13 +173,16 @@ export default function Ordenes() {
     <div className="p-6 space-y-6">
       {/* Encabezado con los botones de Venta Rápida y Nueva Orden */}
       <div className="flex items-center justify-between">
+        {/* Título y subtítulo */}
         <div>
           <h1>Órdenes de Producción</h1>
           <p className="text-muted-foreground mt-1">
             Gestión de órdenes activas y en proceso
           </p>
         </div>
+        {/* Botones de acción */}
         <div className="flex gap-3">
+          {/* Botón de Venta Rápida (abre el diálogo VentaRapidaDialog) */}
           <button
             onClick={() => setShowVentaRapida(true)}
             className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
@@ -144,6 +190,7 @@ export default function Ordenes() {
             <Zap className="w-5 h-5" />
             Venta Rápida
           </button>
+          {/* Botón de Nueva Orden (abre el diálogo NuevaOrdenMultiProducto) */}
           <button
             onClick={() => setShowNuevaOrden(true)}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
@@ -157,20 +204,24 @@ export default function Ordenes() {
       {/* Filtros + tabla de órdenes */}
       <Card>
         <CardHeader>
+          {/* Filtros de búsqueda y selección */}
           <div className="flex flex-col gap-4">
             <div className="flex flex-col md:flex-row gap-4">
+              {/* Búsqueda por folio, cliente o vendedor */}
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <input
                   type="text"
-                  placeholder="Buscar por número, cliente, producto o vendedor..."
+                  placeholder="Buscar por número, cliente, teléfono, correo o vendedor..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
               </div>
             </div>
+            {/* Filtros por estado y por vendedor */}
             <div className="flex flex-col sm:flex-row gap-3">
+              {/* Filtro por estado de la orden: pendiente, en proceso o completada */}
               <div className="flex items-center gap-2 flex-1">
                 <Filter className="w-4 h-4 text-muted-foreground" />
                 <select
@@ -184,6 +235,7 @@ export default function Ordenes() {
                   <option value="completed">Completado</option>
                 </select>
               </div>
+              {/* Filtro por vendedor */}
               <div className="flex items-center gap-2 flex-1">
                 <User className="w-4 h-4 text-muted-foreground" />
                 <select
@@ -202,9 +254,11 @@ export default function Ordenes() {
             </div>
           </div>
         </CardHeader>
+        {/* Tabla de órdenes */}
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full">
+              {/* Encabezado de la tabla */}
               <thead className="bg-secondary">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -230,14 +284,12 @@ export default function Ordenes() {
                   </th>
                 </tr>
               </thead>
+              {/* Cuerpo de la tabla: filas clicables que abren el detalle de la orden */}
               <tbody className="divide-y divide-border">
                 {filteredOrdenes.map((orden) => {
                   const progreso = getProgresoTotal(orden);
-                  // Días hasta la entrega (redondeado hacia arriba; negativo = vencida).
-                  const diasRestantes = Math.ceil(
-                    (new Date(orden.fechaEntrega).getTime() - new Date().getTime()) /
-                      (1000 * 60 * 60 * 24)
-                  );
+                  // Días hasta la entrega (0 = hoy, negativo = vencida, null = sin fecha).
+                  const diasRestantes = calcularDiasRestantes(orden.fechaEntrega);
                   // Suma de unidades de todos los productos de la orden.
                   const cantidadTotal = orden.productos?.reduce(
                     (acc, p) => acc + p.cantidad,
@@ -251,21 +303,26 @@ export default function Ordenes() {
                       onClick={() => navigate(`/ordenes/${orden.id}`)}
                       className="hover:bg-secondary/50 transition-colors cursor-pointer"
                     >
+{/* Número de orden + turno en la cola + fecha de creación */}
                       <td className="px-6 py-4">
                         <div>
                           <span className="font-medium text-foreground">
                             {orden.numero}
                           </span>
-                          {orden.prioridad === "alta" && (
-                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-status-pending-bg text-status-pending-text">
-                              Alta
+                          {turnos.has(orden.id) && (
+                            <span
+                              className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-secondary text-muted-foreground border border-border"
+                              title="Posición en la cola de atención (primero en llegar, primero en atenderse)"
+                            >
+                              Turno #{turnos.get(orden.id)}
                             </span>
                           )}
                           <p className="text-xs text-muted-foreground mt-1">
-                            {new Date(orden.fechaCreacion).toLocaleDateString()}
+                            {formatFecha(orden.fechaCreacion)}
                           </p>
                         </div>
                       </td>
+{/* Tipo de venta: directa, fabricación, comercialización o mixta */}
                       <td className="px-6 py-4">
                         <span
                           className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getTipoVentaColor(
@@ -275,6 +332,7 @@ export default function Ordenes() {
                           {getTipoVentaLabel(orden.tipoVenta)}
                         </span>
                       </td>
+{/* Vendedor + cliente + contacto del cliente */}
                       <td className="px-6 py-4">
                         <div>
                           <div className="flex items-center gap-2">
@@ -286,8 +344,22 @@ export default function Ordenes() {
                           <p className="font-medium text-foreground mt-1">
                             {orden.cliente}
                           </p>
+                          {/* Contacto del cliente (solo los datos registrados) */}
+                          {orden.clienteTelefono && (
+                            <p className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                              <Phone className="w-3 h-3" />
+                              {orden.clienteTelefono}
+                            </p>
+                          )}
+                          {orden.clienteEmail && (
+                            <p className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                              <Mail className="w-3 h-3" />
+                              {orden.clienteEmail}
+                            </p>
+                          )}
                         </div>
                       </td>
+{/* Cantidad de productos + unidades totales */}
                       <td className="px-6 py-4">
                         <div>
                           <p className="font-medium text-foreground">
@@ -299,6 +371,7 @@ export default function Ordenes() {
                           </p>
                         </div>
                       </td>
+{/* Total de la orden + estado de pago */}
                       <td className="px-6 py-4">
                         <div>
                           <p className="font-semibold text-foreground">
@@ -324,32 +397,29 @@ export default function Ordenes() {
                           </div>
                         </div>
                       </td>
+{/* Fecha de entrega + días restantes + distintivo de orden cerrada */}
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-muted-foreground" />
-                          <div>
-                            <p className="text-sm text-foreground">
-                              {new Date(orden.fechaEntrega).toLocaleDateString()}
-                            </p>
-                            {/* En rojo si faltan menos de 3 días */}
-                            <p
-                              className={`text-xs ${
-                                diasRestantes < 3
-                                  ? "text-status-pending"
-                                  : "text-muted-foreground"
-                              }`}
-                            >
-                              {diasRestantes > 0
-                                ? `${diasRestantes} días`
-                                : diasRestantes === 0
-                                ? "Hoy"
-                                : "Vencida"}
-                            </p>
+                        {esOrdenCerrada(orden) ? (
+                          // Entregada y pagada en su totalidad: solo el distintivo.
+                          <OrdenCerradaBadge orden={orden} size="sm" />
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-muted-foreground" />
+                            <div>
+                              <p className="text-sm text-foreground">
+                                {formatFecha(orden.fechaEntrega)}
+                              </p>
+                              {/* En rojo si faltan 5 días o menos, o si ya venció */}
+                              <p className={`text-xs ${claseDiasRestantes(diasRestantes)}`}>
+                                {textoDiasRestantes(diasRestantes)}
+                              </p>
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </td>
+{/* Estado general + % de avance (solo si tiene talleres) */}
                       <td className="px-6 py-4">
-                        <div className="flex flex-col gap-2">
+                        <div className="flex flex-col items-start gap-2">
                           <StatusBadge status={orden.estado} size="sm" />
                           {/* El % de avance no aplica a la venta directa */}
                           {orden.tipoVenta !== "directa" && (
@@ -374,51 +444,23 @@ export default function Ordenes() {
           )}
         </CardContent>
       </Card>
-
+{/* Panel inferior con próximas entregas y entregas recientes */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Número de órdenes por prioridad (sobre todas las órdenes) */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Órdenes por Prioridad</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {["alta", "media", "baja"].map((prioridad) => {
-                const count = ordenes.filter((o) => o.prioridad === prioridad).length;
-                return (
-                  <div
-                    key={prioridad}
-                    className="flex items-center justify-between p-3 bg-secondary rounded-lg"
-                  >
-                    <span className="capitalize font-medium">{prioridad}</span>
-                    <span className="text-2xl font-semibold">{count}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Próximas entregas: toma las 3 primeras órdenes de la lista (las más recientes)
-            y las ordena por fecha de entrega */}
+        {/* Próximas entregas: las 3 órdenes sin completar con la fecha de entrega más
+            cercana (las que no tienen fecha registrada se omiten) */}
         <Card>
           <CardHeader>
             <CardTitle>Próximas Entregas</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {ordenes
-                .slice(0, 3)
-                .sort(
-                  (a, b) =>
-                    new Date(a.fechaEntrega).getTime() -
-                    new Date(b.fechaEntrega).getTime()
-                )
-                .map((orden) => {
-                  const diasRestantes = Math.ceil(
-                    (new Date(orden.fechaEntrega).getTime() - new Date().getTime()) /
-                      (1000 * 60 * 60 * 24)
-                  );
+              {proximasEntregas.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No hay entregas pendientes con fecha registrada
+                </p>
+              )}
+              {proximasEntregas.map((orden) => {
+                  const diasRestantes = calcularDiasRestantes(orden.fechaEntrega);
                   return (
                     <div
                       key={orden.id}
@@ -430,21 +472,52 @@ export default function Ordenes() {
                       </div>
                       <div className="text-right">
                         <p className="font-medium">
-                          {new Date(orden.fechaEntrega).toLocaleDateString()}
+                          {formatFecha(orden.fechaEntrega)}
                         </p>
-                        <p
-                          className={`text-sm ${
-                            diasRestantes < 3
-                              ? "text-status-pending"
-                              : "text-muted-foreground"
-                          }`}
-                        >
-                          {diasRestantes} días
+                        <p className={`text-sm ${claseDiasRestantes(diasRestantes)}`}>
+                          {textoDiasRestantes(diasRestantes)}
                         </p>
                       </div>
                     </div>
                   );
                 })}
+            </div>
+          </CardContent>
+        </Card>
+        {/* Entregas recientes: las 3 últimas órdenes entregadas y liquidadas.
+            Al hacer clic se abre el detalle de la orden. */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Entregas Recientes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {entregasRecientes.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Aún no hay órdenes entregadas y liquidadas
+                </p>
+              )}
+              {entregasRecientes.map((orden) => (
+                <div
+                  key={orden.id}
+                  onClick={() => navigate(`/ordenes/${orden.id}`)}
+                  className="flex items-center justify-between gap-3 p-3 bg-secondary rounded-lg cursor-pointer hover:bg-secondary/70 transition-colors"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium">{orden.numero}</p>
+                    <p className="text-sm text-muted-foreground truncate">{orden.cliente}</p>
+                    <p className="text-sm font-semibold text-foreground mt-1">
+                      ${(orden.total || 0).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <OrdenCerradaBadge orden={orden} size="sm" />
+                    <p className="text-sm text-muted-foreground">
+                      Entregada el {formatFecha(orden.fechaEntrega)}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>

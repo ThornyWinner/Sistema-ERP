@@ -105,7 +105,6 @@ Una orden puede tener:
 - folio
 - cliente
 - vendedor
-- prioridad
 - fechas
 - productos/detalles
 - cantidades

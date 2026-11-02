@@ -33,11 +33,6 @@ import {
 import { useErpData } from "../context/ErpDataContext";
 import { Link } from "react-router";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   PieChart,
@@ -71,10 +66,8 @@ export default function Dashboard() {
     ? mockOrdenes.filter((o) => o.vendedorId === user.id)
     : mockOrdenes;
 
-  // Conteos por estado general de la orden.
+  // Órdenes en proceso.
   const ordenesEnProceso = ordenesVisibles.filter((o) => o.estado === "in-progress").length;
-  const ordenesPendientes = ordenesVisibles.filter((o) => o.estado === "pending").length;
-  const ordenesCompletadas = ordenesVisibles.filter((o) => o.estado === "completed").length;
   // Materiales por debajo de su stock mínimo (no depende del rol).
   const materialesBajoStock = mockMateriales.filter((m) => m.stock < m.stockMinimo).length;
 
@@ -117,21 +110,6 @@ export default function Dashboard() {
     { name: "Fabricación", value: ordenesEnFabricacion, color: "#10B981" },
     { name: "Comercialización", value: ordenesComercializadas, color: "#3B82F6" },
     { name: "Mixta", value: ordenesMixtas, color: "#A855F7" },
-  ];
-
-  // Datos de ejemplo por taller y por estado (actualmente no se muestran en la página).
-  const produccionPorTaller = [
-    { taller: "Diseño", ordenes: 8, color: "#059669" },
-    { taller: "Sublimación", ordenes: 6, color: "#3B82F6" },
-    { taller: "Corte", ordenes: 5, color: "#F59E0B" },
-    { taller: "Costura", ordenes: 4, color: "#8B5CF6" },
-    { taller: "Bordado", ordenes: 3, color: "#EC4899" },
-  ];
-
-  const estadoOrdenes = [
-    { name: "Pendiente", value: ordenesPendientes, color: "#EF4444" },
-    { name: "En Proceso", value: ordenesEnProceso, color: "#F59E0B" },
-    { name: "Completado", value: ordenesCompletadas, color: "#10B981" },
   ];
 
   return (
@@ -330,7 +308,8 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Últimas 5 órdenes (la lista ya viene ordenada de la más reciente a la más antigua) */}
+      {/* Últimas 5 órdenes: la lista viene en orden FIFO (más antigua primero), así que
+          se invierte para mostrar las más recientes */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Órdenes Recientes</CardTitle>
@@ -367,7 +346,7 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {ordenesVisibles.slice(0, 5).map((orden) => {
+                {[...ordenesVisibles].reverse().slice(0, 5).map((orden) => {
                   const cantidadTotal = orden.productos?.reduce(
                     (acc, p) => acc + p.cantidad,
                     0

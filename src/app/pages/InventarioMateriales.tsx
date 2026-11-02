@@ -11,13 +11,11 @@
  * crear) y el administrador secundario ve un aviso de modo solo lectura.
  */
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/Card";
-import { Material } from "../data/mockData";
+import { Card, CardContent, CardHeader } from "../components/Card";
 import { useErpData } from "../context/ErpDataContext";
 import { Search, Filter, Plus, AlertTriangle, Lock } from "lucide-react";
 import PermissionButton from "../components/PermissionButton";
 import { useAuth } from "../context/AuthContext";
-import { Badge } from "../components/ui/badge";
 
 export default function InventarioMateriales() {
   // Materiales reales de Supabase (alias mockMateriales del prototipo).

@@ -3,7 +3,8 @@
  * con uno o varios productos (lo usa la página Órdenes).
  *
  * Secciones:
- *  1. Información general: cliente, fecha de entrega, método de pago, anticipo y prioridad.
+ *  1. Información general: cliente, teléfono y correo de contacto, fecha de entrega, método de pago y anticipo.
+ *     (Las órdenes se atienden por orden de llegada — FIFO —, por lo que no se captura prioridad.)
  *  2. Productos: lista de tarjetas plegables; cada producto tiene su tipo de producción
  *     (venta directa / fabricación / comercialización), prenda, talla, color, marca,
  *     cantidad, precio, proveedor (si es comercialización), talleres del flujo (si no es
@@ -15,9 +16,10 @@
  * objeto orden y lo entrega al padre con `onSubmit`, que es quien lo guarda.
  */
 import { useState } from "react";
-import { Taller, TipoVenta, MetodoPago, ProductoOrden } from "../data/mockData";
+import { Taller, TipoVenta, MetodoPago } from "../data/mockData";
 import { useErpData } from "../context/ErpDataContext";
 import { useAuth } from "../context/AuthContext";
+import { hoyISO } from "../lib/fechas";
 import {
   X,
   User,
@@ -32,6 +34,8 @@ import {
   Building2,
   Shirt,
   FileText,
+  Phone,
+  Mail,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./Card";
 
@@ -71,8 +75,9 @@ export default function NuevaOrdenMultiProducto({
   // Datos generales de la orden.
   const [formData, setFormData] = useState({
     cliente: "",
+    clienteTelefono: "",
+    clienteEmail: "",
     fechaEntrega: "",
-    prioridad: "media" as const,
     tipoVenta: "fabricacion" as TipoVenta,
     metodoPago: "transferencia" as MetodoPago,
     anticipo: 0,
@@ -236,13 +241,14 @@ export default function NuevaOrdenMultiProducto({
       vendedor: user?.nombre || "Usuario",
       vendedorId: user?.id || "0",
       cliente: formData.cliente,
+      clienteTelefono: formData.clienteTelefono.trim(),
+      clienteEmail: formData.clienteEmail.trim(),
       // Folio provisional; ErpDataContext.crearOrden no lo usa (la BD genera el real).
       numero: `ORD-2026-${String(Date.now()).slice(-3)}`,
-      fechaCreacion: new Date().toISOString().split("T")[0],
+      fechaCreacion: hoyISO(),
       fechaEntrega: formData.fechaEntrega,
       tipoVenta: formData.tipoVenta,
       estado: formData.tipoVenta === "directa" ? "completed" : "pending",
-      prioridad: formData.prioridad,
       metodoPago: formData.metodoPago,
       estadoPago:
         anticipo >= total
@@ -257,7 +263,7 @@ export default function NuevaOrdenMultiProducto({
           ? [
               {
                 monto: anticipo,
-                fecha: new Date().toISOString().split("T")[0],
+                fecha: hoyISO(),
                 metodo: formData.metodoPago,
                 concepto:
                   anticipo >= total
@@ -370,12 +376,45 @@ export default function NuevaOrdenMultiProducto({
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">
+                    <Phone className="w-4 h-4 inline mr-2" />
+                    Teléfono de Contacto *
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={formData.clienteTelefono}
+                    onChange={(e) =>
+                      setFormData({ ...formData, clienteTelefono: e.target.value })
+                    }
+                    placeholder="Ej: 55 1234 5678"
+                    className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    <Mail className="w-4 h-4 inline mr-2" />
+                    Correo Electrónico *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={formData.clienteEmail}
+                    onChange={(e) =>
+                      setFormData({ ...formData, clienteEmail: e.target.value })
+                    }
+                    placeholder="contacto@empresa.com"
+                    className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">
                     <Calendar className="w-4 h-4 inline mr-2" />
                     Fecha de Entrega *
                   </label>
                   <input
                     type="date"
                     required
+                    min={hoyISO()}
                     value={formData.fechaEntrega}
                     onChange={(e) =>
                       setFormData({ ...formData, fechaEntrega: e.target.value })
@@ -423,29 +462,6 @@ export default function NuevaOrdenMultiProducto({
                     }
                     className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Prioridad</label>
-                <div className="flex gap-3">
-                  {(["baja", "media", "alta"] as const).map((p) => (
-                    <label key={p} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="prioridad"
-                        value={p}
-                        checked={formData.prioridad === p}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            prioridad: e.target.value as any,
-                          })
-                        }
-                        className="w-4 h-4"
-                      />
-                      <span className="capitalize">{p}</span>
-                    </label>
-                  ))}
                 </div>
               </div>
             </CardContent>

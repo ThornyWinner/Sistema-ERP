@@ -12,7 +12,6 @@
  */
 import { Card, CardContent, CardHeader, CardTitle } from "../components/Card";
 import { useErpData } from "../context/ErpDataContext";
-import StatusBadge from "../components/StatusBadge";
 import { AlertTriangle, CheckCircle2, Clock } from "lucide-react";
 
 // Talleres en orden del flujo, con la clave interna y su nombre visible.

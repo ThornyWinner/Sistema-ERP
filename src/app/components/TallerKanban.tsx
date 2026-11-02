@@ -12,6 +12,7 @@ import { ReactNode } from "react";
 import StatusBadge from "./StatusBadge";
 import { Card, CardContent } from "./Card";
 import { Clock, User, Package } from "lucide-react";
+import { formatFecha } from "../lib/fechas";
 
 /** Trabajo que se muestra en el tablero (normalmente un producto de una orden). */
 interface OrdenTaller {
@@ -93,7 +94,7 @@ export default function TallerKanban({
                     </p>
                     <p className="text-sm text-muted-foreground flex items-center gap-1">
                       <Clock className="w-3 h-3" />
-                      Entrega: {new Date(orden.fechaEntrega).toLocaleDateString()}
+                      Entrega: {formatFecha(orden.fechaEntrega)}
                     </p>
                   </div>
                   {orden.detalles && <div className="pt-2 border-t border-border">{orden.detalles}</div>}
@@ -151,7 +152,7 @@ export default function TallerKanban({
                     </p>
                     <p className="text-sm text-muted-foreground flex items-center gap-1">
                       <Clock className="w-3 h-3" />
-                      Entrega: {new Date(orden.fechaEntrega).toLocaleDateString()}
+                      Entrega: {formatFecha(orden.fechaEntrega)}
                     </p>
                   </div>
                   {orden.detalles && <div className="pt-2 border-t border-border">{orden.detalles}</div>}

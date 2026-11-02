@@ -12,6 +12,7 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import type { MetodoPago, Producto } from "../data/mockData";
+import { hoyISO } from "../lib/fechas";
 import {
   X,
   User,
@@ -19,6 +20,8 @@ import {
   ShoppingCart,
   Plus,
   Minus,
+  Phone,
+  Mail,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./Card";
 
@@ -53,9 +56,16 @@ export default function VentaRapidaDialog({
 }: VentaRapidaDialogProps) {
   // Usuario actual: queda registrado como vendedor de la orden.
   const { user } = useAuth();
-  // Datos del formulario (cliente y forma de pago).
-  const [formData, setFormData] = useState<{ cliente: string; metodoPago: MetodoPago }>({
+  // Datos del formulario (cliente, contacto opcional y forma de pago).
+  const [formData, setFormData] = useState<{
+    cliente: string;
+    clienteTelefono: string;
+    clienteEmail: string;
+    metodoPago: MetodoPago;
+  }>({
     cliente: "",
+    clienteTelefono: "",
+    clienteEmail: "",
     metodoPago: "efectivo",
   });
 
@@ -135,18 +145,19 @@ export default function VentaRapidaDialog({
     }
 
     const total = calcularTotal();
-    // Fecha actual en formato "AAAA-MM-DD" (UTC).
-    const hoy = new Date().toISOString().split("T")[0];
+    // Fecha actual en formato "AAAA-MM-DD" (hora local).
+    const hoy = hoyISO();
 
     const nuevaOrden = {
       vendedor: user?.nombre || "Usuario",
       vendedorId: user?.id || "",
       cliente: formData.cliente,
+      clienteTelefono: formData.clienteTelefono.trim(),
+      clienteEmail: formData.clienteEmail.trim(),
       fechaCreacion: hoy,
       fechaEntrega: hoy,
       tipoVenta: "directa" as const,
       estado: "completed" as const,
-      prioridad: "media" as const,
       metodoPago: formData.metodoPago,
       estadoPago: "liquidado" as const,
       total,
@@ -230,6 +241,36 @@ export default function VentaRapidaDialog({
                     }
                     className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                     placeholder="Nombre del cliente"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    <Phone className="w-4 h-4 inline mr-2" />
+                    Teléfono de Contacto
+                  </label>
+                  <input
+                    type="tel"
+                    value={formData.clienteTelefono}
+                    onChange={(e) =>
+                      setFormData({ ...formData, clienteTelefono: e.target.value })
+                    }
+                    className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    placeholder="Ej: 55 1234 5678"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    <Mail className="w-4 h-4 inline mr-2" />
+                    Correo Electrónico
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.clienteEmail}
+                    onChange={(e) =>
+                      setFormData({ ...formData, clienteEmail: e.target.value })
+                    }
+                    className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    placeholder="contacto@empresa.com"
                   />
                 </div>
                 <div>

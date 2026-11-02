@@ -19,10 +19,13 @@ import { ArrowLeft, Save, X } from "lucide-react";
 import { useErpData } from "../context/ErpDataContext";
 
 export default function ProductoForm() {
+  // Obtiene la lista de productos del contexto (mock).
   const { productos: mockProductos } = useErpData();
   // `id` existe solo en la ruta de edición.
   const { id } = useParams();
+  // Hook de navegación para redirigir después de guardar.
   const navigate = useNavigate();
+  // Determina si estamos en modo edición (id presente) o creación (id ausente).
   const isEditing = !!id;
 
   // Producto a editar (null en modo creación).
@@ -47,7 +50,7 @@ export default function ProductoForm() {
   const [nuevaTalla, setNuevaTalla] = useState("");
   const [nuevoColor, setNuevoColor] = useState("");
 
-  // Catálogos de opciones para tallas (letras y números de cintura) y colores.
+  // Listas de tallas y colores disponibles para seleccionar. Se filtran en el render para no mostrar los ya agregados.
   const tallasDisponibles = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "28", "30", "32", "34", "36", "38", "40"];
   const coloresDisponibles = [
     "Azul Marino",
@@ -69,6 +72,7 @@ export default function ProductoForm() {
     setNuevaTalla("");
   };
 
+  // Elimina la talla del formulario y limpia el desplegable.
   const eliminarTalla = (talla: string) => {
     setFormData({
       ...formData,
@@ -84,6 +88,7 @@ export default function ProductoForm() {
     setNuevoColor("");
   };
 
+  // Elimina el color del formulario y limpia el desplegable.
   const eliminarColor = (color: string) => {
     setFormData({
       ...formData,
@@ -98,7 +103,9 @@ export default function ProductoForm() {
     navigate("/inventario/productos");
   };
 
+  // Renderiza el formulario con encabezado, campos, variantes, imagen y resumen.
   return (
+    // Contenedor principal con padding y espacio entre secciones
     <div className="p-6 space-y-6">
       {/* Encabezado con flecha para volver; el título cambia según el modo */}
       <div className="flex items-center gap-4">
@@ -108,6 +115,7 @@ export default function ProductoForm() {
         >
           <ArrowLeft className="w-5 h-5" />
         </Link>
+        {/* Título y subtítulo que cambian según si estamos editando o creando un producto */}
         <div>
           <h1>{isEditing ? "Editar Producto" : "Nuevo Producto"}</h1>
           <p className="text-muted-foreground mt-1">
@@ -118,19 +126,27 @@ export default function ProductoForm() {
         </div>
       </div>
 
+      {/* Formulario principal con tres columnas: datos, imagen y resumen */}
       <form onSubmit={handleSubmit}>
         {/* Diseño en 3 columnas: 2 para los datos y 1 para imagen/resumen/acciones */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Columna izquierda: información general y variantes */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Información general: nombre, tipo, categoría, precio y stock */}
             <Card>
+              {/* Encabezado de la tarjeta con el título "Información General" */}
               <CardHeader>
                 <CardTitle>Información General</CardTitle>
               </CardHeader>
+              {/* Contenido de la tarjeta con los campos del formulario */}
               <CardContent className="space-y-4">
+                {/* Campo de texto para el nombre del producto, obligatorio */}
                 <div>
+                  {/* Etiqueta y campo de entrada para el nombre del producto */}
                   <label className="block text-sm font-medium text-foreground mb-2">
                     Nombre del Producto *
                   </label>
+                  {/* Input de texto controlado por el estado formData.nombre */}
                   <input
                     type="text"
                     value={formData.nombre}
@@ -142,12 +158,16 @@ export default function ProductoForm() {
                     required
                   />
                 </div>
-
+                
+                {/* Campos de selección para tipo de producto y categoría, obligatorios */}
                 <div className="grid grid-cols-2 gap-4">
+                  {/* Campo de selección para el tipo de producto (camisa, pantalón, overol, chaleco) */}
                   <div>
+                    {/* Etiqueta y select para el tipo de producto */}
                     <label className="block text-sm font-medium text-foreground mb-2">
                       Tipo de Producto *
                     </label>
+                    {/* Select controlado por el estado formData.tipo, con opciones predefinidas */}
                     <select
                       value={formData.tipo}
                       onChange={(e) =>
@@ -159,17 +179,21 @@ export default function ProductoForm() {
                       className="w-full px-4 py-2 bg-input-background border border-border rounded-lg focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                       required
                     >
+                      {/* Opciones de tipo de producto: camisa, pantalón, overol, chaleco */}
                       <option value="camisa">Camisa</option>
                       <option value="pantalon">Pantalón</option>
                       <option value="overol">Overol</option>
                       <option value="chaleco">Chaleco</option>
                     </select>
                   </div>
-
+                  
+                  {/* Campo de texto para la categoría del producto, obligatorio */}
                   <div>
+                    {/* Etiqueta y campo de entrada para la categoría del producto */}
                     <label className="block text-sm font-medium text-foreground mb-2">
                       Categoría *
                     </label>
+                    {/* Input de texto controlado por el estado formData.categoria */}
                     <input
                       type="text"
                       value={formData.categoria}
@@ -182,7 +206,8 @@ export default function ProductoForm() {
                     />
                   </div>
                 </div>
-
+                
+                {/* Campos de precio y stock inicial, obligatorios */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-2">
@@ -204,11 +229,13 @@ export default function ProductoForm() {
                       required
                     />
                   </div>
-
+                  {/* Campo de stock inicial, obligatorio */}
                   <div>
+                    {/* Etiqueta y campo de entrada para el stock inicial del producto */}
                     <label className="block text-sm font-medium text-foreground mb-2">
                       Stock Inicial
                     </label>
+                    {/* Input de número controlado por el estado formData.stock */}
                     <input
                       type="number"
                       value={formData.stock}
@@ -230,29 +257,39 @@ export default function ProductoForm() {
             {/* Variantes: tallas y colores como etiquetas que se pueden quitar con la X.
                 Los desplegables ocultan las opciones ya agregadas. */}
             <Card>
+              {/* Encabezado de la tarjeta con el título "Variantes" */}
               <CardHeader>
                 <CardTitle>Variantes</CardTitle>
               </CardHeader>
+              {/* Contenido de la tarjeta con los campos de tallas y colores */}
               <CardContent className="space-y-6">
+                {/* Sección de tallas disponibles con un select y un botón para agregar */}
                 <div>
+                  {/* Etiqueta para la sección de tallas disponibles */}
                   <label className="block text-sm font-medium text-foreground mb-2">
                     Tallas Disponibles
                   </label>
+                  {/* Contenedor flex para el select de tallas y el botón de agregar */}
                   <div className="flex gap-2 mb-3">
+                    {/* Select controlado por el estado nuevaTalla, con opciones filtradas para no mostrar las ya agregadas */}
                     <select
                       value={nuevaTalla}
                       onChange={(e) => setNuevaTalla(e.target.value)}
                       className="flex-1 px-4 py-2 bg-input-background border border-border rounded-lg focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                     >
+                      {/* Opción por defecto para indicar que se debe seleccionar una talla */}
                       <option value="">Seleccionar talla</option>
+                      {/* Mapea las tallas disponibles que aún no están en formData.tallas a opciones del select */}
                       {tallasDisponibles
                         .filter((t) => !formData.tallas.includes(t))
                         .map((talla) => (
+                          // Mapea cada talla disponible a una opción del select, usando la talla como key y value */}
                           <option key={talla} value={talla}>
                             {talla}
                           </option>
                         ))}
                     </select>
+                    {/* Botón para agregar la talla seleccionada al formulario */}
                     <button
                       type="button"
                       onClick={() => agregarTalla(nuevaTalla)}
@@ -261,13 +298,17 @@ export default function ProductoForm() {
                       Agregar
                     </button>
                   </div>
+                  {/* Contenedor para mostrar las tallas agregadas como etiquetas con botón de eliminar */}
                   <div className="flex flex-wrap gap-2">
+                    {/* Mapea las tallas agregadas en formData.tallas a etiquetas con botón de eliminar */}
                     {formData.tallas.map((talla) => (
+                      // Etiqueta que muestra la talla y un botón para eliminarla, usando la talla como key */}
                       <span
                         key={talla}
                         className="inline-flex items-center gap-2 px-3 py-1 bg-secondary text-foreground rounded-lg"
                       >
                         {talla}
+                        {/* Botón para eliminar la talla del formulario, con icono X */}
                         <button
                           type="button"
                           onClick={() => eliminarTalla(talla)}
@@ -277,6 +318,7 @@ export default function ProductoForm() {
                         </button>
                       </span>
                     ))}
+                    {/* Mensaje que se muestra si no hay tallas agregadas, con texto atenuado */}
                     {formData.tallas.length === 0 && (
                       <p className="text-sm text-muted-foreground">
                         No hay tallas agregadas
@@ -284,18 +326,23 @@ export default function ProductoForm() {
                     )}
                   </div>
                 </div>
-
+                {/* Sección de colores disponibles con un select y un botón para agregar */}
                 <div>
+                  {/* Etiqueta para la sección de colores disponibles */}
                   <label className="block text-sm font-medium text-foreground mb-2">
                     Colores Disponibles
                   </label>
+                  {/* Contenedor flex para el select de colores y el botón de agregar */}
                   <div className="flex gap-2 mb-3">
+                    {/* Select controlado por el estado nuevoColor, con opciones filtradas para no mostrar los ya agregados */}
                     <select
                       value={nuevoColor}
                       onChange={(e) => setNuevoColor(e.target.value)}
                       className="flex-1 px-4 py-2 bg-input-background border border-border rounded-lg focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                     >
+                      {/* Opción por defecto para indicar que se debe seleccionar un color */}
                       <option value="">Seleccionar color</option>
+                      {/* Mapea los colores disponibles que aún no están en formData.colores a opciones del select */}
                       {coloresDisponibles
                         .filter((c) => !formData.colores.includes(c))
                         .map((color) => (
@@ -304,6 +351,7 @@ export default function ProductoForm() {
                           </option>
                         ))}
                     </select>
+                    {/* Botón para agregar el color seleccionado al formulario */}
                     <button
                       type="button"
                       onClick={() => agregarColor(nuevoColor)}
@@ -312,13 +360,17 @@ export default function ProductoForm() {
                       Agregar
                     </button>
                   </div>
+                  {/* Contenedor para mostrar los colores agregados como etiquetas con botón de eliminar */}
                   <div className="flex flex-wrap gap-2">
+                    {/* Mapea los colores agregados en formData.colores a etiquetas con botón de eliminar */}
                     {formData.colores.map((color) => (
+                      // Etiqueta que muestra el color y un botón para eliminarlo, usando el color como key */}
                       <span
                         key={color}
                         className="inline-flex items-center gap-2 px-3 py-1 bg-secondary text-foreground rounded-lg"
                       >
                         {color}
+                        {/* Botón para eliminar el color del formulario, con icono X */}
                         <button
                           type="button"
                           onClick={() => eliminarColor(color)}
@@ -328,6 +380,7 @@ export default function ProductoForm() {
                         </button>
                       </span>
                     ))}
+                    {/* Mensaje que se muestra si no hay colores agregados, con texto atenuado */}
                     {formData.colores.length === 0 && (
                       <p className="text-sm text-muted-foreground">
                         No hay colores agregados
@@ -338,22 +391,29 @@ export default function ProductoForm() {
               </CardContent>
             </Card>
           </div>
-
+          
+          {/* Columna derecha: zona de imagen y resumen del producto */}
           <div className="space-y-6">
             {/* Zona de carga de imagen (solo visual, aún sin funcionalidad) */}
             <Card>
+              {/* Encabezado de la tarjeta con el título "Imagen de Referencia" */}
               <CardHeader>
                 <CardTitle>Imagen de Referencia</CardTitle>
               </CardHeader>
+              {/* Contenido de la tarjeta con un área de carga de imagen simulada */}
               <CardContent>
+                {/* Contenedor con borde punteado, centrado y con efecto hover para indicar que se puede subir una imagen */}
                 <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary transition-colors cursor-pointer">
+                  {/* Icono de imagen dentro de un círculo, centrado */}
                   <div className="w-16 h-16 bg-secondary rounded-full mx-auto mb-4 flex items-center justify-center">
+                    {/* Icono SVG de una imagen, con tamaño y color atenuado */}
                     <svg
                       className="w-8 h-8 text-muted-foreground"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
                     >
+                      {/* Dibujo del icono de imagen con líneas redondeadas y un trazo de 2px */}
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -362,6 +422,7 @@ export default function ProductoForm() {
                       />
                     </svg>
                   </div>
+                  {/* Texto que indica al usuario que haga clic para subir una imagen */}
                   <p className="text-sm text-muted-foreground">
                     Haz clic para subir una imagen
                   </p>
@@ -374,30 +435,39 @@ export default function ProductoForm() {
 
             {/* Resumen que se actualiza mientras se llena el formulario */}
             <Card>
+              {/* Encabezado de la tarjeta con el título "Resumen" */}
               <CardHeader>
                 <CardTitle>Resumen</CardTitle>
               </CardHeader>
+              {/* Contenido de la tarjeta con un resumen en vivo de las tallas, colores, precio y stock */}
               <CardContent className="space-y-3">
+                {/* Cada línea del resumen muestra un campo y su valor correspondiente */}
                 <div className="flex justify-between">
+                  {/* Muestra el número de tallas agregadas al producto */}
                   <span className="text-muted-foreground">Tallas:</span>
                   <span className="font-medium">{formData.tallas.length}</span>
                 </div>
                 <div className="flex justify-between">
+                  {/* Muestra el número de colores agregados al producto */}
                   <span className="text-muted-foreground">Colores:</span>
                   <span className="font-medium">{formData.colores.length}</span>
                 </div>
                 <div className="flex justify-between">
+                  {/* Muestra el precio del producto formateado a dos decimales */}
                   <span className="text-muted-foreground">Precio:</span>
                   <span className="font-medium">${formData.precio.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
+                  {/* Muestra el stock del producto seguido de "uds" */}
                   <span className="text-muted-foreground">Stock:</span>
                   <span className="font-medium">{formData.stock} uds</span>
                 </div>
               </CardContent>
             </Card>
 
+            {/* Botones de acción: Guardar y Cancelar */}
             <div className="flex gap-3">
+              {/* Botón de envío del formulario con icono de guardar */}
               <button
                 type="submit"
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
@@ -405,6 +475,7 @@ export default function ProductoForm() {
                 <Save className="w-5 h-5" />
                 Guardar
               </button>
+              {/* Enlace para cancelar y volver al inventario de productos */}
               <Link
                 to="/inventario/productos"
                 className="px-4 py-3 bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-colors"

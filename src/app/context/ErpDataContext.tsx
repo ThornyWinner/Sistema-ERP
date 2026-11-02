@@ -137,8 +137,8 @@ const SELECT_PROVEEDORES =
 //  - orden_detalles: cada producto de la orden, con su variante, su avance en cada
 //    taller (produccion_taller) y su personalización (bordado, logo, hilos).
 const SELECT_ORDENES =
-  'id,folio,fecha_creacion,fecha_entrega,prioridad,total,anticipo,notas,' +
-  'usuarios!ordenes_vendedor_id_fkey(id,nombre),clientes(razon_social),' +
+  'id,folio,fecha_creacion,fecha_entrega,total,anticipo,notas,' +
+  'usuarios!ordenes_vendedor_id_fkey(id,nombre),clientes(razon_social,telefono,email),' +
   'estados_orden(nombre,orden_visualizacion),estados_pago(nombre),metodos_pago(nombre),tipos_venta(nombre),' +
   'orden_detalles(id,cantidad,precio_unitario,tipo_produccion,notas,' +
   'productos(nombre,tipo_prenda),variantes_producto(talla,color),' +
@@ -169,7 +169,8 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
       supabase.from('materiales').select(SELECT_MATERIALES).order('nombre'),
       supabase.from('productos').select(SELECT_PRODUCTOS).order('nombre'),
       supabase.from('proveedores').select(SELECT_PROVEEDORES).order('nombre'),
-      supabase.from('ordenes').select(SELECT_ORDENES).order('created_at', { ascending: false }),
+      // FIFO: de la orden más antigua a la más reciente (primero en llegar, primero en atenderse).
+      supabase.from('ordenes').select(SELECT_ORDENES).order('created_at', { ascending: true }),
       supabase.from('pagos').select(SELECT_PAGOS).order('fecha'),
     ]);
     // Si cualquier consulta falla, se muestra el primer error y no se actualizan los datos.
@@ -252,11 +253,12 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
           vendedor: o.usuarios?.nombre ?? 'Sin asignar',
           vendedorId: o.usuarios?.id ?? '',
           cliente: o.clientes?.razon_social ?? 'Sin cliente',
+          clienteTelefono: o.clientes?.telefono ?? undefined,
+          clienteEmail: o.clientes?.email ?? undefined,
           fechaCreacion: o.fecha_creacion ?? '',
           fechaEntrega: o.fecha_entrega ?? '',
           tipoVenta,
           estado: estadoGeneral(o.estados_orden?.nombre, o.estados_orden?.orden_visualizacion),
-          prioridad: o.prioridad ?? 'media',
           metodoPago,
           estadoPago,
           total: Number(o.total ?? 0),
@@ -343,8 +345,12 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
       ]);
 
       // Reutiliza el cliente si ya existe con la misma razón social; si no, lo crea.
+      // Los datos de contacto capturados en la orden actualizan los del cliente.
       let clienteId: string | null = null;
       if (orden.cliente) {
+        const contacto: Record<string, string> = {};
+        if (orden.clienteTelefono) contacto.telefono = orden.clienteTelefono;
+        if (orden.clienteEmail) contacto.email = orden.clienteEmail;
         const { data: clienteExistente } = await supabase
           .from('clientes')
           .select('id')
@@ -352,10 +358,17 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
           .maybeSingle();
         if (clienteExistente) {
           clienteId = clienteExistente.id;
+          if (Object.keys(contacto).length) {
+            const { error: contactoError } = await supabase
+              .from('clientes')
+              .update(contacto)
+              .eq('id', clienteExistente.id);
+            if (contactoError) throw contactoError;
+          }
         } else {
           const { data: clienteNuevo, error: clienteError } = await supabase
             .from('clientes')
-            .insert({ razon_social: orden.cliente })
+            .insert({ razon_social: orden.cliente, ...contacto })
             .select('id')
             .single();
           if (clienteError) throw clienteError;
@@ -369,7 +382,6 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
         .insert({
           cliente_id: clienteId,
           vendedor_id: orden.vendedorId || null,
-          prioridad: orden.prioridad,
           fecha_creacion: orden.fechaCreacion || new Date().toISOString().split('T')[0],
           fecha_entrega: orden.fechaEntrega || null,
           subtotal: orden.total,

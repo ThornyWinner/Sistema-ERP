@@ -32,7 +32,7 @@ import { useState } from "react";
 
 export default function Reportes() {
   // Datos reales de Supabase (con los alias mock* del prototipo).
-  const { ordenes: mockOrdenes, materiales: mockMateriales, productos: mockProductos } = useErpData();
+  const { materiales: mockMateriales, productos: mockProductos } = useErpData();
   // Periodo seleccionado (aún no se aplica a los cálculos).
   const [periodo, setPeriodo] = useState("mes");
 

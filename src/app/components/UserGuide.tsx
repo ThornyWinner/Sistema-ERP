@@ -6,7 +6,6 @@
  * restricciones que tiene. Es un componente controlado: el padre decide cuándo se
  * abre (`open`) y recibe el aviso de cierre (`onClose`).
  */
-import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { roleLabels } from '../utils/permissions';
 import {
@@ -18,20 +17,19 @@ import {
 } from './ui/dialog';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { 
-  ShieldCheck, 
-  ShieldAlert, 
-  ShoppingCart, 
-  Palette, 
-  Droplet, 
-  Scissors, 
-  Shirt, 
+import {
+  ShieldCheck,
+  ShieldAlert,
+  ShoppingCart,
+  Palette,
+  Droplet,
+  Scissors,
+  Shirt,
   Sparkles,
   Info,
   Eye,
   Edit,
   Plus,
-  Trash2
 } from 'lucide-react';
 
 interface UserGuideProps {
@@ -134,7 +132,7 @@ export default function UserGuide({ open, onClose }: UserGuideProps) {
       tips: [
         'Verifica la calidad antes de marcar como completado',
         'Reporta cualquier problema con el material',
-        'Mantén el orden de prioridad de las órdenes',
+        'Atiende las órdenes en orden de llegada (FIFO): la más antigua primero',
       ],
     },
     cortador: {

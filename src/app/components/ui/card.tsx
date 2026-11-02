@@ -1,5 +1,5 @@
 /**
- * card.tsx — Tarjeta contenedora (versión shadcn/ui). La usan Login, FlujosUsuario, AccessDenied y RolePreview.
+ * card.tsx — Tarjeta contenedora (versión shadcn/ui). La usa Login.
  * No confundir con components/Card.tsx, la tarjeta simplificada propia del proyecto.
  * Componente de la librería shadcn/ui: código copiado al proyecto (no es una dependencia de npm),
  * construido sobre primitivas accesibles y estilizado con Tailwind CSS. Todas las piezas aceptan
@@ -60,20 +60,6 @@ function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-/** Acción (p. ej. un botón) alineada a la derecha de la cabecera. */
-function CardAction({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-action"
-      className={cn(
-        "col-start-2 row-span-2 row-start-1 self-start justify-self-end",
-        className,
-      )}
-      {...props}
-    />
-  );
-}
-
 /** Cuerpo de la tarjeta. */
 function CardContent({ className, ...props }: React.ComponentProps<"div">) {
   return (
@@ -85,23 +71,10 @@ function CardContent({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-/** Pie de la tarjeta. */
-function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-footer"
-      className={cn("flex items-center px-6 pb-6 [.border-t]:pt-6", className)}
-      {...props}
-    />
-  );
-}
-
 export {
   Card,
   CardHeader,
-  CardFooter,
   CardTitle,
-  CardAction,
   CardDescription,
   CardContent,
 };
