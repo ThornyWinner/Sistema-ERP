@@ -1,30 +1,51 @@
-| schemaname | tablename             | policyname                       | roles           | cmd    | qual | with_check |
-| ---------- | --------------------- | -------------------------------- | --------------- | ------ | ---- | ---------- |
-| public     | archivos              | authenticated_full_access        | {authenticated} | ALL    | true | true       |
-| public     | categorias_producto   | authenticated_full_access        | {authenticated} | ALL    | true | true       |
-| public     | clientes              | authenticated_full_access        | {authenticated} | ALL    | true | true       |
-| public     | colores               | authenticated_read_write_colores | {authenticated} | ALL    | true | true       |
-| public     | colores               | read_colores                     | {authenticated} | SELECT | true | null       |
-| public     | comentarios_orden     | authenticated_full_access        | {authenticated} | ALL    | true | true       |
-| public     | estados_orden         | authenticated_full_access        | {authenticated} | ALL    | true | true       |
-| public     | estados_pago          | authenticated_full_access        | {authenticated} | ALL    | true | true       |
-| public     | historial_ordenes     | authenticated_full_access        | {authenticated} | ALL    | true | true       |
-| public     | materiales            | authenticated_full_access        | {authenticated} | ALL    | true | true       |
-| public     | metodos_pago          | authenticated_full_access        | {authenticated} | ALL    | true | true       |
-| public     | movimientos_material  | authenticated_full_access        | {authenticated} | ALL    | true | true       |
-| public     | movimientos_producto  | authenticated_full_access        | {authenticated} | ALL    | true | true       |
-| public     | orden_detalles        | authenticated_full_access        | {authenticated} | ALL    | true | true       |
-| public     | ordenes               | authenticated_full_access        | {authenticated} | ALL    | true | true       |
-| public     | pagos                 | authenticated_full_access        | {authenticated} | ALL    | true | true       |
-| public     | personalizacion_hilos | authenticated_full_access        | {authenticated} | ALL    | true | true       |
-| public     | personalizaciones     | authenticated_full_access        | {authenticated} | ALL    | true | true       |
-| public     | produccion_taller     | authenticated_full_access        | {authenticated} | ALL    | true | true       |
-| public     | productos             | authenticated_full_access        | {authenticated} | ALL    | true | true       |
-| public     | proveedores           | authenticated_full_access        | {authenticated} | ALL    | true | true       |
-| public     | roles                 | authenticated_full_access        | {authenticated} | ALL    | true | true       |
-| public     | tallas                | authenticated_read_write_tallas  | {authenticated} | ALL    | true | true       |
-| public     | tallas                | read_tallas                      | {authenticated} | SELECT | true | null       |
-| public     | talleres              | authenticated_full_access        | {authenticated} | ALL    | true | true       |
-| public     | tipos_venta           | authenticated_full_access        | {authenticated} | ALL    | true | true       |
-| public     | usuarios              | authenticated_full_access        | {authenticated} | ALL    | true | true       |
-| public     | variantes_producto    | authenticated_full_access        | {authenticated} | ALL    | true | true       |
+Políticas RLS (Row Level Security) — esquema public
+Aplicadas con sql/rls_por_rol.sql (definición completa) y verificadas con sql/verificar_rls.sql.
+Todas las políticas son para el rol `authenticated`; `anon` (sin sesión) no tiene permisos en ninguna tabla.
+Un usuario inactivo o sin perfil en `usuarios` no ve nada.
+
+Abreviaturas: AP = admin_primario, AS = admin_secundario, V = vendedor,
+              T = rol de taller (disenador, sublimador, cortador, costurera, bordador)
+
+Tabla                   | Ver (SELECT)                                  | Crear / Editar / Eliminar
+------------------------|-----------------------------------------------|-----------------------------------------------
+ordenes                 | AP, AS: todas · V: las suyas · T: las que     | AP: todas · V: las suyas (no puede asignarlas
+                        | pasan por su taller                           | a otro vendedor)
+orden_detalles          | Quien ve la orden                             | AP · V: de sus órdenes
+produccion_taller       | Quien ve la orden                             | AP · V: de sus órdenes · T: editar el avance
+                        |                                               | de su propio taller (no crear ni eliminar)
+personalizaciones       | Quien ve la orden                             | AP · V: de sus órdenes
+personalizacion_hilos   | Quien ve la orden                             | AP · V: de sus órdenes
+pagos                   | AP, AS: todos · V: de sus órdenes · T: no     | AP · V: de sus órdenes
+historial_ordenes       | AP, AS: todo · V: de sus órdenes · T: no      | Lo escriben los triggers · eliminar: AP
+comentarios_orden       | Quien ve la orden                             | Crear: quien ve la orden (excepto AS), a su
+archivos                |                                               | nombre · editar/eliminar: su autor y AP
+clientes                | AP, AS, V: todos · T: los de sus órdenes      | Crear/editar: AP, V (cualquier cliente) ·
+                        |                                               | eliminar: AP
+productos               | AP, AS, V: todos · T: los de sus órdenes      | AP
+variantes_producto      | AP, AS, V: todas · T: las de sus órdenes      | AP (las ventas descuentan stock por trigger)
+materiales              | AP, AS, V                                     | AP
+movimientos_material    | AP, AS, V                                     | AP
+movimientos_producto    | AP, AS, V                                     | AP (las salidas las registra un trigger)
+proveedores             | AP, AS, V                                     | AP
+usuarios                | Su propio perfil · AP, AS: todos              | AP (nadie puede cambiarse su propio rol)
+consecutivos_documentos | AP, AS                                        | AP (el folio lo genera un trigger)
+Catálogos: roles,       | Cualquier usuario activo                      | AP
+talleres, tallas,       |                                               |
+colores, categorias_    |                                               |
+producto, estados_orden,|                                               |
+estados_pago, estados_  |                                               |
+produccion, metodos_    |                                               |
+pago, tipos_venta       |                                               |
+kv_store_ea3eca68       | Nadie (tabla sobrante de Figma Make)          | Nadie
+
+Funciones auxiliares (esquema private, no expuesto por la API; SECURITY DEFINER):
+  current_user_role()            rol del usuario actual si está activo
+  mi_usuario_id()                id en `usuarios` del usuario actual
+  mi_taller_id()                 taller que corresponde al rol del usuario actual
+  puede_ver_orden(orden)         regla de lectura de una orden y lo que cuelga de ella
+  puede_editar_orden(orden)      regla de escritura de una orden y lo que cuelga de ella
+  taller_ve_orden / taller_ve_producto / taller_ve_variante / taller_ve_cliente
+  orden_de_detalle / orden_de_personalizacion
+
+Los triggers (folio, historial, estado de pago, salida de inventario) son SECURITY DEFINER,
+por lo que funcionan aunque el usuario no tenga permiso directo sobre esas tablas.

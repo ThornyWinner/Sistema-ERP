@@ -9,6 +9,11 @@
  *  - Información general (vendedor, cliente con teléfono y correo, productos, fecha de entrega).
  *  - Información de pago (total, método, estado de pago, anticipo y saldo).
  *  - Historial de pagos y notas de la orden.
+ *
+ * Compatibilidad: varias secciones (marcadas como "órdenes antiguas") soportan el
+ * formato del prototipo en el que la orden tenía un solo producto con campos sueltos
+ * (talleres, progreso, tipoPrenda, bordadoDetalle...). Por eso se usa `(orden as any)`.
+ * Con los datos actuales de Supabase siempre existe `orden.productos`.
  */
 import { useParams, useNavigate } from "react-router";
 import { useErpData } from "../context/ErpDataContext";
@@ -27,9 +32,12 @@ import {
   Calendar,
   User,
   Package,
+  Ruler,
+  Palette,
   Tag,
   ShoppingBag,
   FileText,
+  Image as ImageIcon,
   Shirt,
   DollarSign,
   CreditCard,
@@ -67,11 +75,26 @@ export default function OrdenDetalle() {
 
   /**
    * Porcentaje de avance de la orden = pasos de taller completados / pasos totales.
+   * Si la orden no tiene productos (formato antiguo) usa sus campos talleres/progreso.
    */
   const getProgresoTotal = () => {
+    // Formato antiguo: la orden no tiene productos, solo talleres y progreso a nivel de orden.
+    if (!orden.productos || orden.productos.length === 0) {
+      const talleresActivos = (orden as any).talleres || [];
+      if (talleresActivos.length === 0) return 100;
+      const completados = talleresActivos.filter(
+        (t: any) => (orden as any).progreso[t] === "completed"
+      ).length;
+      return Math.round((completados / talleresActivos.length) * 100);
+    }
+
+    // Formato actual: la orden tiene productos, cada uno con sus talleres y progreso.
     const todosLosTalleres = orden.productos.flatMap((p) => p.talleres);
+    // Evita división por cero si no hay talleres en ningún producto.
     if (todosLosTalleres.length === 0) return 100;
+    // Contar cuántos talleres están completados en todos los productos.
     const talleresCompletados = orden.productos.reduce((acc, producto) => {
+      // Contar cuántos talleres de este producto están completados.
       const completados = producto.talleres.filter(
         (t) => producto.progreso[t] === "completed"
       ).length;
@@ -81,7 +104,7 @@ export default function OrdenDetalle() {
   };
 
   // --- Funciones auxiliares de presentación (texto, color e icono según valores) ---
-
+  // Etiqueta del tipo de venta (directa, fabricación, comercialización o mixta).
   const getTipoVentaLabel = () => {
     switch (orden.tipoVenta) {
       case "directa":
@@ -125,6 +148,7 @@ export default function OrdenDetalle() {
     }
   };
 
+  // --- Etiqueta del método de pago (efectivo, tarjeta, transferencia, cheque o crédito).
   const getMetodoPagoLabel = () => {
     switch (orden.metodoPago) {
       case "efectivo":
@@ -142,6 +166,7 @@ export default function OrdenDetalle() {
     }
   };
 
+  // --- Etiqueta del estado de pago (pendiente, anticipo, liquidado, cancelado o vencido).
   const getEstadoPagoLabel = () => {
     switch (orden.estadoPago) {
       case "pendiente":
@@ -159,6 +184,7 @@ export default function OrdenDetalle() {
     }
   };
 
+  // --- Color de fondo y texto según el estado de pago.
   const getEstadoPagoColor = () => {
     switch (orden.estadoPago) {
       case "pendiente":
@@ -172,6 +198,7 @@ export default function OrdenDetalle() {
     }
   };
 
+  // --- Renderizado del componente ---
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -202,8 +229,8 @@ export default function OrdenDetalle() {
         </div>
       </div>
 
-      {/* Flujo de trabajo por producto */}
-      {orden.productos.length > 0 && (
+      {/* Flujo de Trabajo: por producto (formato actual) o único (formato antiguo) */}
+      {orden.productos && orden.productos.length > 0 ? (
         <Card>
           <CardHeader>
             <CardTitle>Productos y Flujo de Producción</CardTitle>
@@ -335,6 +362,35 @@ export default function OrdenDetalle() {
             </div>
           </CardContent>
         </Card>
+      ) : (
+        // Formato antiguo: un único flujo a nivel de orden.
+        <Card>
+          <CardHeader>
+            <CardTitle>Flujo de Producción</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex justify-center py-4">
+              <WorkflowStepper
+                talleres={(orden as any).talleres || []}
+                progreso={(orden as any).progreso || {}}
+                size="lg"
+                showLabels={true}
+              />
+            </div>
+            <div className="mt-6 flex items-center gap-4 p-4 bg-secondary rounded-lg">
+              <div className="flex-1">
+                <p className="text-sm text-muted-foreground">Progreso Total</p>
+                <p className="text-2xl font-semibold mt-1">{getProgresoTotal()}%</p>
+              </div>
+              <div className="flex-1 h-2 bg-background rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all"
+                  style={{ width: `${getProgresoTotal()}%` }}
+                ></div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -398,8 +454,19 @@ export default function OrdenDetalle() {
                 )}
               </div>
             </div>
+            {/* Información de productos: si la orden tiene productos, muestra la cantidad
+            total y el número de productos; si no, muestra el nombre del producto antiguo. */}
+            {!orden.productos && (orden as any).producto && (
+              <div className="flex items-start gap-3">
+                <Package className="w-5 h-5 text-primary mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground">Producto</p>
+                  <p className="font-medium">{(orden as any).producto}</p>
+                </div>
+              </div>
+            )}
             {/* Información de productos: si la orden tiene productos, muestra la cantidad. */}
-            {orden.productos.length > 0 && (
+            {orden.productos && orden.productos.length > 0 && (
               <div className="flex items-start gap-3">
                 <Package className="w-5 h-5 text-primary mt-0.5" />
                 <div className="flex-1">
@@ -503,6 +570,57 @@ export default function OrdenDetalle() {
           </Card>
         )}
 
+        {/* Especificaciones del Producto - Solo para órdenes antiguas */}
+        {!orden.productos && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Especificaciones del Producto</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-start gap-3">
+                <Shirt className="w-5 h-5 text-primary mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground">Tipo de Prenda</p>
+                  <p className="font-medium capitalize">
+                    {(orden as any).tipoPrenda}
+                  </p>
+                </div>
+              </div>
+              {(orden as any).marca && (
+                <div className="flex items-start gap-3">
+                  <Tag className="w-5 h-5 text-primary mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm text-muted-foreground">Marca</p>
+                    <p className="font-medium">{(orden as any).marca}</p>
+                  </div>
+                </div>
+              )}
+              <div className="flex items-start gap-3">
+                <Ruler className="w-5 h-5 text-primary mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground">Talla</p>
+                  <p className="font-medium">{(orden as any).talla}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <Palette className="w-5 h-5 text-primary mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground">Color</p>
+                  <p className="font-medium">{(orden as any).color}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <Package className="w-5 h-5 text-primary mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground">Cantidad</p>
+                  <p className="text-2xl font-semibold">
+                    {(orden as any).cantidad} unidades
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Historial de Pagos */}
@@ -557,6 +675,75 @@ export default function OrdenDetalle() {
                   </div>
                 </div>
               ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Detalles de Bordado - Solo para órdenes antiguas */}
+      {!orden.productos && (orden as any).bordadoDetalle && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shirt className="w-5 h-5 text-primary" />
+              Detalles de Bordado
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Lugar a Bordar</p>
+                  <p className="font-medium capitalize">
+                    {(orden as any).bordadoDetalle.lugarBordar === "bolsillo"
+                      ? "Bolsillo"
+                      : (orden as any).bordadoDetalle.lugarBordar === "espalda"
+                      ? "Espalda"
+                      : "Personalizado"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">
+                    Colores de Hilo
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {(orden as any).bordadoDetalle.coloresHilo.map(
+                      (color: string, index: number) => (
+                        <span
+                          key={index}
+                          className="px-3 py-1 bg-secondary rounded-full text-sm font-medium"
+                        >
+                          {color}
+                        </span>
+                      )
+                    )}
+                  </div>
+                </div>
+                {(orden as any).bordadoDetalle.notasAdicionales && (
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">
+                      Notas Adicionales
+                    </p>
+                    <div className="flex items-start gap-2">
+                      <FileText className="w-4 h-4 text-muted-foreground mt-0.5" />
+                      <p className="text-sm">
+                        {(orden as any).bordadoDetalle.notasAdicionales}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {(orden as any).bordadoDetalle.logotipo && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">Logotipo</p>
+                  <div className="border-2 border-dashed border-border rounded-lg p-8 bg-secondary flex flex-col items-center justify-center gap-3">
+                    <ImageIcon className="w-12 h-12 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      {(orden as any).bordadoDetalle.logotipo}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
