@@ -29,6 +29,9 @@ movimientos_producto    | AP, AS, V                                     | AP (la
 proveedores             | AP, AS, V                                     | AP
 usuarios                | Su propio perfil · AP, AS: todos              | AP (nadie puede cambiarse su propio rol)
 consecutivos_documentos | AP, AS                                        | AP (el folio lo genera un trigger)
+empleados               | AP (incluye salario diario)                   | AP
+vacaciones              | AP                                            | AP (un trigger valida días y fechas
+                        |                                               | según la LFT; ver sql/vacaciones.sql)
 Catálogos: roles,       | Cualquier usuario activo                      | AP
 talleres, tallas,       |                                               |
 colores, categorias_    |                                               |

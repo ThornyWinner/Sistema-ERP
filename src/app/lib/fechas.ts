@@ -16,10 +16,14 @@ export function parseFecha(fecha?: string | null): Date | null {
   return isNaN(date.getTime()) ? null : date;
 }
 
-/** Fecha de hoy "AAAA-MM-DD" en hora local (toISOString usaría UTC). */
-export function hoyISO(): string {
-  const d = new Date();
+/** Fecha "AAAA-MM-DD" en hora local (toISOString usaría UTC). */
+export function fechaISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Fecha de hoy "AAAA-MM-DD" en hora local. */
+export function hoyISO(): string {
+  return fechaISO(new Date());
 }
 
 /** Fecha formateada en español (es-MX), o `vacio` si no hay fecha válida. */

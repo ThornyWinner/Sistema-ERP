@@ -27,6 +27,7 @@ import Proveedores from "./pages/Proveedores";
 import Reportes from "./pages/Reportes";
 import Login from "./pages/Login";
 import GestionUsuarios from "./pages/GestionUsuarios";
+import Vacaciones from "./pages/Vacaciones";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 export const router = createBrowserRouter([
@@ -67,6 +68,8 @@ export const router = createBrowserRouter([
       { path: "proveedores", Component: Proveedores },
       { path: "reportes", Component: Reportes },
       { path: "usuarios", Component: GestionUsuarios },
+      // Control de vacaciones del personal (Ley Federal del Trabajo).
+      { path: "vacaciones", Component: Vacaciones },
     ],
   },
 ]);

@@ -7,7 +7,7 @@
  *  - Inventario ▸ (Materiales, Productos)         — sección desplegable
  *  - Órdenes de Producción
  *  - Talleres ▸ (Diseño, Sublimación, Corte, Costura, Bordado) — sección desplegable
- *  - Seguimiento Global, Proveedores, Reportes, Gestión de Usuarios
+ *  - Seguimiento Global, Proveedores, Reportes, Gestión de Usuarios, Permisos Vacacionales
  * Las secciones o enlaces sin permiso no se muestran. Los módulos de solo lectura
  * llevan una insignia "Solo lectura". El enlace de la página actual se resalta.
  */
@@ -28,6 +28,7 @@ import {
   Droplet,
   TrendingUp,
   Truck,
+  CalendarDays,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
@@ -66,6 +67,7 @@ export default function Sidebar() {
     proveedores: accessibleRoutes.find(r => r.route === '/proveedores'),
     reportes: accessibleRoutes.find(r => r.route === '/reportes'),
     usuarios: accessibleRoutes.find(r => r.route === '/usuarios'),
+    vacaciones: accessibleRoutes.find(r => r.route === '/vacaciones'),
   };
 
   // Traduce el nombre de icono guardado en permissions.ts al componente de lucide-react.
@@ -83,6 +85,7 @@ export default function Sidebar() {
     Truck,
     BarChart3,
     Users,
+    CalendarDays,
   };
 
   // Abre o cierra una sección desplegable (añade o quita su nombre de la lista).
@@ -320,6 +323,9 @@ export default function Sidebar() {
 
         {/* Gestión de Usuarios */}
         {menuStructure.usuarios && renderMenuItem(menuStructure.usuarios)}
+
+        {/* Permisos Vacacionales (solo administrador primario) */}
+        {menuStructure.vacaciones && renderMenuItem(menuStructure.vacaciones)}
       </nav>
     </aside>
   );

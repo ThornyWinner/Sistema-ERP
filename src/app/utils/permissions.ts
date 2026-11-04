@@ -115,6 +115,12 @@ const getRoutePermissions = (role: UserRole): RoutePermission[] => {
       icon: 'Users',
       permission: noPermission,
     },
+    {
+      route: '/vacaciones',
+      label: 'Permisos Vacacionales',
+      icon: 'CalendarDays',
+      permission: noPermission,
+    },
   ];
 
   // Aplicar permisos según rol
@@ -123,9 +129,10 @@ const getRoutePermissions = (role: UserRole): RoutePermission[] => {
     case 'admin_primario':
       return routes.map(r => ({ ...r, permission: fullPermission }));
 
-    // Administrador secundario: puede ver todos los módulos pero sin modificar nada.
+    // Administrador secundario: puede ver todos los módulos pero sin modificar nada,
+    // excepto Permisos Vacacionales (datos de salario), exclusivo del primario.
     case 'admin_secundario':
-      return routes.map(r => ({ ...r, permission: readOnlyPermission }));
+      return routes.map(r => (r.route === '/vacaciones' ? r : { ...r, permission: readOnlyPermission }));
 
     // Vendedor: control total del Dashboard y Órdenes; inventarios en solo lectura.
     case 'vendedor':

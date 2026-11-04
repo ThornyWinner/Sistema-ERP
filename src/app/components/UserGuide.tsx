@@ -68,6 +68,7 @@ export default function UserGuide({ open, onClose }: UserGuideProps) {
         'Acceso a todos los módulos de talleres',
         'Generación de reportes',
         'Gestión de proveedores',
+        'Control de vacaciones del personal (Permisos Vacacionales)',
       ],
       tips: [
         'Usa la gestión de usuarios para asignar roles apropiados',

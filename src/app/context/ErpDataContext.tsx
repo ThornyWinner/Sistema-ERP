@@ -17,8 +17,9 @@
  *
  * Uso: envolver la app con <ErpDataProvider> y consumir con el hook useErpData().
  */
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from './AuthContext';
 import type {
   Material,
   Orden,
@@ -109,6 +110,9 @@ const ESTADO_PRODUCCION_DB: Record<TallerEstado, string> = {
   completed: 'Finalizado',
 };
 
+// Orden real del flujo de producción.
+const ORDEN_TALLERES: Taller[] = ['diseno', 'sublimacion', 'corte', 'costura', 'bordado'];
+
 // El estado general de la orden (pending/in-progress/completed que usa la
 // UI) se deriva de estados_orden.orden_visualizacion, que refleja el orden
 // real del flujo de producción, en vez de intentar adivinarlo por substring
@@ -146,22 +150,28 @@ const SELECT_ORDENES =
   'personalizaciones(lugar_bordado,logo_url,notas,personalizacion_hilos(color_hilo)))';
 const SELECT_PAGOS = 'id,orden_id,fecha,monto,metodo_pago,metodos_pago(nombre)';
 
+/** Colecciones vacías: estado inicial y el que queda al cerrar sesión. */
+const SIN_DATOS = { materiales: [], productos: [], proveedores: [], ordenes: [] };
+
 export function ErpDataProvider({ children }: { children: React.ReactNode }) {
+  // Lo que cada usuario puede ver depende de su rol (RLS), así que los datos se
+  // vuelven a cargar cada vez que cambia el usuario con sesión.
+  const { user } = useAuth();
+  const userId = user?.id;
   // Estado con las cuatro colecciones de datos (las funciones y banderas van aparte).
-  const [data, setData] = useState<Omit<ErpData, 'loading' | 'error' | 'refresh' | 'crearOrden' | 'actualizarProgresoTaller'>>({
-    materiales: [],
-    productos: [],
-    proveedores: [],
-    ordenes: [],
-  });
+  const [data, setData] = useState<Omit<ErpData, 'loading' | 'error' | 'refresh' | 'crearOrden' | 'actualizarProgresoTaller'>>(SIN_DATOS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Número de la carga más reciente: si llega tarde la respuesta de una carga anterior
+  // (p. ej. del usuario que acaba de cerrar sesión), se descarta.
+  const ultimaCarga = useRef(0);
 
   /**
    * Descarga todos los datos del ERP en paralelo y los transforma al formato de la UI.
    * useCallback mantiene la misma referencia entre renders para usarla en dependencias.
    */
   const refresh = useCallback(async () => {
+    const carga = ++ultimaCarga.current;
     setLoading(true);
     setError(null);
     // Las cinco consultas se lanzan a la vez para reducir el tiempo de carga.
@@ -173,6 +183,8 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
       supabase.from('ordenes').select(SELECT_ORDENES).order('created_at', { ascending: true }),
       supabase.from('pagos').select(SELECT_PAGOS).order('fecha'),
     ]);
+    // Ya se pidió una carga más nueva (o se cerró sesión): esta respuesta es obsoleta.
+    if (carga !== ultimaCarga.current) return;
     // Si cualquier consulta falla, se muestra el primer error y no se actualizan los datos.
     const firstError =
       materialesResult.error || productosResult.error || proveedoresResult.error || ordenesResult.error || pagosResult.error;
@@ -266,10 +278,12 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
           pagos: pagosPorOrden.get(o.id) ?? [],
           notas: o.notas ?? undefined,
           productos: (o.orden_detalles ?? []).map((d: any): ProductoOrden => {
-            // Talleres por los que debe pasar este producto (p. ej. ['corte', 'costura']).
+            // Talleres por los que debe pasar este producto (p. ej. ['corte', 'costura']),
+            // en el orden del flujo: la base de datos no garantiza el orden de las filas.
             const talleres: Taller[] = (d.produccion_taller ?? [])
               .map((x: any) => x.talleres?.nombre)
-              .filter(Boolean);
+              .filter(Boolean)
+              .sort((a: Taller, b: Taller) => ORDEN_TALLERES.indexOf(a) - ORDEN_TALLERES.indexOf(b));
             // Objeto { taller: estado } con el avance del producto en cada taller.
             const progreso = Object.fromEntries(
               (d.produccion_taller ?? [])
@@ -529,10 +543,17 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
     [refresh]
   );
 
-  // Carga inicial de datos al montar el proveedor.
+  // Al cambiar de usuario se descartan los datos del anterior y se cargan los del
+  // nuevo; sin sesión no se carga nada (RLS no devolvería filas).
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    setData(SIN_DATOS);
+    if (userId) {
+      void refresh();
+    } else {
+      ultimaCarga.current++;
+      setLoading(false);
+    }
+  }, [userId, refresh]);
 
   return (
     <ErpDataContext.Provider value={{ ...data, loading, error, refresh, crearOrden, actualizarProgresoTaller }}>
