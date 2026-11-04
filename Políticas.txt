@@ -32,6 +32,11 @@ consecutivos_documentos | AP, AS                                        | AP (el
 empleados               | AP (incluye salario diario)                   | AP
 vacaciones              | AP                                            | AP (un trigger valida días y fechas
                         |                                               | según la LFT; ver sql/vacaciones.sql)
+incidencias             | AP                                            | AP (suspensión máx. 8 días; ver
+                        |                                               | sql/expediente_laboral.sql)
+documentos              | AP                                            | AP
+finiquitos              | AP                                            | AP
+storage: expedientes    | AP (bucket privado, PDF/imagen, máx. 10 MB)   | AP
 Catálogos: roles,       | Cualquier usuario activo                      | AP
 talleres, tallas,       |                                               |
 colores, categorias_    |                                               |

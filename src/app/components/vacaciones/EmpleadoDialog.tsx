@@ -2,8 +2,9 @@
  * EmpleadoDialog.tsx — Alta, edición y baja de un empleado del control de vacaciones.
  *
  * Datos: nombre, puesto, fecha de ingreso (de ella depende la antigüedad), salario
- * diario y porcentaje de prima vacacional (mínimo 25 %, Art. 80 LFT), usuario del
- * sistema vinculado (opcional), si está activo y notas.
+ * diario y porcentaje de prima vacacional (mínimo 25 %, Art. 80 LFT), RFC, CURP y NSS
+ * (aparecen en el finiquito impreso), usuario del sistema vinculado (opcional), si está
+ * activo y notas. La baja se registra desde la pestaña Terminación.
  */
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -34,6 +35,9 @@ const VACIO = {
   fecha_ingreso: "",
   salario_diario: "",
   porcentaje_prima: "25",
+  rfc: "",
+  curp: "",
+  nss: "",
   usuario_id: "",
   activo: true,
   notas: "",
@@ -58,6 +62,9 @@ export default function EmpleadoDialog({ empleado, usuarios, usuariosOcupados, o
             fecha_ingreso: editando.fecha_ingreso,
             salario_diario: String(editando.salario_diario),
             porcentaje_prima: String(editando.porcentaje_prima),
+            rfc: editando.rfc ?? "",
+            curp: editando.curp ?? "",
+            nss: editando.nss ?? "",
             usuario_id: editando.usuario_id ?? "",
             activo: editando.activo,
             notas: editando.notas ?? "",
@@ -75,6 +82,9 @@ export default function EmpleadoDialog({ empleado, usuarios, usuariosOcupados, o
       fecha_ingreso: form.fecha_ingreso,
       salario_diario: Number(form.salario_diario) || 0,
       porcentaje_prima: Number(form.porcentaje_prima) || 25,
+      rfc: form.rfc.trim().toUpperCase() || null,
+      curp: form.curp.trim().toUpperCase() || null,
+      nss: form.nss.trim() || null,
       usuario_id: form.usuario_id || null,
       activo: form.activo,
       notas: form.notas.trim() || null,
@@ -145,6 +155,20 @@ export default function EmpleadoDialog({ empleado, usuarios, usuariosOcupados, o
                 value={form.porcentaje_prima}
                 onChange={(e) => setForm({ ...form, porcentaje_prima: e.target.value })}
               />
+            </div>
+            <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="emp-rfc">RFC</Label>
+                <Input id="emp-rfc" maxLength={13} value={form.rfc} onChange={(e) => setForm({ ...form, rfc: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="emp-curp">CURP</Label>
+                <Input id="emp-curp" maxLength={18} value={form.curp} onChange={(e) => setForm({ ...form, curp: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="emp-nss">NSS (IMSS)</Label>
+                <Input id="emp-nss" maxLength={11} inputMode="numeric" value={form.nss} onChange={(e) => setForm({ ...form, nss: e.target.value })} />
+              </div>
             </div>
             <div className="sm:col-span-2 space-y-2">
               <Label htmlFor="emp-usuario">Usuario del sistema (opcional)</Label>

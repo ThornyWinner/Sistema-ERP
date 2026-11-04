@@ -1,18 +1,22 @@
 /**
  * Vacaciones.tsx — Permisos Vacacionales (ruta /vacaciones). Solo administrador primario.
  *
- * Control de vacaciones del personal conforme a la Ley Federal del Trabajo:
- *  - Indicadores: empleados activos, días pendientes, empleados con vacaciones
- *    atrasadas (más de 6 meses sin otorgarse, Art. 81) y quién está de vacaciones hoy.
+ * Control laboral del personal conforme a la Ley Federal del Trabajo y al Art. 123
+ * constitucional:
+ *  - Indicadores: empleados activos, días pendientes, vacaciones atrasadas (Art. 81),
+ *    alertas laborales (causal por faltas y riesgos altos ante demanda) y quién está
+ *    de vacaciones hoy.
+ *  - Avisos de vacaciones atrasadas y de causales de rescisión por faltas vigentes.
  *  - Tabla de empleados con antigüedad, días pendientes, situación y próximo aniversario.
- *  - Detalle del empleado elegido: cada año de servicio (derecho, tomados, pendientes,
- *    plazos) y su historial de vacaciones con la prima pagada.
- *  - Referencia de la tabla de días del Art. 76.
- * Los cálculos están en lib/vacaciones.ts; las tablas y reglas en sql/vacaciones.sql.
+ *  - Detalle del empleado elegido (DetalleEmpleado): vacaciones, incidencias,
+ *    expediente con riesgos legales y terminación (finiquito o liquidación).
+ *  - Referencia de la LFT.
+ * Cálculos: lib/vacaciones.ts y lib/laboral.ts. Tablas y reglas: sql/vacaciones.sql y
+ * sql/expediente_laboral.sql.
  */
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, CalendarDays, Palmtree, Pencil, Plus, Scale, Shield, Trash2, Users } from "lucide-react";
+import { AlertTriangle, CalendarDays, Gavel, Palmtree, Pencil, Plus, Scale, Shield, Users } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/AuthContext";
 import { formatFecha } from "../lib/fechas";
@@ -24,23 +28,26 @@ import {
   type EstadoPeriodo,
   type Vacacion,
 } from "../lib/vacaciones";
+import { analizarIncidencias, evaluarRiesgos, type Documento, type Finiquito, type Incidencia } from "../lib/laboral";
 import StatCard from "../components/StatCard";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/Card";
 import { Button } from "../components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import EmpleadoDialog from "../components/vacaciones/EmpleadoDialog";
 import RegistrarVacacionesDialog from "../components/vacaciones/RegistrarVacacionesDialog";
+import DetalleEmpleado from "../components/vacaciones/DetalleEmpleado";
 
 /** Situación más urgente de un empleado, para la columna "Situación". */
 const PRIORIDAD: EstadoPeriodo[] = ["atrasado", "vigente", "completo"];
-
-const dinero = (n: number) => `$${n.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function Vacaciones() {
   const { user, users, refreshUsers } = useAuth();
   const esAdmin = user?.rol === "admin_primario";
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [vacaciones, setVacaciones] = useState<Vacacion[]>([]);
+  const [incidencias, setIncidencias] = useState<Incidencia[]>([]);
+  const [documentos, setDocumentos] = useState<Documento[]>([]);
+  const [finiquitos, setFiniquitos] = useState<Finiquito[]>([]);
   const [cargando, setCargando] = useState(true);
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   // Empleado cuyo detalle se muestra.
@@ -50,16 +57,23 @@ export default function Vacaciones() {
   const [registrarPara, setRegistrarPara] = useState<Empleado | null>(null);
 
   const cargar = useCallback(async () => {
-    const [emp, vac] = await Promise.all([
+    const [emp, vac, inc, doc, fin] = await Promise.all([
       supabase.from("empleados").select("*").order("nombre"),
       supabase.from("vacaciones").select("*").order("fecha_inicio", { ascending: false }),
+      supabase.from("incidencias").select("*").order("fecha_inicio", { ascending: false }),
+      supabase.from("documentos").select("*").order("fecha", { ascending: false }),
+      supabase.from("finiquitos").select("*").order("created_at", { ascending: false }),
     ]);
-    if (emp.error || vac.error) {
-      toast.error("No se pudo cargar el control de vacaciones", { description: (emp.error || vac.error)!.message });
+    const error = emp.error || vac.error || inc.error || doc.error || fin.error;
+    if (error) {
+      toast.error("No se pudo cargar el control laboral", { description: error.message });
     } else {
       // Los campos numeric de PostgreSQL pueden llegar como texto.
-      setEmpleados(emp.data.map((e: any) => ({ ...e, salario_diario: Number(e.salario_diario), porcentaje_prima: Number(e.porcentaje_prima) })));
-      setVacaciones(vac.data.map((v: any) => ({ ...v, prima_vacacional: Number(v.prima_vacacional) })));
+      setEmpleados(emp.data!.map((e: any) => ({ ...e, salario_diario: Number(e.salario_diario), porcentaje_prima: Number(e.porcentaje_prima) })));
+      setVacaciones(vac.data!.map((v: any) => ({ ...v, prima_vacacional: Number(v.prima_vacacional) })));
+      setIncidencias(inc.data as Incidencia[]);
+      setDocumentos(doc.data as Documento[]);
+      setFiniquitos(fin.data!.map((f: any) => ({ ...f, total: Number(f.total), salario_diario: Number(f.salario_diario), salario_diario_integrado: Number(f.salario_diario_integrado) })));
     }
     setCargando(false);
   }, []);
@@ -82,23 +96,19 @@ export default function Vacaciones() {
     );
   }
 
-  const eliminarVacacion = async (v: Vacacion) => {
-    if (!confirm(`¿Eliminar las vacaciones del ${formatFecha(v.fecha_inicio)} al ${formatFecha(v.fecha_fin)}?`)) return;
-    const { error } = await supabase.from("vacaciones").delete().eq("id", v.id);
-    if (error) {
-      toast.error("No se pudo eliminar el registro", { description: error.message });
-      return;
-    }
-    toast.success("Registro eliminado");
-    void cargar();
-  };
-
   const filas = empleados.map((e) => ({ empleado: e, resumen: resumenEmpleado(e, vacaciones) }));
   const activos = filas.filter((f) => f.empleado.activo);
   const visibles = mostrarInactivos ? filas : activos;
   const conAtraso = activos.filter((f) => f.resumen.atrasados.length > 0);
   const deVacaciones = activos.filter((f) => f.resumen.enVacaciones);
   const seleccionado = filas.find((f) => f.empleado.id === seleccionadoId) ?? null;
+  // Causales de rescisión por faltas aún dentro de plazo y empleados con riesgo alto ante demanda.
+  const causales = activos
+    .map((f) => ({ empleado: f.empleado, causal: analizarIncidencias(incidencias.filter((i) => i.empleado_id === f.empleado.id)).causal }))
+    .filter((c) => c.causal?.vigente);
+  const conRiesgoAlto = filas.filter((f) =>
+    evaluarRiesgos(f.empleado, { vacaciones, incidencias, documentos, finiquitos }).some((r) => r.nivel === "alto")
+  ).length;
   const usuariosOcupados = new Set(empleados.map((e) => e.usuario_id).filter((id): id is string => !!id));
 
   return (
@@ -106,7 +116,9 @@ export default function Vacaciones() {
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1>Permisos Vacacionales</h1>
-          <p className="text-muted-foreground mt-1">Control de vacaciones del personal conforme a la Ley Federal del Trabajo</p>
+          <p className="text-muted-foreground mt-1">
+            Vacaciones, incidencias, expediente y terminación del personal conforme a la Ley Federal del Trabajo
+          </p>
         </div>
         <Button onClick={() => setDialogoEmpleado("nuevo")}>
           <Plus className="w-4 h-4" />
@@ -114,7 +126,7 @@ export default function Vacaciones() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <StatCard title="Empleados Activos" value={activos.length} icon={Users} color="primary" footer={`${empleados.length - activos.length} inactivos`} />
         <StatCard
           title="Días Pendientes"
@@ -124,6 +136,13 @@ export default function Vacaciones() {
           footer="Por otorgar, sin contar prescritos"
         />
         <StatCard title="Vacaciones Atrasadas" value={conAtraso.length} icon={AlertTriangle} color="danger" footer="Empleados fuera del plazo de 6 meses" />
+        <StatCard
+          title="Alertas Laborales"
+          value={causales.length + conRiesgoAlto}
+          icon={Gavel}
+          color="danger"
+          footer={`${causales.length} causal(es) por faltas · ${conRiesgoAlto} con riesgo alto`}
+        />
         <StatCard
           title="De Vacaciones Hoy"
           value={deVacaciones.length}
@@ -160,6 +179,31 @@ export default function Vacaciones() {
                 </div>
               ))
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Causales de rescisión por faltas dentro de plazo (Art. 47 fr. X y Art. 517 fr. I) */}
+      {causales.length > 0 && (
+        <Card className="border-status-pending">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-status-pending-text">
+              <Gavel className="w-5 h-5" />
+              Causales de rescisión por faltas
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {causales.map(({ empleado: e, causal }) => (
+              <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 p-3 bg-status-pending-bg rounded-lg">
+                <span className="font-medium">{e.nombre}</span>
+                <span className="text-sm">
+                  {causal!.faltas} faltas injustificadas en 30 días · plazo para rescindir hasta el {formatFecha(causal!.limite)}
+                </span>
+                <Button size="sm" variant="outline" onClick={() => setSeleccionadoId(e.id)}>
+                  Ver incidencias
+                </Button>
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}
@@ -247,108 +291,15 @@ export default function Vacaciones() {
 
       {/* Detalle del empleado elegido */}
       {seleccionado && (
-        <Card>
-          <CardHeader className="flex flex-row items-start justify-between gap-4">
-            <div>
-              <CardTitle>{seleccionado.empleado.nombre}</CardTitle>
-              <p className="text-sm text-muted-foreground mt-1">
-                Ingreso: {formatFecha(seleccionado.empleado.fecha_ingreso)} · Salario diario: {dinero(seleccionado.empleado.salario_diario)} · Prima:{" "}
-                {seleccionado.empleado.porcentaje_prima} %
-              </p>
-            </div>
-            <Button size="sm" onClick={() => setRegistrarPara(seleccionado.empleado)} disabled={seleccionado.resumen.pendientes === 0}>
-              <Plus className="w-4 h-4" />
-              Registrar vacaciones
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div>
-              <h3 className="font-semibold mb-2">Años de servicio</h3>
-              {seleccionado.resumen.periodos.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Aún no cumple un año de servicio. El {formatFecha(seleccionado.resumen.proximoAniversario)} tendrá derecho a{" "}
-                  {seleccionado.resumen.diasProximoAnio} días.
-                </p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Año</TableHead>
-                      <TableHead>Disponibles desde</TableHead>
-                      <TableHead>Otorgar antes del</TableHead>
-                      <TableHead>Prescriben</TableHead>
-                      <TableHead>Derecho</TableHead>
-                      <TableHead>Tomados</TableHead>
-                      <TableHead>Pendientes</TableHead>
-                      <TableHead>Situación</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {[...seleccionado.resumen.periodos].reverse().map((p) => (
-                      <TableRow key={p.anio}>
-                        <TableCell className="font-medium">{p.anio}</TableCell>
-                        <TableCell>{formatFecha(p.aniversario)}</TableCell>
-                        <TableCell>{formatFecha(p.limiteOtorgar)}</TableCell>
-                        <TableCell>{formatFecha(p.prescribe)}</TableCell>
-                        <TableCell>{p.derecho}</TableCell>
-                        <TableCell>{p.tomados}</TableCell>
-                        <TableCell className="font-semibold">{p.pendientes}</TableCell>
-                        <TableCell>
-                          <span
-                            className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${estadoPeriodoInfo[p.estado].clase}`}
-                            title={estadoPeriodoInfo[p.estado].ayuda}
-                          >
-                            {estadoPeriodoInfo[p.estado].texto}
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </div>
-
-            <div>
-              <h3 className="font-semibold mb-2">Historial de vacaciones</h3>
-              {(() => {
-                const historial = vacaciones.filter((v) => v.empleado_id === seleccionado.empleado.id);
-                if (historial.length === 0) return <p className="text-sm text-muted-foreground">Sin vacaciones registradas.</p>;
-                return (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Fechas</TableHead>
-                        <TableHead>Año de servicio</TableHead>
-                        <TableHead>Días</TableHead>
-                        <TableHead>Prima vacacional</TableHead>
-                        <TableHead>Notas</TableHead>
-                        <TableHead></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {historial.map((v) => (
-                        <TableRow key={v.id}>
-                          <TableCell>
-                            {formatFecha(v.fecha_inicio)} – {formatFecha(v.fecha_fin)}
-                          </TableCell>
-                          <TableCell>{v.anio_servicio}</TableCell>
-                          <TableCell>{v.dias}</TableCell>
-                          <TableCell>{dinero(v.prima_vacacional)}</TableCell>
-                          <TableCell className="max-w-xs truncate text-muted-foreground">{v.notas}</TableCell>
-                          <TableCell className="text-right">
-                            <Button size="sm" variant="ghost" onClick={() => eliminarVacacion(v)} title="Eliminar registro">
-                              <Trash2 className="w-4 h-4 text-status-pending" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                );
-              })()}
-            </div>
-          </CardContent>
-        </Card>
+        <DetalleEmpleado
+          empleado={seleccionado.empleado}
+          vacaciones={vacaciones}
+          incidencias={incidencias}
+          documentos={documentos}
+          finiquitos={finiquitos}
+          onRegistrarVacaciones={() => setRegistrarPara(seleccionado.empleado)}
+          onCambios={cargar}
+        />
       )}
 
       {/* Referencia legal */}
@@ -381,6 +332,10 @@ export default function Vacaciones() {
             <li>Prima vacacional de al menos 25 % del salario de los días de vacaciones (Art. 80).</li>
             <li>Deben otorgarse dentro de los 6 meses siguientes al aniversario (Art. 81).</li>
             <li>El derecho a reclamarlas prescribe un año después de ese plazo (Art. 516).</li>
+            <li>Más de 3 faltas injustificadas en 30 días son causal de rescisión (Art. 47 fr. X); el patrón tiene un mes para ejercerla (Art. 517 fr. I).</li>
+            <li>No se permiten multas por retardos (Art. 107); la suspensión disciplinaria es de máximo 8 días (Art. 423 fr. X).</li>
+            <li>La empresa debe probar antigüedad, faltas, salario, vacaciones, aguinaldo y la causa de terminación (Art. 784), y conservar sus documentos (Art. 804); si no los exhibe, se presume lo que alegue el trabajador (Art. 805).</li>
+            <li>El despido injustificado se indemniza con 3 meses de salario (Art. 123 A fr. XXII constitucional; Arts. 48 y 50 LFT).</li>
           </ul>
         </CardContent>
       </Card>

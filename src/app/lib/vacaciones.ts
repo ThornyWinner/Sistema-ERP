@@ -23,6 +23,12 @@ export interface Empleado {
   usuario_id: string | null;
   activo: boolean;
   notas: string | null;
+  rfc?: string | null;
+  curp?: string | null;
+  nss?: string | null;
+  /** Fecha y causa de terminación de la relación laboral (null si sigue laborando). */
+  fecha_baja?: string | null;
+  causa_baja?: string | null;
 }
 
 export interface Vacacion {
@@ -158,8 +164,13 @@ export function periodosDe(empleado: Empleado, vacaciones: Vacacion[], hoy: Date
   });
 }
 
-/** Resumen de un empleado para la tabla principal. */
+/**
+ * Resumen de un empleado para la tabla principal. Si el empleado ya causó baja, la
+ * antigüedad y los periodos se calculan a la fecha de baja.
+ */
 export function resumenEmpleado(empleado: Empleado, vacaciones: Vacacion[], hoy: Date = new Date()) {
+  const baja = parseFecha(empleado.fecha_baja);
+  if (baja && baja < hoy) hoy = baja;
   const periodos = periodosDe(empleado, vacaciones, hoy);
   const anios = periodos.length;
   const hoyISOValor = fechaISO(hoy);
