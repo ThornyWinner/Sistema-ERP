@@ -1,7 +1,69 @@
-| table_name     | trigger_name                   | function_name                        | trigger_definition                                                                                                                                   |
-| -------------- | ------------------------------ | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| orden_detalles | trg_inventario_salida          | inventario_procesar_salida           | CREATE TRIGGER trg_inventario_salida AFTER INSERT ON public.orden_detalles FOR EACH ROW EXECUTE FUNCTION inventario_procesar_salida()                |
-| ordenes        | trg_ordenes_cambio_estado      | ordenes_registrar_cambio_estado      | CREATE TRIGGER trg_ordenes_cambio_estado AFTER UPDATE OF estado_id ON public.ordenes FOR EACH ROW EXECUTE FUNCTION ordenes_registrar_cambio_estado() |
-| ordenes        | trg_ordenes_generar_folio      | ordenes_generar_folio                | CREATE TRIGGER trg_ordenes_generar_folio BEFORE INSERT ON public.ordenes FOR EACH ROW EXECUTE FUNCTION ordenes_generar_folio()                       |
-| ordenes        | trg_ordenes_historial_creacion | ordenes_registrar_historial_creacion | CREATE TRIGGER trg_ordenes_historial_creacion AFTER INSERT ON public.ordenes FOR EACH ROW EXECUTE FUNCTION ordenes_registrar_historial_creacion()    |
-| pagos          | trg_pagos_actualizar_estado    | pagos_actualizar_estado_orden        | CREATE TRIGGER trg_pagos_actualizar_estado AFTER INSERT ON public.pagos FOR EACH ROW EXECUTE FUNCTION pagos_actualizar_estado_orden()                |
+Triggers y funciones de la base de datos.
+Generado desde la base real el 2026-11-05. No incluye los triggers internos de Supabase
+(esquemas storage y realtime).
+
+TRIGGERS
+tabla                    | trigger                        | función                                     | cuándo se ejecuta
+-------------------------|--------------------------------|---------------------------------------------|---------------------------------------------------
+auth.users               | on_auth_user_created           | public.handle_new_user                      | AFTER INSERT, por fila
+public.orden_detalles    | trg_inventario_salida          | public.inventario_procesar_salida           | AFTER INSERT, por fila
+public.ordenes           | trg_ordenes_cambio_estado      | public.ordenes_registrar_cambio_estado      | AFTER UPDATE OF estado_id, por fila
+public.ordenes           | trg_ordenes_generar_folio      | public.ordenes_generar_folio                | BEFORE INSERT, por fila
+public.ordenes           | trg_ordenes_historial_creacion | public.ordenes_registrar_historial_creacion | AFTER INSERT, por fila
+public.pagos             | trg_pagos_actualizar_estado    | public.pagos_actualizar_estado_orden        | AFTER INSERT, por fila
+public.produccion_taller | trg_produccion_taller_avisos   | private.avisar_cambio_taller                | AFTER UPDATE OF estado, por fila
+public.vacaciones        | trg_validar_vacaciones         | private.validar_vacaciones                  | BEFORE INSERT OR UPDATE, por fila
+
+Qué hace cada uno:
+  on_auth_user_created            Al crear una cuenta en Supabase Auth inserta su perfil en `usuarios`
+                                  (nombre y username = parte del email antes de la @, sin rol);
+                                  si ese username ya existe le agrega _2, _3… (sql/username_unico_alta.sql).
+                                  ON CONFLICT (auth_user_id) DO NOTHING.
+  trg_inventario_salida           Si el detalle tiene variante, bloquea la fila (FOR UPDATE), falla
+                                  con "Stock insuficiente" si no alcanza, descuenta el stock y
+                                  registra la salida en `movimientos_producto`. Los detalles sin
+                                  variante (fabricación a la medida) no mueven inventario.
+  trg_ordenes_cambio_estado       Guarda el cambio de estado de la orden en `historial_ordenes`.
+  trg_ordenes_generar_folio       Asigna el folio ORD-AAAA-NNNNNN con el consecutivo anual
+                                  ('ORDEN', año) de `consecutivos_documentos`.
+  trg_ordenes_historial_creacion  Registra la creación de la orden en `historial_ordenes`.
+  trg_pagos_actualizar_estado     Suma los pagos de la orden y asigna su estado de pago:
+                                  'Pendiente' (0), 'Anticipo' (< total) o 'Pagado' (>= total).
+  trg_produccion_taller_avisos    Cuando un taller termina un producto, avisa al siguiente taller
+                                  de su flujo y, si la orden terminó producción, al vendedor y a
+                                  los administradores primarios (sql/avisos_produccion.sql).
+  trg_validar_vacaciones          Valida días por año de servicio (Art. 76 LFT), que el año ya se
+                                  haya cumplido y que no se otorguen más días de los que
+                                  corresponden (sql/vacaciones.sql).
+
+FUNCIONES
+Esquema private (no expuesto por la API REST):
+  avisar_cambio_taller()                    trigger, SECURITY DEFINER
+  current_user_role() → text                SECURITY DEFINER; rol del usuario actual si está activo
+  dias_vacaciones_lft(anios int) → int      días de vacaciones por años de servicio (Art. 76)
+  etiqueta_taller(p_taller text) → text     nombre legible del taller para los avisos
+  mi_taller_id() → uuid                     SECURITY DEFINER; taller del rol del usuario actual
+  mi_usuario_id() → uuid                    SECURITY DEFINER; id en `usuarios` del usuario actual
+  orden_de_detalle(uuid) → uuid             SECURITY DEFINER
+  orden_de_personalizacion(uuid) → uuid     SECURITY DEFINER
+  puede_editar_orden(uuid) → boolean        SECURITY DEFINER; regla de escritura de una orden
+  puede_ver_orden(uuid) → boolean           SECURITY DEFINER; regla de lectura de una orden
+  taller_ve_cliente / taller_ve_orden /
+  taller_ve_producto / taller_ve_variante   SECURITY DEFINER; lo que ve un rol de taller
+  validar_vacaciones()                      trigger
+
+Esquema public (las RPC se llaman desde la app con supabase.rpc):
+  actualizar_mi_ultimo_acceso() → void      RPC, SECURITY DEFINER; la llama AuthContext al iniciar sesión
+  eliminar_usuario(p_usuario uuid) → void  RPC, SECURITY DEFINER; solo admin primario; borra el perfil
+                                            y su cuenta de auth.users (sql/eliminar_usuario.sql)
+  directorio_usuarios()
+    → TABLE(id, nombre, rol)                RPC, SECURITY DEFINER; usuarios a los que se puede notificar
+  enviar_notificacion(p_titulo, p_mensaje,
+    p_destinatarios uuid[], p_roles text[],
+    p_enlace) → integer                     RPC, SECURITY DEFINER; envía y devuelve cuántas filas creó
+  handle_new_user()                         trigger, SECURITY DEFINER
+  inventario_procesar_salida()              trigger, SECURITY DEFINER
+  ordenes_generar_folio()                   trigger, SECURITY DEFINER
+  ordenes_registrar_cambio_estado()         trigger, SECURITY DEFINER
+  ordenes_registrar_historial_creacion()    trigger, SECURITY DEFINER
+  pagos_actualizar_estado_orden()           trigger, SECURITY DEFINER

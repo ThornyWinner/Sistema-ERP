@@ -1,360 +1,131 @@
-# Sistema de Gestión de Inventarios y Producción - Uniformes Industriales
+# Sistema de Gestión de Inventarios y Producción — Uniformes Industriales
 
 ## 📋 Descripción
 
-Sistema completo de gestión de inventarios y producción para un negocio de uniformes industriales que integra:
+ERP web para un negocio de uniformes industriales que centraliza:
 
-- ✅ Control de inventario (materiales y productos)
-- ✅ Gestión de órdenes de producción
-- ✅ Flujo de trabajo por talleres (diseño, sublimación, corte, costura, bordado)
-- ✅ **Sistema completo de roles y permisos de usuario**
-- ✅ Dashboard con métricas en tiempo real
-- ✅ Seguimiento global de producción
-- ✅ Gestión de proveedores
-- ✅ Reportes y análisis
+- ✅ Inventario de materiales y de productos terminados (con variantes e imagen)
+- ✅ Órdenes de producción y ventas de mostrador, atendidas en orden FIFO
+- ✅ Flujo variable por talleres (diseño, sublimación, corte, costura, bordado)
+- ✅ Seguimiento global y cuellos de botella
+- ✅ Proveedores, contacto y solicitudes de reabastecimiento
+- ✅ Roles y permisos aplicados en la interfaz y en la base de datos (RLS)
+- ✅ Notificaciones entre usuarios y avisos automáticos de producción
+- ✅ Control laboral del personal conforme a la LFT (vacaciones, incidencias, expediente, finiquitos)
+- 🟡 Reportes (parcial: la mayoría de las gráficas aún usan datos de ejemplo)
 
-## 🎯 Características Principales
+Todo se guarda en **Supabase** (Postgres, Auth, Storage y Realtime). Instalación y configuración en [README.md](README.md).
 
-### 🔐 Sistema de Autenticación y Roles
+---
 
-**8 Roles de Usuario:**
-1. **Administrador Primario** - Acceso total
-2. **Administrador Secundario** - Solo lectura
-3. **Vendedor** - Órdenes e inventario
-4. **Diseñador** - Módulo de diseño
-5. **Sublimador** - Módulo de sublimación
-6. **Cortador** - Módulo de corte
-7. **Costurera** - Módulo de costura
-8. **Bordador** - Módulo de bordado
+## 🛠️ Módulos
 
-### 🎨 Diseño y UX
+### 1. Dashboard (`/`)
+Cambia según el rol:
+- **General** (administradores): ingresos, órdenes activas, anticipos pendientes, stock bajo, órdenes por tipo de venta, top vendedores, órdenes recientes, alertas de stock y estado financiero.
+- **Ventas** (vendedor): lo mismo, pero solo con sus órdenes, más entregas próximas y órdenes con saldo pendiente.
+- **Taller** (roles operativos): pendientes, en proceso, terminados, unidades por procesar y cola FIFO que indica qué trabajos ya están listos. Sin importes.
 
-- **Estilo**: Minimalista, limpio, moderno
-- **Color principal**: Verde industrial (#059669)
-- **Colores de estado**: Semáforo (rojo, amarillo, verde)
-- **Tipografía**: Work Sans
-- **Responsive**: Adaptado a desktop y móvil
+### 2. Inventarios
+- **Materiales** (`/inventario/materiales`): telas, hilos y accesorios con stock, mínimo, proveedor y precio; filtros por tipo y nivel de stock; valor del inventario. Alta en `/materiales/nuevo`.
+- **Productos** (`/inventario/productos`): catálogo con tallas, colores, stock y precio. Alta y edición en `/productos/nuevo` y `/productos/editar/:id`, con una variante por talla × color e imagen de referencia (bucket `productos`).
 
-### 🛠️ Módulos del Sistema
+### 3. Órdenes de Producción (`/ordenes`)
+- Tabla en orden FIFO con turno en la cola, tipo de venta, cliente, productos, total, estado de pago, días a la entrega y % de avance.
+- Búsqueda por folio, cliente (nombre, teléfono o correo) o vendedor; filtros por estado y vendedor.
+- **Nueva Orden**: varios productos, cada uno con su tipo (venta directa, fabricación, comercialización), sus talleres y su bordado. El tipo de venta de la orden se calcula solo ("mixta" si combina tipos).
+- **Venta Rápida**: venta de mostrador con existencias; se crea entregada y liquidada.
+- **Detalle** (`/ordenes/:id`): avance por taller de cada producto, personalización, datos del cliente, pagos y notas. Las órdenes entregadas y liquidadas muestran el distintivo "cerrada".
+- La base de datos asigna el folio, registra el historial, calcula el estado de pago y descuenta el stock.
 
-#### 1. Dashboard
-- Resumen general de producción
-- Métricas clave (órdenes activas, pendientes, completadas)
-- Alertas de stock bajo
-- Gráficas de producción por taller
-- Estado de órdenes (pie chart)
+### 4. Talleres (`/talleres/*`)
+Tablero Kanban por taller (Pendiente → En Proceso → Terminado) con botones **Iniciar** y **Completar**. Al completar, se avisa al siguiente taller del flujo y, cuando la orden termina, al vendedor y a los administradores. Diseño muestra botones Aprobar/Rechazar (todavía sin acción: no guardan nada); Bordado muestra los colores de hilo.
 
-#### 2. Inventarios
-- **Materiales**: Telas, hilos, accesorios
-- **Productos**: Uniformes terminados
-- Alertas de stock mínimo
-- Filtros avanzados
-- Gestión completa (CRUD)
+### 5. Seguimiento Global (`/seguimiento`)
+Carga por taller, estado de cada producto en cada taller, cuellos de botella y eficiencia por taller.
 
-#### 3. Órdenes de Producción
-- Crear nuevas órdenes
-- Seguimiento de estado
-- Información de cliente
-- Fechas de entrega
-- Progreso por taller
+### 6. Proveedores (`/proveedores`)
+Tarjetas con contacto, calificación e insumos que surten. **Contactar** (llamar, WhatsApp, correo y mensaje de reabastecimiento si hay materiales bajo mínimo) e **Historial** (materiales que surte y movimientos de inventario). Alta en `/proveedores/nuevo`.
 
-#### 4. Talleres (Vista Kanban)
-- **Diseño**: Aprobación de diseños
-- **Sublimación**: Control de estampado
-- **Corte**: Gestión de cortes
-- **Costura**: Seguimiento de confección
-- **Bordado**: Control de bordados
-- Drag & drop entre estados
-- Actualización en tiempo real
+### 7. Reportes (`/reportes`)
+Resumen de inventario con datos reales. Las gráficas de producción, consumo, más vendidos y eficiencia, y el selector de periodo, todavía son de ejemplo.
 
-#### 5. Seguimiento Global
-- Vista completa del flujo de producción
-- Timeline de órdenes
-- Cuellos de botella
-- Eficiencia por taller
+### 8. Gestión de Usuarios (`/usuarios`)
+Solo administrador primario: crear (cuenta de Auth + perfil), editar perfil y rol, activar/desactivar y eliminar.
 
-#### 6. Proveedores
-- Listado de proveedores
-- Información de contacto
-- Materiales suministrados
-- Historial de pedidos
+### 9. Permisos Vacacionales (`/vacaciones`)
+Solo administrador primario. Empleados con antigüedad y días pendientes; vacaciones por año de servicio (Art. 76) con prima (Art. 80) y alerta de atrasadas (Art. 81); incidencias con aviso de causal de rescisión por faltas (Art. 47 fr. X); expediente documental con riesgos ante demanda (Arts. 784, 804, 805) en un bucket privado; cálculo de finiquito o liquidación y baja. Cálculos orientativos y brutos.
 
-#### 7. Reportes
-- Producción por período
-- Eficiencia de talleres
-- Inventario valorizado
-- Órdenes completadas
+### Transversal
+- **Buscador global** (Ctrl+K) limitado a los módulos de tu rol.
+- **Notificaciones**: a usuarios o roles completos, con enlace opcional, en tiempo real.
+- **Guía de usuario** por rol al primer ingreso.
 
-#### 8. Gestión de Usuarios (Admin)
-- Crear/editar/eliminar usuarios
-- Asignar roles
-- Control de accesos
-- Registro de último acceso
+---
 
-## 🚀 Inicio Rápido
+## 🔐 Roles
 
-### Acceder al Sistema
+| Rol | Alcance |
+|---|---|
+| Administrador primario | Todo |
+| Administrador secundario | Lectura de todo el negocio (sin usuarios ni datos laborales) |
+| Vendedor | Sus órdenes y clientes; inventario en lectura |
+| Diseñador, Sublimador, Cortador, Costurera, Bordador | Su taller: ve las órdenes que pasan por él y actualiza su avance |
 
-1. Al iniciar la aplicación, serás redirigido a `/login`
-2. Usa cualquiera de estas credenciales de prueba:
+Detalle en [ROLES_Y_PERMISOS.md](ROLES_Y_PERMISOS.md).
 
-```
-Admin Primario:
-Usuario: admin
-Contraseña: admin123
+---
 
-Admin Secundario:
-Usuario: admin2
-Contraseña: admin456
+## 🎨 Diseño
 
-Vendedor:
-Usuario: vendedor1
-Contraseña: ventas123
+- **Estilo**: minimalista y limpio; tipografía **Work Sans**.
+- **Color principal**: verde industrial `#059669`.
+- **Estados de producción**: rojo (pendiente), amarillo (en proceso), verde (terminado).
+- Badge de rol en el header: verde (admin primario), amarillo (admin secundario), gris (resto).
+- Componentes basados en **shadcn/ui** (Radix) en `src/app/components/ui`.
 
-Diseñador:
-Usuario: diseño1
-Contraseña: diseno123
-```
+---
 
-3. Explora el sistema según tus permisos
-4. Accede a `/demo` para ver todas las credenciales
+## 🎯 Tecnologías
 
-## 📚 Documentación
+React 18 · TypeScript · Vite 6 · React Router 7 · Tailwind CSS 4 · Radix/shadcn · Recharts · lucide-react · sonner · Supabase (`@supabase/supabase-js`).
 
-### Archivos de Documentación
-
-- **`ROLES_Y_PERMISOS.md`**: Documentación completa del sistema de roles
-- **`INSTRUCCIONES_USO.md`**: Guía paso a paso de uso del sistema
-- **Este archivo**: Resumen general del proyecto
-
-### Estructura del Proyecto
-
-```
-src/
-├── app/
-│   ├── components/
-│   │   ├── ui/              # Componentes de UI (shadcn)
-│   │   ├── Card.tsx         # Tarjetas personalizadas
-│   │   ├── Header.tsx       # Header con rol y logout
-│   │   ├── Sidebar.tsx      # Sidebar dinámico
-│   │   ├── ProtectedRoute.tsx
-│   │   ├── PermissionButton.tsx
-│   │   ├── UserGuide.tsx
-│   │   └── ...
-│   ├── context/
-│   │   └── AuthContext.tsx  # Context de autenticación
-│   ├── data/
-│   │   ├── mockData.ts      # Datos de demostración
-│   │   └── mockUsers.ts     # Usuarios de prueba
-│   ├── pages/
-│   │   ├── Dashboard.tsx
-│   │   ├── Login.tsx
-│   │   ├── GestionUsuarios.tsx
-│   │   ├── InventarioMateriales.tsx
-│   │   ├── talleres/
-│   │   │   ├── TallerDiseno.tsx
-│   │   │   └── ...
-│   │   └── ...
-│   ├── types/
-│   │   └── auth.ts          # Tipos de roles y permisos
-│   ├── utils/
-│   │   └── permissions.ts   # Lógica de permisos
-│   ├── layouts/
-│   │   └── RootLayout.tsx
-│   ├── routes.tsx
-│   └── App.tsx
-└── styles/
-    ├── fonts.css
-    ├── index.css
-    ├── tailwind.css
-    └── theme.css
-```
-
-## 🔑 Permisos por Rol
-
-| Rol | Dashboard | Inventario | Órdenes | Talleres | Reportes | Usuarios |
-|-----|-----------|------------|---------|----------|----------|----------|
-| **Admin Primario** | ✅ Total | ✅ Total | ✅ Total | ✅ Todos | ✅ Total | ✅ Total |
-| **Admin Secundario** | 👁️ Lectura | 👁️ Lectura | 👁️ Lectura | 👁️ Lectura | 👁️ Lectura | 👁️ Lectura |
-| **Vendedor** | ✅ Total | 👁️ Lectura | ✅ Total | ❌ Sin acceso | ❌ Sin acceso | ❌ Sin acceso |
-| **Operativos** | ✅ Total | ❌ Sin acceso | ❌ Sin acceso | ✅ Solo su módulo | ❌ Sin acceso | ❌ Sin acceso |
-
-## 🎯 Tecnologías Utilizadas
-
-- **React 18.3.1** - Framework de UI
-- **TypeScript** - Tipado estático
-- **React Router 7** - Navegación
-- **Tailwind CSS v4** - Estilos
-- **Recharts** - Gráficas
-- **Lucide React** - Iconos
-- **Radix UI** - Componentes accesibles
-- **Sonner** - Notificaciones toast
-- **React DnD** - Drag and drop
-
-## 🎨 Sistema de Diseño
-
-### Paleta de Colores
-
-```css
-/* Principal */
---primary: #059669 (Verde industrial)
-
-/* Estados de Producción */
---status-pending: #EF4444 (Rojo)
---status-in-progress: #F59E0B (Amarillo)
---status-completed: #10B981 (Verde)
-
-/* Neutrales */
---neutral-50 a --neutral-900
-```
-
-### Componentes UI
-
-Basados en **shadcn/ui** con personalización:
-- Buttons
-- Cards
-- Dialogs
-- Dropdowns
-- Forms
-- Tables
-- Badges
-- Tooltips
-- Y más...
-
-## 📱 Responsive Design
-
-El sistema es completamente responsive:
-- **Desktop**: Vista completa con sidebar
-- **Tablet**: Sidebar colapsable
-- **Mobile**: Navegación adaptada
+---
 
 ## 🔒 Seguridad
 
-⚠️ **Importante**: Este sistema es una **demostración frontend** del flujo de usuarios y control de acceso.
+- Autenticación con Supabase Auth (correo y contraseña); las contraseñas nunca pasan por tablas del negocio.
+- El navegador solo usa la clave pública; los datos los protege **RLS por rol** (`sql/rls_por_rol.sql`), probada con `sql/verificar_rls.sql`.
+- Las operaciones sensibles (folio, stock, estado de pago, historial, avisos, envío de notificaciones, validaciones laborales) se ejecutan en la base de datos con triggers, constraints y RPC.
+- Datos laborales y expedientes: exclusivos del administrador primario; el bucket `expedientes` es privado y se accede con URLs firmadas.
+- Credenciales fuera del repositorio (`.env` y `Credenciales.txt` en `.gitignore`).
 
-### En Producción Requerirías:
-
-1. **Backend seguro** con API REST/GraphQL
-2. **Autenticación JWT** con tokens seguros
-3. **Hash de contraseñas** con bcrypt
-4. **Validación en servidor** de todos los permisos
-5. **HTTPS** obligatorio
-6. **CORS** configurado correctamente
-7. **Rate limiting** para prevenir ataques
-8. **SQL injection prevention**
-9. **XSS protection**
-10. **Logs de auditoría**
-
-## 🧪 Testing Manual
-
-### Casos de Prueba Sugeridos
-
-1. **Login/Logout**
-   - Login exitoso con cada rol
-   - Login fallido con credenciales incorrectas
-   - Logout y redirección correcta
-
-2. **Permisos**
-   - Admin secundario no puede editar
-   - Vendedor no ve módulos de taller
-   - Operativos solo ven su módulo
-
-3. **Navegación**
-   - Sidebar muestra solo rutas permitidas
-   - Intentar acceder a ruta no permitida
-   - Indicadores visuales correctos
-
-4. **Gestión de Usuarios**
-   - Solo admin primario puede acceder
-   - Crear usuario funciona
-   - Editar rol funciona
-   - Eliminar usuario funciona
-
-## 🌟 Características Destacadas
-
-### UX Optimizada
-
-1. **Guía de Usuario**: Se muestra automáticamente al primer login
-2. **Tooltips Explicativos**: Sobre elementos deshabilitados
-3. **Badges Visuales**: Indicando "Solo lectura"
-4. **Banners Informativos**: Explicando restricciones
-5. **Colores Distintivos**: Por tipo de rol
-
-### Flujos Simplificados
-
-- Cada usuario solo ve lo necesario para su función
-- Reduce complejidad y errores operativos
-- Mejora eficiencia en tareas repetitivas
-- Previene accesos no autorizados
-
-### Datos de Demostración
-
-- 8 usuarios de prueba (uno por rol)
-- 10+ órdenes de producción
-- 15+ materiales en inventario
-- 5+ productos
-- Proveedores de ejemplo
-- Datos realistas
-
-## 📊 Métricas del Sistema
-
-### Componentes Creados
-- **40+ componentes React**
-- **8 páginas principales**
-- **5 módulos de taller**
-- **20+ componentes UI reutilizables**
-
-### Líneas de Código
-- **~6,000+ líneas** TypeScript/React
-- **~1,000+ líneas** CSS/Tailwind
-- **Arquitectura modular** y escalable
-
-## 🚧 Próximas Mejoras Sugeridas
-
-1. **Backend Integration**
-   - API REST con Node.js/Express
-   - Base de datos PostgreSQL
-   - Autenticación JWT real
-
-2. **Funcionalidades**
-   - Notificaciones en tiempo real
-   - Chat entre usuarios
-   - Carga de archivos (diseños)
-   - Exportación de reportes PDF/Excel
-   - Historial de cambios
-
-3. **UX/UI**
-   - Modo oscuro
-   - Personalización de tema
-   - Accesibilidad mejorada (ARIA)
-   - Animaciones más fluidas
-
-4. **DevOps**
-   - Tests automatizados (Jest, Cypress)
-   - CI/CD pipeline
-   - Docker containerization
-   - Monitoring y logging
-
-## 📄 Licencia
-
-Este es un proyecto de demostración educativo.
-
-## 👥 Créditos
-
-Desarrollado como demostración de:
-- Sistema completo de gestión operativa
-- Implementación de roles y permisos
-- Diseño de UX centrado en el usuario
-- Arquitectura frontend escalable
+Limitaciones conocidas: ver la sección correspondiente de [ROLES_Y_PERMISOS.md](ROLES_Y_PERMISOS.md).
 
 ---
 
-**¿Necesitas ayuda?**
-- Ver `INSTRUCCIONES_USO.md` para guía de uso
-- Ver `ROLES_Y_PERMISOS.md` para detalles de permisos
-- Acceder a `/demo` en la aplicación para ver credenciales
+## 🧪 Pruebas manuales sugeridas
+
+1. **Login/Logout** con cada rol, con credenciales incorrectas y con un usuario inactivo.
+2. **Permisos**: menú por rol, insignias "Solo lectura", altas deshabilitadas para el admin secundario.
+3. **RLS**: abrir por URL un módulo fuera del menú y comprobar que no trae datos; ejecutar `sql/verificar_rls.sql`.
+4. **Órdenes**: crear una orden multiproducto y una venta rápida; comprobar folio, estado de pago y descuento de stock.
+5. **Producción**: avanzar un trabajo en un taller y verificar el aviso al siguiente.
+6. **Notificaciones**: enviar a un rol completo y ver la lectura en "Enviadas".
+7. **Vacaciones**: registrar vacaciones que excedan los días pendientes o se traslapen (deben rechazarse).
 
 ---
 
-**Sistema de Gestión de Uniformes Industriales v1.0**  
-Abril 2026
+## 🚧 Próximas mejoras
+
+1. Editar órdenes, cambiar su estado y registrar pagos posteriores, con notificación a los afectados.
+2. Mostrar historial, comentarios y archivos de la orden (las tablas ya existen).
+3. Edición de materiales y proveedores; entradas y ajustes de inventario con movimientos.
+4. Reportes con datos reales y filtro por periodo; exportación PDF/Excel.
+5. Pantalla de clientes con datos fiscales y facturación CONTPAQi.
+6. Validar el rol también en las rutas.
+7. Pruebas automatizadas y CI.
+
+---
+
+**Sistema de Gestión de Uniformes Industriales** — actualizado el 5 de noviembre de 2026

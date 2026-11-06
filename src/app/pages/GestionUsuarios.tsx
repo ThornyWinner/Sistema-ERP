@@ -6,13 +6,14 @@
  *  - Listar usuarios (nombre, email, username, rol, estado y último acceso).
  *  - Crear usuarios: registra la cuenta en Supabase Auth + el perfil en `usuarios`.
  *  - Editar perfil (nombre, username, email, rol, estado). La contraseña no se edita aquí.
- *  - Eliminar usuarios (no se permite eliminar al propio usuario conectado).
+ *  - Eliminar usuarios, con un diálogo de confirmación: borra el perfil y la cuenta de
+ *    Supabase Auth (RPC eliminar_usuario). No se permite eliminar al propio usuario.
  * Toda la lógica de datos vive en AuthContext; esta página solo gestiona la interfaz
  * y muestra notificaciones (toast) con el resultado de cada operación.
  */
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { UserRole } from '../types/auth';
+import type { User, UserRole } from '../types/auth';
 import { roleLabels } from '../utils/permissions';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -42,7 +43,7 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
-import { UserPlus, Pencil, Trash2, Shield } from 'lucide-react';
+import { UserPlus, Pencil, Trash2, Shield, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function GestionUsuarios() {
@@ -53,6 +54,10 @@ export default function GestionUsuarios() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   // Id del usuario en edición; null = modo creación.
   const [editingUser, setEditingUser] = useState<string | null>(null);
+  // Usuario cuya eliminación se está confirmando (abre el diálogo de confirmación).
+  const [deletingUser, setDeletingUser] = useState<User | null>(null);
+  // true mientras se elimina (deshabilita los botones del diálogo de confirmación).
+  const [deleting, setDeleting] = useState(false);
   // Campos del formulario del diálogo.
   const [formData, setFormData] = useState({
     nombre: '',
@@ -154,16 +159,19 @@ export default function GestionUsuarios() {
     }
   };
 
-  // Pide confirmación con el diálogo nativo del navegador y elimina el usuario.
-  const handleDelete = async (userId: string) => {
-    const user = users.find(u => u.id === userId);
-    if (user && confirm(`¿Estás seguro de eliminar al usuario ${user.nombre}?`)) {
-      try {
-        await deleteUser(userId);
-        toast.success('Usuario eliminado correctamente');
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'No se pudo eliminar el usuario');
-      }
+  // Elimina el usuario confirmado (perfil + cuenta de acceso). Si falla, el diálogo
+  // sigue abierto para que el administrador vea el error y pueda cancelar.
+  const confirmDelete = async () => {
+    if (!deletingUser) return;
+    setDeleting(true);
+    try {
+      await deleteUser(deletingUser.id);
+      toast.success(`Usuario ${deletingUser.nombre} eliminado correctamente`);
+      setDeletingUser(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo eliminar el usuario');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -324,7 +332,7 @@ export default function GestionUsuarios() {
                 <TableCell>{user.username}</TableCell>
                 <TableCell>
                   <Badge variant="outline" className="bg-neutral-50">
-                    {roleLabels[user.rol]}
+                    {roleLabels[user.rol] ?? 'Sin rol'}
                   </Badge>
                 </TableCell>
                 <TableCell>
@@ -351,7 +359,7 @@ export default function GestionUsuarios() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleDelete(user.id)}
+                      onClick={() => setDeletingUser(user)}
                       disabled={user.id === currentUser?.id}
                     >
                       <Trash2 className="w-4 h-4 text-red-600" />
@@ -363,6 +371,57 @@ export default function GestionUsuarios() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Confirmación de eliminación, con el mismo formato que el diálogo de edición */}
+      <Dialog open={!!deletingUser} onOpenChange={(open) => { if (!open && !deleting) setDeletingUser(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Eliminar Usuario</DialogTitle>
+            <DialogDescription>
+              Esta acción no se puede deshacer
+            </DialogDescription>
+          </DialogHeader>
+
+          {deletingUser && (
+            <div className="space-y-4">
+              {/* Datos del usuario que se va a eliminar */}
+              <div className="rounded-lg border border-border p-4 space-y-2">
+                <div>
+                  <p className="font-medium">{deletingUser.nombre}</p>
+                  {deletingUser.email && (
+                    <p className="text-sm text-muted-foreground">{deletingUser.email}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>@{deletingUser.username}</span>
+                  <Badge variant="outline" className="bg-neutral-50">
+                    {roleLabels[deletingUser.rol] ?? 'Sin rol'}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Consecuencias y alternativa recomendada */}
+              <div className="flex gap-3 rounded-lg bg-status-pending-bg p-4 text-sm text-status-pending-text">
+                <AlertTriangle className="w-5 h-5 shrink-0" />
+                <div className="space-y-1">
+                  <p>Se borrarán su perfil y su cuenta de acceso: ya no podrá iniciar sesión con este correo.</p>
+                  <p>Si tiene órdenes, movimientos u otros registros, no se podrá eliminar. En ese caso márcalo como <strong>Inactivo</strong> desde Editar.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDeletingUser(null)} disabled={deleting}>
+              Cancelar
+            </Button>
+            <Button type="button" variant="destructive" onClick={confirmDelete} disabled={deleting}>
+              <Trash2 className="w-4 h-4" />
+              {deleting ? 'Eliminando...' : 'Eliminar Usuario'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -6,21 +6,30 @@
  *  - /productos/editar/:id   → modo edición (precarga los datos del producto con ese id).
  *
  * Campos: nombre, tipo de prenda, categoría, precio, stock inicial, tallas y colores
- * (seleccionados de listas predefinidas). La columna derecha incluye una zona de
- * imagen de referencia (solo visual) y un resumen en vivo.
+ * (seleccionados de listas predefinidas). La columna derecha incluye la imagen de
+ * referencia (clic o arrastrar y soltar) y un resumen en vivo.
  *
- * Nota: el guardado todavía no está conectado a Supabase; al enviar solo se imprime
- * el formulario en la consola y se vuelve al inventario de productos.
+ * Al guardar (lib/productos.ts → guardarProducto):
+ *  - Alta: crea el producto y una variante por cada talla × color con el stock inicial.
+ *  - Edición: actualiza datos, agrega/quita variantes y, si cambió, el precio.
+ *  - La imagen se sube al bucket `productos` de Supabase Storage.
+ * Solo el administrador primario puede crear o editar (permisos y RLS).
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/Card";
-import { ArrowLeft, Save, X } from "lucide-react";
+import { ArrowLeft, Save, X, Lock } from "lucide-react";
 import { useErpData } from "../context/ErpDataContext";
+import { useAuth } from "../context/AuthContext";
+import { hasPermission } from "../utils/permissions";
+import ImagenProductoInput from "../components/ImagenProductoInput";
+import { cargarCategorias, guardarProducto } from "../lib/productos";
 
 export default function ProductoForm() {
-  // Obtiene la lista de productos del contexto (mock).
-  const { productos: mockProductos } = useErpData();
+  // Productos reales de Supabase (alias mockProductos del prototipo).
+  const { productos: mockProductos, refresh } = useErpData();
+  const { user } = useAuth();
   // `id` existe solo en la ruta de edición.
   const { id } = useParams();
   // Hook de navegación para redirigir después de guardar.
@@ -33,9 +42,11 @@ export default function ProductoForm() {
     ? mockProductos.find((p) => p.id === id)
     : null;
 
+  // Permiso de alta o edición sobre el inventario de productos.
+  const puedeGuardar =
+    !!user && hasPermission(user.rol, "/inventario/productos", isEditing ? "canEdit" : "canCreate");
+
   // Valores iniciales: los del producto existente o vacíos.
-  // Nota: useState solo usa este valor en el primer render; si los productos aún no
-  // habían cargado, el formulario quedará vacío.
   const [formData, setFormData] = useState({
     nombre: productoExistente?.nombre || "",
     tipo: productoExistente?.tipo || "camisa",
@@ -45,6 +56,36 @@ export default function ProductoForm() {
     tallas: productoExistente?.tallas || [],
     colores: productoExistente?.colores || [],
   });
+
+  // Si se entra directo a /productos/editar/:id, los productos llegan después del
+  // primer render: se rellena el formulario una sola vez cuando el producto aparece.
+  const [cargadoId, setCargadoId] = useState<string | null>(productoExistente?.id ?? null);
+  useEffect(() => {
+    if (!productoExistente || cargadoId === productoExistente.id) return;
+    setFormData({
+      nombre: productoExistente.nombre,
+      tipo: productoExistente.tipo,
+      categoria: productoExistente.categoria === "Sin categoría" ? "" : productoExistente.categoria,
+      precio: productoExistente.precio,
+      stock: productoExistente.stock,
+      tallas: productoExistente.tallas,
+      colores: productoExistente.colores,
+    });
+    setCargadoId(productoExistente.id);
+  }, [productoExistente, cargadoId]);
+
+  // Imagen: archivo nuevo elegido y si se pidió quitar la imagen guardada.
+  const [archivoImagen, setArchivoImagen] = useState<File | null>(null);
+  const [quitarImagen, setQuitarImagen] = useState(false);
+  const urlImagenActual = quitarImagen ? null : productoExistente?.imagen ?? null;
+
+  const [guardando, setGuardando] = useState(false);
+
+  // Categorías existentes, sugeridas al escribir (se puede escribir una nueva).
+  const [categorias, setCategorias] = useState<string[]>([]);
+  useEffect(() => {
+    cargarCategorias().then(setCategorias).catch(() => setCategorias([]));
+  }, []);
 
   // Valor seleccionado en los desplegables de talla/color antes de pulsar "Agregar".
   const [nuevaTalla, setNuevaTalla] = useState("");
@@ -96,11 +137,61 @@ export default function ProductoForm() {
     });
   };
 
-  // Guardado pendiente de implementar: por ahora solo registra en consola y regresa.
-  const handleSubmit = (e: React.FormEvent) => {
+  // Guarda en Supabase (producto, variantes e imagen) y vuelve al inventario.
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Guardando producto:", formData);
-    navigate("/inventario/productos");
+    if (!puedeGuardar || guardando) return;
+    if (isEditing && !productoExistente) {
+      toast.error("No se encontró el producto a editar");
+      return;
+    }
+    if (!formData.nombre.trim()) {
+      toast.error("El nombre del producto es obligatorio");
+      return;
+    }
+    const precio = Number(formData.precio) || 0;
+    const stockInicial = Math.max(Math.floor(Number(formData.stock) || 0), 0);
+    if (precio < 0) {
+      toast.error("El precio no puede ser negativo");
+      return;
+    }
+
+    setGuardando(true);
+    try {
+      const resultado = await guardarProducto(
+        {
+          nombre: formData.nombre,
+          tipo: formData.tipo,
+          categoria: formData.categoria,
+          precio,
+          stockInicial,
+          tallas: formData.tallas,
+          colores: formData.colores,
+        },
+        archivoImagen
+          ? { tipo: "nueva", archivo: archivoImagen }
+          : quitarImagen
+            ? { tipo: "quitar" }
+            : { tipo: "sin_cambio" },
+        productoExistente ?? undefined
+      );
+
+      toast.success(isEditing ? "Producto actualizado" : `Producto "${formData.nombre.trim()}" creado`);
+      if (resultado.variantesConservadas > 0) {
+        toast.warning(
+          `${resultado.variantesConservadas} combinación(es) de talla/color no se eliminaron porque tienen stock o ya se usaron en órdenes`
+        );
+      }
+      if (resultado.errorImagen) {
+        toast.error(`El producto se guardó, pero la imagen no: ${resultado.errorImagen}`);
+      }
+      await refresh();
+      navigate("/inventario/productos");
+    } catch (err: any) {
+      toast.error(`No se pudo guardar el producto: ${err.message}`);
+    } finally {
+      setGuardando(false);
+    }
   };
 
   // Renderiza el formulario con encabezado, campos, variantes, imagen y resumen.
@@ -126,8 +217,22 @@ export default function ProductoForm() {
         </div>
       </div>
 
+      {/* Aviso cuando el rol no puede crear/editar productos */}
+      {!puedeGuardar && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start gap-3">
+          <Lock className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-yellow-900">Modo solo lectura</p>
+            <p className="text-sm text-yellow-700">
+              Tu rol no puede {isEditing ? "editar" : "crear"} productos.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Formulario principal con tres columnas: datos, imagen y resumen */}
       <form onSubmit={handleSubmit}>
+        <fieldset disabled={!puedeGuardar || guardando}>
         {/* Diseño en 3 columnas: 2 para los datos y 1 para imagen/resumen/acciones */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Columna izquierda: información general y variantes */}
@@ -202,8 +307,15 @@ export default function ProductoForm() {
                       }
                       className="w-full px-4 py-2 bg-input-background border border-border rounded-lg focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                       placeholder="Ej: Industrial, Corporativo"
+                      list="categorias-producto"
                       required
                     />
+                    {/* Sugerencias de categorías existentes; si se escribe una nueva, se crea al guardar */}
+                    <datalist id="categorias-producto">
+                      {categorias.map((c) => (
+                        <option key={c} value={c} />
+                      ))}
+                    </datalist>
                   </div>
                 </div>
                 
@@ -233,22 +345,30 @@ export default function ProductoForm() {
                   <div>
                     {/* Etiqueta y campo de entrada para el stock inicial del producto */}
                     <label className="block text-sm font-medium text-foreground mb-2">
-                      Stock Inicial
+                      {isEditing ? "Stock Total" : "Stock Inicial por Variante"}
                     </label>
-                    {/* Input de número controlado por el estado formData.stock */}
+                    {/* En edición el stock es de solo lectura: cada variante lleva el suyo */}
                     <input
                       type="number"
-                      value={formData.stock}
+                      value={Number.isNaN(formData.stock) ? "" : formData.stock}
                       onChange={(e) =>
                         setFormData({
                           ...formData,
                           stock: parseInt(e.target.value),
                         })
                       }
-                      className="w-full px-4 py-2 bg-input-background border border-border rounded-lg focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      readOnly={isEditing}
+                      className={`w-full px-4 py-2 bg-input-background border border-border rounded-lg focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 ${
+                        isEditing ? "opacity-60 cursor-not-allowed" : ""
+                      }`}
                       placeholder="0"
                       min="0"
                     />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {isEditing
+                        ? "Suma de todas las variantes. Las tallas/colores nuevos inician en 0."
+                        : "Se asigna a cada combinación de talla y color."}
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -394,42 +514,27 @@ export default function ProductoForm() {
           
           {/* Columna derecha: zona de imagen y resumen del producto */}
           <div className="space-y-6">
-            {/* Zona de carga de imagen (solo visual, aún sin funcionalidad) */}
+            {/* Imagen de referencia: clic o arrastrar; se sube a Supabase al guardar */}
             <Card>
-              {/* Encabezado de la tarjeta con el título "Imagen de Referencia" */}
               <CardHeader>
                 <CardTitle>Imagen de Referencia</CardTitle>
               </CardHeader>
-              {/* Contenido de la tarjeta con un área de carga de imagen simulada */}
               <CardContent>
-                {/* Contenedor con borde punteado, centrado y con efecto hover para indicar que se puede subir una imagen */}
-                <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary transition-colors cursor-pointer">
-                  {/* Icono de imagen dentro de un círculo, centrado */}
-                  <div className="w-16 h-16 bg-secondary rounded-full mx-auto mb-4 flex items-center justify-center">
-                    {/* Icono SVG de una imagen, con tamaño y color atenuado */}
-                    <svg
-                      className="w-8 h-8 text-muted-foreground"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      {/* Dibujo del icono de imagen con líneas redondeadas y un trazo de 2px */}
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                      />
-                    </svg>
-                  </div>
-                  {/* Texto que indica al usuario que haga clic para subir una imagen */}
-                  <p className="text-sm text-muted-foreground">
-                    Haz clic para subir una imagen
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    PNG, JPG hasta 5MB
-                  </p>
-                </div>
+                <ImagenProductoInput
+                  urlActual={urlImagenActual}
+                  archivo={archivoImagen}
+                  deshabilitado={!puedeGuardar || guardando}
+                  onElegir={(archivo) => {
+                    setArchivoImagen(archivo);
+                    setQuitarImagen(false);
+                  }}
+                  onQuitar={() => {
+                    // Si había un archivo nuevo sin guardar, solo se descarta ese;
+                    // si no, se marca la imagen guardada para borrarse al guardar.
+                    if (archivoImagen) setArchivoImagen(null);
+                    else setQuitarImagen(true);
+                  }}
+                />
               </CardContent>
             </Card>
 
@@ -470,10 +575,10 @@ export default function ProductoForm() {
               {/* Botón de envío del formulario con icono de guardar */}
               <button
                 type="submit"
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
                 <Save className="w-5 h-5" />
-                Guardar
+                {guardando ? "Guardando..." : "Guardar"}
               </button>
               {/* Enlace para cancelar y volver al inventario de productos */}
               <Link
@@ -485,6 +590,7 @@ export default function ProductoForm() {
             </div>
           </div>
         </div>
+        </fieldset>
       </form>
     </div>
   );

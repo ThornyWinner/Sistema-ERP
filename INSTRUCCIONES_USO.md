@@ -1,298 +1,131 @@
-# Instrucciones de Uso - Sistema de Roles y Permisos
+# Instrucciones de Uso
+
+Guía práctica para usar el Sistema de Gestión de Inventarios y Producción según tu rol.
+
+---
 
 ## 🚀 Inicio Rápido
 
-### 1. Acceder al Sistema
+### 1. Iniciar sesión
 
-1. Al cargar la aplicación, serás redirigido automáticamente a la pantalla de **Login**
-2. Selecciona un usuario de prueba de los que se muestran en la pantalla
-3. Ingresa las credenciales y haz click en "Iniciar Sesión"
+1. Abre la aplicación; si no tienes sesión, se muestra la pantalla de **Iniciar Sesión**.
+2. Escribe tu **correo electrónico** y tu contraseña y pulsa "Iniciar Sesión".
+3. Si el correo o la contraseña son incorrectos verás "Usuario o contraseña incorrectos". Si tu cuenta está inactiva o no tiene perfil, verás el motivo; pide ayuda al administrador primario.
 
-### 2. Primera Vez (Guía Automática)
+La sesión se mantiene al recargar la página. Para salir: clic en tu nombre (esquina superior derecha) → **Cerrar Sesión**.
 
-Al iniciar sesión por primera vez con cualquier usuario:
-- Se mostrará automáticamente una **guía personalizada** según tu rol
-- Esta guía te explica tus permisos y restricciones
-- Puedes cerrarla y volver a verla desde el Dashboard haciendo click en "Ver guía de usuario"
+> Para pruebas, las cuentas de cada rol están en `Credenciales.txt` (archivo local, no está en el repositorio).
 
-### 3. Navegar el Sistema
+### 2. Guía de bienvenida
 
-Después de iniciar sesión:
-- **Sidebar izquierdo**: Muestra solo las secciones a las que tienes acceso
-- **Header superior**: Muestra tu nombre, rol y opciones de cuenta
-- **Dashboard**: Vista general personalizada según tu rol
+La primera vez que entras se abre una **guía personalizada** con tus permisos y tareas. Puedes volver a verla desde el Dashboard con "Ver guía de usuario".
 
----
+### 3. Partes de la pantalla
 
-## 👤 Probando Diferentes Roles
-
-### Cómo Cambiar de Usuario
-
-1. Click en tu **nombre** en el header (esquina superior derecha)
-2. Selecciona **"Cerrar Sesión"**
-3. En la pantalla de login, ingresa las credenciales de otro usuario
-4. Observa cómo cambia la interfaz según el nuevo rol
-
-### Usuarios Recomendados para Probar
-
-**Para ver control total:**
-```
-Usuario: admin
-Contraseña: admin123
-```
-
-**Para ver restricciones de solo lectura:**
-```
-Usuario: admin2
-Contraseña: admin456
-```
-
-**Para ver acceso limitado a talleres:**
-```
-Usuario: diseño1
-Contraseña: diseno123
-```
+- **Menú lateral**: solo muestra los módulos a los que tienes acceso. "Solo lectura" indica que puedes consultar pero no modificar.
+- **Barra superior**:
+  - **Buscador** (Ctrl+K o ⌘K): busca órdenes, productos, materiales y proveedores. Usa ↑/↓ y Enter para abrir un resultado, Esc para cerrar.
+  - **Campana** 🔔: tus notificaciones (el número rojo son las no leídas).
+  - **Tu nombre y rol**, con la opción de cerrar sesión.
+- **Dashboard**: cambia según tu rol (ver abajo).
 
 ---
 
-## 🔍 Características a Observar
+## 👤 Qué puede hacer cada rol
 
-### 1. Sidebar Dinámico
+| Rol | Ve en el menú | Puede modificar |
+|---|---|---|
+| Administrador primario | Todo | Todo |
+| Administrador secundario | Todo excepto Usuarios y Permisos Vacacionales | Nada (solo lectura) |
+| Vendedor | Dashboard, Órdenes, Inventario | Sus órdenes y clientes |
+| Diseño, Sublimación, Corte, Costura, Bordado | Dashboard y su taller | El avance de su taller |
 
-- **Admin Primario**: Ve todas las secciones
-- **Admin Secundario**: Ve todas las secciones con badge "Solo lectura"
-- **Vendedor**: Solo ve Dashboard, Inventario (lectura), Órdenes
-- **Operativos de taller**: Solo ven su módulo específico
-
-### 2. Botones y Acciones
-
-- **Admin Primario**: Todos los botones habilitados
-- **Admin Secundario**: Botones deshabilitados con tooltip explicativo
-- **Otros roles**: Botones contextuales según permisos
-
-### 3. Indicadores Visuales
-
-- **Badge de rol** en el header con color distintivo
-- **Banners informativos** en pantallas con restricciones
-- **Tooltips explicativos** al pasar el mouse sobre elementos deshabilitados
-- **Iconos de candado** en áreas de solo lectura
-
-### 4. Gestión de Usuarios
-
-Solo disponible para **Admin Primario**:
-1. Ir a la sección "Gestión de Usuarios" en el sidebar
-2. Click en "Nuevo Usuario" para crear
-3. Editar usuarios existentes con el icono de lápiz
-4. Eliminar usuarios con el icono de papelera
-5. Cambiar roles usando el dropdown de "Rol"
+Detalle completo en [ROLES_Y_PERMISOS.md](ROLES_Y_PERMISOS.md).
 
 ---
 
-## 📋 Flujos de Usuario por Rol
+## 📋 Tareas frecuentes
 
-### Administrador Primario
+### Vendedor: crear una orden
 
-```
-Login → Dashboard → Acceso completo a todas las secciones →
-Puede crear/editar/eliminar en cualquier módulo →
-Gestión de usuarios → Logout
-```
+1. Ve a **Órdenes de Producción** → **Nueva Orden**.
+2. Captura el cliente (con teléfono y correo), la fecha de entrega, el método de pago y el anticipo. El anticipo no puede ser mayor que el total.
+3. Agrega uno o varios productos. Para cada uno elige el tipo:
+   - **Venta directa**: sale del inventario, sin talleres.
+   - **Fabricación**: elige los talleres por los que pasa (no tienen que ser todos) y, si lleva bordado, su configuración (lugar, hilos, logotipo).
+   - **Comercialización**: indica el proveedor.
+4. Agrega notas si hace falta y guarda. El folio (ORD-AAAA-NNNNNN) se asigna solo.
 
-### Administrador Secundario
+Las órdenes se atienden **por orden de llegada (FIFO)**: la tabla muestra el turno de cada una en la cola. Al hacer clic en una orden se abre su detalle con el avance por taller y los pagos.
 
-```
-Login → Dashboard → Ve todas las secciones →
-Solo puede visualizar (botones deshabilitados) →
-Banner amarillo de "Modo Solo Lectura" →
-Logout
-```
+### Vendedor: venta rápida de mostrador
 
-### Vendedor
+1. En **Órdenes** pulsa **Venta Rápida**.
+2. Captura el cliente y el método de pago.
+3. Agrega productos con existencia (talla y color); la cantidad no puede superar el stock.
+4. Completa la venta: se crea una orden ya entregada y liquidada, y el stock se descuenta automáticamente.
 
-```
-Login → Dashboard → Crear nueva orden →
-Consultar inventario (solo lectura) →
-Ver estado de pedidos → Logout
-```
+### Talleres: avanzar un trabajo
 
-### Operativos de Taller (Diseñador, Sublimador, etc.)
+1. Entra a tu taller desde el menú (o revisa tu cola en el Dashboard: indica qué trabajos ya están listos porque terminaron los talleres anteriores).
+2. En el tablero, pulsa **Iniciar** para pasar un trabajo de Pendiente a En Proceso.
+3. Al terminar pulsa **Completar**. El siguiente taller del flujo recibe un aviso automático; si era la última etapa de la orden, se avisa al vendedor y a los administradores.
 
-```
-Login → Dashboard → Solo ve su módulo de taller →
-Actualiza estados de producción →
-No puede acceder a otros talleres → Logout
-```
+### Administrador primario: inventario y proveedores
 
----
+- **Agregar material**: Inventario → Materiales → "Agregar Material" (tipo, unidad, stock inicial, stock mínimo, precio y proveedor). Los materiales por debajo de su mínimo se marcan en rojo.
+- **Productos**: Inventario → Productos → "Nuevo Producto", o clic en un producto para editarlo. Se crea una variante por cada talla × color. Puedes subir una imagen de referencia (PNG, JPG o WEBP, máx. 5 MB) con clic o arrastrándola.
+- **Proveedores**: "Agregar Proveedor" para darlo de alta. En cada tarjeta, **Contactar** ofrece llamar, WhatsApp o correo y, si alguno de sus materiales tiene stock bajo, arma un mensaje de **reabastecimiento**; **Ver Historial** muestra sus materiales y movimientos.
 
-## 🎯 Casos de Uso para Probar
+### Administrador primario: usuarios
 
-### Caso 1: Gestión Completa (Admin Primario)
+En **Gestión de Usuarios**: "Nuevo Usuario" (nombre, username, correo, contraseña, rol y estado), lápiz para editar, papelera para eliminar. Para quitar el acceso a alguien es preferible marcarlo **inactivo**; un usuario con órdenes o movimientos no se puede eliminar.
 
-1. Login como `admin / admin123`
-2. Ir a "Gestión de Usuarios"
-3. Crear un nuevo usuario con rol "Vendedor"
-4. Ir a "Inventario de Materiales"
-5. Observar botón "Agregar Material" habilitado
-6. Ir a cualquier módulo de taller
-7. Observar control total
+### Administrador primario: Permisos Vacacionales
 
-### Caso 2: Solo Lectura (Admin Secundario)
+1. Con "Nuevo empleado" da de alta a cada empleado (fecha de ingreso, salario diario, prima vacacional mínima de 25 %, RFC, CURP, NSS).
+2. Selecciona un empleado para ver su detalle en pestañas:
+   - **Vacaciones**: días que le corresponden por año de servicio, tomados y pendientes. "Registrar vacaciones" calcula los días laborables (lunes a sábado, sin descansos obligatorios) y la prima.
+   - **Incidencias**: retardos, faltas, incapacidades, permisos y suspensiones (máx. 8 días). Avisa cuando las faltas configuran causal de rescisión.
+   - **Expediente**: documentos (PDF o imagen, máx. 10 MB) y los riesgos ante una demanda si falta alguno.
+   - **Terminación**: cálculo de finiquito o liquidación según la causa, para imprimir, guardar y registrar la baja.
+3. Los indicadores superiores avisan de vacaciones atrasadas y de quién está de vacaciones hoy.
 
-1. Login como `admin2 / admin456`
-2. Observar banner amarillo en páginas
-3. Intentar crear/editar algo
-4. Ver tooltips explicando restricciones
-5. Notar badges "Solo lectura" en sidebar
+> Los cálculos son orientativos e importes brutos (sin ISR). Los casos reales deben revisarse con un abogado laboral.
 
-### Caso 3: Vendedor (Acceso Parcial)
+### Todos: notificaciones
 
-1. Login como `vendedor1 / ventas123`
-2. Observar sidebar reducido
-3. Ver que puede acceder a Órdenes
-4. Ir a Inventario y ver que es solo lectura
-5. Intentar acceder a talleres (no aparecen en sidebar)
-
-### Caso 4: Operativo de Taller
-
-1. Login como `diseño1 / diseno123`
-2. Ver sidebar minimalista (solo Dashboard y su taller)
-3. Ir al módulo de Diseño
-4. Observar opciones de aprobar/rechazar
-5. Intentar acceder a otros talleres escribiendo la URL directamente
-6. Ver mensaje de acceso denegado (si se implementa)
+- Abre la **campana** para ver tus notificaciones; al abrir una se marca como leída y, si trae enlace, **Ir** te lleva a la pantalla.
+- **Nueva**: envía un mensaje a personas concretas o a todo un rol (p. ej. todas las costureras). Puedes adjuntar un enlace a la pantalla actual.
+- En **Enviadas** ves quién ya leyó cada mensaje.
+- Las notificaciones nuevas llegan al instante, sin recargar.
 
 ---
 
-## 📊 Recursos Adicionales
+## 🎯 Casos de prueba sugeridos
 
-### Página de Demostración
-
-Accede a `/demo` o click en el enlace del login para ver:
-- Todas las credenciales disponibles
-- Resumen visual de permisos por rol
-- Instrucciones de cómo probar el sistema
-- Botones para copiar credenciales
-
-### Documentación Completa
-
-Ver archivo `ROLES_Y_PERMISOS.md` para:
-- Descripción detallada de cada rol
-- Tabla de permisos completa
-- Detalles técnicos de implementación
+1. **Control total** (admin primario): crea un usuario vendedor, da de alta un material y un producto con imagen.
+2. **Solo lectura** (admin secundario): comprueba las insignias "Solo lectura" y que los botones de alta están deshabilitados; Permisos Vacacionales no aparece.
+3. **Vendedor**: crea una orden de fabricación con dos talleres; verifica que solo ves tus órdenes.
+4. **Taller**: con el primer taller de esa orden pulsa Iniciar y Completar; entra con el usuario del siguiente taller y comprueba que recibió el aviso.
+5. **Seguridad**: con un rol de taller escribe `/reportes` en la URL; la página abre, pero sin datos del negocio (la base de datos no se los entrega).
 
 ---
 
-## 🛠️ Funcionalidades Implementadas
+## ⚠️ Limitaciones actuales
 
-✅ **Autenticación**
-- Login con usuario/contraseña
-- Validación de credenciales
-- Sesión persistente
-- Logout
-
-✅ **Control de Acceso**
-- Sidebar dinámico
-- Rutas protegidas
-- Permisos granulares
-- Validación por rol
-
-✅ **Gestión de Usuarios**
-- Crear usuarios
-- Editar usuarios
-- Eliminar usuarios
-- Asignar roles
-- Solo admin primario
-
-✅ **Indicadores UX**
-- Badges de rol
-- Tooltips explicativos
-- Banners informativos
-- Botones contextuales
-- Guía de usuario
-
-✅ **Experiencia Personalizada**
-- Dashboard adaptado
-- Módulos filtrados
-- Acciones según permisos
-- Mensajes contextuales
+- Una orden ya creada no se puede editar (productos, estado general o pagos adicionales).
+- Los materiales y proveedores solo se dan de alta; todavía no se editan desde la app.
+- En **Reportes**, salvo el resumen de inventario, las gráficas e indicadores usan datos de ejemplo y el selector de periodo no filtra.
+- En **Proveedores**, el indicador "Órdenes de Compra" es un valor fijo.
+- En el Taller de Diseño, los botones Aprobar/Rechazar todavía no guardan nada; usa Iniciar/Completar.
 
 ---
 
-## ⚠️ Limitaciones
+## 💡 Para desarrolladores
 
-1. **Simulación Frontend**: La autenticación es simulada en el frontend. En producción se requiere backend seguro.
-
-2. **Datos Temporales**: Los cambios se almacenan en localStorage y se pierden al limpiar caché.
-
-3. **Sin Backend**: No hay persistencia real de datos ni API endpoints.
-
-4. **Propósito Educativo**: Este sistema es una demostración de flujos de usuario, no un sistema de producción.
+Ver [README.md](README.md) (instalación), [ROLES_Y_PERMISOS.md](ROLES_Y_PERMISOS.md) (permisos y RLS) y [ARQUITECTURA_ERP.md](ARQUITECTURA_ERP.md) (estado de cada módulo).
 
 ---
 
-## 🎨 Diseño y UX
-
-### Colores por Rol
-
-- **Admin Primario**: Verde (#059669)
-- **Admin Secundario**: Amarillo
-- **Vendedor**: Azul
-- **Diseñador**: Púrpura
-- **Sublimador**: Cian
-- **Cortador**: Naranja
-- **Costurera**: Rosa
-- **Bordador**: Índigo
-
-### Principios de Diseño
-
-1. **Claridad**: Indicadores visuales claros de permisos
-2. **Consistencia**: Mismos patrones en toda la app
-3. **Feedback**: Tooltips y mensajes explicativos
-4. **Prevención de errores**: Botones deshabilitados vs. ocultos
-5. **Eficiencia**: Flujos simplificados por rol
-
----
-
-## 💡 Tips para Desarrolladores
-
-### Agregar Nuevo Rol
-
-1. Editar `/src/types/auth.ts` - Agregar tipo
-2. Editar `/src/utils/permissions.ts` - Definir permisos
-3. Editar `/src/data/mockUsers.ts` - Agregar usuario de prueba
-4. Actualizar guías en componentes si es necesario
-
-### Proteger Nueva Ruta
-
-```typescript
-import PermissionButton from '../components/PermissionButton';
-
-<PermissionButton requiredPermission="canCreate">
-  Crear Nuevo
-</PermissionButton>
-```
-
-### Verificar Permisos
-
-```typescript
-import { hasPermission } from '../utils/permissions';
-
-if (hasPermission(user.rol, '/ruta', 'canEdit')) {
-  // Mostrar formulario de edición
-}
-```
-
----
-
-## 📞 Soporte
-
-Para preguntas o problemas:
-1. Revisar documentación en `ROLES_Y_PERMISOS.md`
-2. Ver página de demo en `/demo`
-3. Consultar código fuente en `/src/app/`
-
----
-
-**Sistema de Gestión de Inventarios y Producción**  
-**Versión con Roles y Permisos - Abril 2026**
+**Sistema de Gestión de Inventarios y Producción** — actualizado el 5 de noviembre de 2026

@@ -13,6 +13,7 @@
  *  - Panel inferior: próximas entregas.
  */
 import { useState } from "react";
+import { useBusquedaUrl } from "../hooks/useBusquedaUrl";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/Card";
 import StatusBadge from "../components/StatusBadge";
 import OrdenCerradaBadge, { esOrdenCerrada } from "../components/OrdenCerradaBadge";
@@ -37,7 +38,7 @@ export default function Ordenes() {
   const { user } = useAuth();
   const { ordenes, productos, crearOrden } = useErpData();
   // Filtros de la tabla.
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useBusquedaUrl();
   const [filterEstado, setFilterEstado] = useState<string>("all");
   const [filterVendedor, setFilterVendedor] = useState<string>("all");
   // Visibilidad de los dos diálogos de creación.

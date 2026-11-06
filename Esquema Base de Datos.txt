@@ -1,25 +1,44 @@
--- WARNING: This schema is for context only and is not meant to be run.
--- Table order and constraints may not be valid for execution.
+-- Esquema de la base de datos (esquema public) — Supabase / PostgreSQL
+-- Generado desde la base real el 2026-11-05 (pg_catalog: columnas, defaults y constraints).
+--
+-- ADVERTENCIA: este archivo es solo de referencia y NO debe ejecutarse como migración.
+-- El orden de las tablas no respeta dependencias, y no incluye RLS, índices, triggers,
+-- funciones ni Storage. Para eso ver:
+--   Índices.txt, Triggers.txt, Políticas.txt y los scripts de la carpeta sql/.
+--
+-- Origen de las tablas:
+--   roles … consecutivos_documentos   esquema original del ERP
+--   kv_store_ea3eca68                 tabla sobrante de Figma Make (sin uso, RLS sin políticas)
+--   empleados, vacaciones             sql/vacaciones.sql
+--   incidencias, finiquitos,
+--   documentos (+ columnas de baja
+--   e identificación en empleados)    sql/expediente_laboral.sql
+--   notificaciones                    sql/notificaciones.sql
+--   ordenes.chk_anticipo_no_mayor_total  sql/chk_anticipo_total.sql
 
 CREATE TABLE public.roles (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  nombre text NOT NULL UNIQUE,
+  nombre text NOT NULL,
   descripcion text,
   created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT roles_pkey PRIMARY KEY (id)
+  CONSTRAINT roles_pkey PRIMARY KEY (id),
+  CONSTRAINT roles_nombre_key UNIQUE (nombre)
 );
 CREATE TABLE public.usuarios (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  auth_user_id uuid UNIQUE,
+  auth_user_id uuid,
   rol_id uuid,
   nombre text NOT NULL,
-  username text NOT NULL UNIQUE,
-  email text NOT NULL UNIQUE,
+  username text NOT NULL,
+  email text NOT NULL,
   estado text DEFAULT 'activo'::text,
   ultimo_acceso timestamp with time zone,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT usuarios_pkey PRIMARY KEY (id),
-  CONSTRAINT usuarios_rol_id_fkey FOREIGN KEY (rol_id) REFERENCES public.roles(id)
+  CONSTRAINT usuarios_auth_user_id_key UNIQUE (auth_user_id),
+  CONSTRAINT usuarios_email_key UNIQUE (email),
+  CONSTRAINT usuarios_username_key UNIQUE (username),
+  CONSTRAINT usuarios_rol_id_fkey FOREIGN KEY (rol_id) REFERENCES roles(id)
 );
 CREATE TABLE public.clientes (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -38,41 +57,45 @@ CREATE TABLE public.proveedores (
   contacto text,
   telefono text,
   email text,
-  calificacion numeric,
+  calificacion numeric(2,1),
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT proveedores_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.categorias_producto (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  nombre text NOT NULL UNIQUE,
-  CONSTRAINT categorias_producto_pkey PRIMARY KEY (id)
+  nombre text NOT NULL,
+  CONSTRAINT categorias_producto_pkey PRIMARY KEY (id),
+  CONSTRAINT categorias_producto_nombre_key UNIQUE (nombre)
 );
 CREATE TABLE public.materiales (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   nombre text NOT NULL,
   tipo text NOT NULL,
   unidad text NOT NULL,
-  stock_actual numeric DEFAULT 0 CHECK (stock_actual >= 0::numeric),
-  stock_minimo numeric DEFAULT 0 CHECK (stock_minimo >= 0::numeric),
-  precio_unitario numeric CHECK (precio_unitario >= 0::numeric),
+  stock_actual numeric(10,2) DEFAULT 0,
+  stock_minimo numeric(10,2) DEFAULT 0,
+  precio_unitario numeric(10,2),
   proveedor_id uuid,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT materiales_pkey PRIMARY KEY (id),
-  CONSTRAINT materiales_proveedor_id_fkey FOREIGN KEY (proveedor_id) REFERENCES public.proveedores(id)
+  CONSTRAINT materiales_proveedor_id_fkey FOREIGN KEY (proveedor_id) REFERENCES proveedores(id),
+  CONSTRAINT chk_precio_material CHECK ((precio_unitario >= (0)::numeric)),
+  CONSTRAINT chk_stock_material CHECK ((stock_actual >= (0)::numeric)),
+  CONSTRAINT chk_stock_minimo CHECK ((stock_minimo >= (0)::numeric))
 );
 CREATE TABLE public.movimientos_material (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   material_id uuid,
   usuario_id uuid,
   tipo_movimiento text NOT NULL,
-  cantidad numeric,
-  stock_anterior numeric,
-  stock_nuevo numeric,
+  cantidad numeric(10,2),
+  stock_anterior numeric(10,2),
+  stock_nuevo numeric(10,2),
   motivo text,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT movimientos_material_pkey PRIMARY KEY (id),
-  CONSTRAINT movimientos_material_material_id_fkey FOREIGN KEY (material_id) REFERENCES public.materiales(id),
-  CONSTRAINT movimientos_material_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id)
+  CONSTRAINT movimientos_material_material_id_fkey FOREIGN KEY (material_id) REFERENCES materiales(id),
+  CONSTRAINT movimientos_material_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
 );
 CREATE TABLE public.productos (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -82,64 +105,76 @@ CREATE TABLE public.productos (
   imagen_url text,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT productos_pkey PRIMARY KEY (id),
-  CONSTRAINT productos_categoria_id_fkey FOREIGN KEY (categoria_id) REFERENCES public.categorias_producto(id)
+  CONSTRAINT productos_categoria_id_fkey FOREIGN KEY (categoria_id) REFERENCES categorias_producto(id)
 );
 CREATE TABLE public.variantes_producto (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   producto_id uuid,
   talla text,
   color text,
-  stock integer DEFAULT 0 CHECK (stock >= 0),
-  precio numeric CHECK (precio >= 0::numeric),
-  sku text UNIQUE,
+  stock integer DEFAULT 0,
+  precio numeric(10,2),
+  sku text,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT variantes_producto_pkey PRIMARY KEY (id),
-  CONSTRAINT variantes_producto_producto_id_fkey FOREIGN KEY (producto_id) REFERENCES public.productos(id)
+  CONSTRAINT variantes_producto_sku_key UNIQUE (sku),
+  CONSTRAINT variantes_producto_producto_id_fkey FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE,
+  CONSTRAINT chk_precio_positivo CHECK ((precio >= (0)::numeric)),
+  CONSTRAINT chk_stock_no_negativo CHECK ((stock >= 0))
 );
 CREATE TABLE public.talleres (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  nombre text NOT NULL UNIQUE,
-  CONSTRAINT talleres_pkey PRIMARY KEY (id)
+  nombre text NOT NULL,
+  CONSTRAINT talleres_pkey PRIMARY KEY (id),
+  CONSTRAINT talleres_nombre_key UNIQUE (nombre)
 );
 CREATE TABLE public.ordenes (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  folio text NOT NULL UNIQUE,
+  folio text NOT NULL,
   cliente_id uuid,
   vendedor_id uuid,
   fecha_creacion date,
   fecha_entrega date,
-  subtotal numeric CHECK (subtotal >= 0::numeric),
-  total numeric CHECK (total >= 0::numeric),
-  anticipo numeric DEFAULT 0 CHECK (anticipo >= 0::numeric),
+  subtotal numeric(12,2),
+  total numeric(12,2),
+  anticipo numeric(12,2) DEFAULT 0,
   notas text,
   created_at timestamp with time zone DEFAULT now(),
   estado_id uuid,
   metodo_pago_id uuid,
   tipo_venta_id uuid,
   estado_pago_id uuid,
-  descuento numeric DEFAULT 0 CHECK (descuento >= 0::numeric),
+  descuento numeric(12,2) DEFAULT 0,
   CONSTRAINT ordenes_pkey PRIMARY KEY (id),
-  CONSTRAINT ordenes_cliente_id_fkey FOREIGN KEY (cliente_id) REFERENCES public.clientes(id),
-  CONSTRAINT ordenes_vendedor_id_fkey FOREIGN KEY (vendedor_id) REFERENCES public.usuarios(id),
-  CONSTRAINT fk_orden_estado FOREIGN KEY (estado_id) REFERENCES public.estados_orden(id),
-  CONSTRAINT fk_orden_metodo_pago FOREIGN KEY (metodo_pago_id) REFERENCES public.metodos_pago(id),
-  CONSTRAINT fk_orden_tipo_venta FOREIGN KEY (tipo_venta_id) REFERENCES public.tipos_venta(id),
-  CONSTRAINT fk_orden_estado_pago FOREIGN KEY (estado_pago_id) REFERENCES public.estados_pago(id)
+  CONSTRAINT ordenes_folio_key UNIQUE (folio),
+  CONSTRAINT fk_orden_estado FOREIGN KEY (estado_id) REFERENCES estados_orden(id),
+  CONSTRAINT fk_orden_estado_pago FOREIGN KEY (estado_pago_id) REFERENCES estados_pago(id),
+  CONSTRAINT fk_orden_metodo_pago FOREIGN KEY (metodo_pago_id) REFERENCES metodos_pago(id),
+  CONSTRAINT fk_orden_tipo_venta FOREIGN KEY (tipo_venta_id) REFERENCES tipos_venta(id),
+  CONSTRAINT ordenes_cliente_id_fkey FOREIGN KEY (cliente_id) REFERENCES clientes(id),
+  CONSTRAINT ordenes_vendedor_id_fkey FOREIGN KEY (vendedor_id) REFERENCES usuarios(id),
+  CONSTRAINT chk_anticipo CHECK ((anticipo >= (0)::numeric)),
+  CONSTRAINT chk_anticipo_no_mayor_total CHECK ((anticipo <= total)),
+  CONSTRAINT chk_descuento CHECK ((descuento >= (0)::numeric)),
+  CONSTRAINT chk_subtotal CHECK ((subtotal >= (0)::numeric)),
+  CONSTRAINT chk_total CHECK ((total >= (0)::numeric))
 );
 CREATE TABLE public.orden_detalles (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   orden_id uuid,
   producto_id uuid,
-  cantidad integer NOT NULL CHECK (cantidad > 0),
-  precio_unitario numeric CHECK (precio_unitario >= 0::numeric),
+  cantidad integer NOT NULL,
+  precio_unitario numeric(10,2),
   tipo_produccion text,
   notas text,
   created_at timestamp with time zone DEFAULT now(),
   variante_id uuid,
   CONSTRAINT orden_detalles_pkey PRIMARY KEY (id),
-  CONSTRAINT orden_detalles_orden_id_fkey FOREIGN KEY (orden_id) REFERENCES public.ordenes(id),
-  CONSTRAINT orden_detalles_producto_id_fkey FOREIGN KEY (producto_id) REFERENCES public.productos(id),
-  CONSTRAINT fk_detalle_variante FOREIGN KEY (variante_id) REFERENCES public.variantes_producto(id)
+  CONSTRAINT fk_detalle_variante FOREIGN KEY (variante_id) REFERENCES variantes_producto(id),
+  CONSTRAINT orden_detalles_orden_id_fkey FOREIGN KEY (orden_id) REFERENCES ordenes(id) ON DELETE CASCADE,
+  CONSTRAINT orden_detalles_producto_id_fkey FOREIGN KEY (producto_id) REFERENCES productos(id),
+  CONSTRAINT chk_cantidad CHECK ((cantidad > 0)),
+  CONSTRAINT chk_precio_unitario CHECK ((precio_unitario >= (0)::numeric))
 );
 CREATE TABLE public.personalizaciones (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -149,14 +184,14 @@ CREATE TABLE public.personalizaciones (
   notas text,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT personalizaciones_pkey PRIMARY KEY (id),
-  CONSTRAINT personalizaciones_orden_detalle_id_fkey FOREIGN KEY (orden_detalle_id) REFERENCES public.orden_detalles(id)
+  CONSTRAINT personalizaciones_orden_detalle_id_fkey FOREIGN KEY (orden_detalle_id) REFERENCES orden_detalles(id) ON DELETE CASCADE
 );
 CREATE TABLE public.personalizacion_hilos (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   personalizacion_id uuid,
   color_hilo text NOT NULL,
   CONSTRAINT personalizacion_hilos_pkey PRIMARY KEY (id),
-  CONSTRAINT personalizacion_hilos_personalizacion_id_fkey FOREIGN KEY (personalizacion_id) REFERENCES public.personalizaciones(id)
+  CONSTRAINT personalizacion_hilos_personalizacion_id_fkey FOREIGN KEY (personalizacion_id) REFERENCES personalizaciones(id) ON DELETE CASCADE
 );
 CREATE TABLE public.produccion_taller (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -170,62 +205,69 @@ CREATE TABLE public.produccion_taller (
   created_at timestamp with time zone DEFAULT now(),
   estado_id uuid,
   CONSTRAINT produccion_taller_pkey PRIMARY KEY (id),
-  CONSTRAINT produccion_taller_orden_detalle_id_fkey FOREIGN KEY (orden_detalle_id) REFERENCES public.orden_detalles(id),
-  CONSTRAINT produccion_taller_taller_id_fkey FOREIGN KEY (taller_id) REFERENCES public.talleres(id),
-  CONSTRAINT produccion_taller_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id),
-  CONSTRAINT fk_produccion_estado FOREIGN KEY (estado_id) REFERENCES public.estados_produccion(id)
+  CONSTRAINT fk_produccion_estado FOREIGN KEY (estado_id) REFERENCES estados_produccion(id),
+  CONSTRAINT produccion_taller_orden_detalle_id_fkey FOREIGN KEY (orden_detalle_id) REFERENCES orden_detalles(id) ON DELETE CASCADE,
+  CONSTRAINT produccion_taller_taller_id_fkey FOREIGN KEY (taller_id) REFERENCES talleres(id),
+  CONSTRAINT produccion_taller_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
 );
 CREATE TABLE public.pagos (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   orden_id uuid,
   fecha date,
-  monto numeric CHECK (monto > 0::numeric),
+  monto numeric(12,2),
   metodo_pago text,
   referencia text,
   created_at timestamp with time zone DEFAULT now(),
   metodo_pago_id uuid,
   CONSTRAINT pagos_pkey PRIMARY KEY (id),
-  CONSTRAINT pagos_orden_id_fkey FOREIGN KEY (orden_id) REFERENCES public.ordenes(id),
-  CONSTRAINT fk_pago_metodo FOREIGN KEY (metodo_pago_id) REFERENCES public.metodos_pago(id)
+  CONSTRAINT fk_pago_metodo FOREIGN KEY (metodo_pago_id) REFERENCES metodos_pago(id),
+  CONSTRAINT pagos_orden_id_fkey FOREIGN KEY (orden_id) REFERENCES ordenes(id) ON DELETE CASCADE,
+  CONSTRAINT chk_pago CHECK ((monto > (0)::numeric))
 );
 CREATE TABLE public.tallas (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  nombre text NOT NULL UNIQUE,
-  CONSTRAINT tallas_pkey PRIMARY KEY (id)
+  nombre text NOT NULL,
+  CONSTRAINT tallas_pkey PRIMARY KEY (id),
+  CONSTRAINT tallas_nombre_key UNIQUE (nombre)
 );
 CREATE TABLE public.colores (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  nombre text NOT NULL UNIQUE,
-  CONSTRAINT colores_pkey PRIMARY KEY (id)
+  nombre text NOT NULL,
+  CONSTRAINT colores_pkey PRIMARY KEY (id),
+  CONSTRAINT colores_nombre_key UNIQUE (nombre)
 );
 CREATE TABLE public.estados_orden (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  nombre text NOT NULL UNIQUE,
+  nombre text NOT NULL,
   descripcion text,
   orden_visualizacion integer DEFAULT 0,
   created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT estados_orden_pkey PRIMARY KEY (id)
+  CONSTRAINT estados_orden_pkey PRIMARY KEY (id),
+  CONSTRAINT estados_orden_nombre_key UNIQUE (nombre)
 );
 CREATE TABLE public.metodos_pago (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  nombre text NOT NULL UNIQUE,
+  nombre text NOT NULL,
   descripcion text,
   created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT metodos_pago_pkey PRIMARY KEY (id)
+  CONSTRAINT metodos_pago_pkey PRIMARY KEY (id),
+  CONSTRAINT metodos_pago_nombre_key UNIQUE (nombre)
 );
 CREATE TABLE public.tipos_venta (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  nombre text NOT NULL UNIQUE,
+  nombre text NOT NULL,
   descripcion text,
   created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT tipos_venta_pkey PRIMARY KEY (id)
+  CONSTRAINT tipos_venta_pkey PRIMARY KEY (id),
+  CONSTRAINT tipos_venta_nombre_key UNIQUE (nombre)
 );
 CREATE TABLE public.estados_pago (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  nombre text NOT NULL UNIQUE,
+  nombre text NOT NULL,
   descripcion text,
   created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT estados_pago_pkey PRIMARY KEY (id)
+  CONSTRAINT estados_pago_pkey PRIMARY KEY (id),
+  CONSTRAINT estados_pago_nombre_key UNIQUE (nombre)
 );
 CREATE TABLE public.historial_ordenes (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -236,10 +278,10 @@ CREATE TABLE public.historial_ordenes (
   comentario text,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT historial_ordenes_pkey PRIMARY KEY (id),
-  CONSTRAINT fk_historial_orden FOREIGN KEY (orden_id) REFERENCES public.ordenes(id),
-  CONSTRAINT fk_historial_usuario FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id),
-  CONSTRAINT fk_historial_estado_anterior FOREIGN KEY (estado_anterior_id) REFERENCES public.estados_orden(id),
-  CONSTRAINT fk_historial_estado_nuevo FOREIGN KEY (estado_nuevo_id) REFERENCES public.estados_orden(id)
+  CONSTRAINT fk_historial_estado_anterior FOREIGN KEY (estado_anterior_id) REFERENCES estados_orden(id),
+  CONSTRAINT fk_historial_estado_nuevo FOREIGN KEY (estado_nuevo_id) REFERENCES estados_orden(id),
+  CONSTRAINT fk_historial_orden FOREIGN KEY (orden_id) REFERENCES ordenes(id) ON DELETE CASCADE,
+  CONSTRAINT fk_historial_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
 );
 CREATE TABLE public.movimientos_producto (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -253,16 +295,17 @@ CREATE TABLE public.movimientos_producto (
   observaciones text,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT movimientos_producto_pkey PRIMARY KEY (id),
-  CONSTRAINT fk_movimiento_variante FOREIGN KEY (variante_id) REFERENCES public.variantes_producto(id),
-  CONSTRAINT fk_movimiento_usuario FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id)
+  CONSTRAINT fk_movimiento_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
+  CONSTRAINT fk_movimiento_variante FOREIGN KEY (variante_id) REFERENCES variantes_producto(id)
 );
 CREATE TABLE public.estados_produccion (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  nombre text NOT NULL UNIQUE,
+  nombre text NOT NULL,
   descripcion text,
   orden_visualizacion integer DEFAULT 0,
   created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT estados_produccion_pkey PRIMARY KEY (id)
+  CONSTRAINT estados_produccion_pkey PRIMARY KEY (id),
+  CONSTRAINT estados_produccion_nombre_key UNIQUE (nombre)
 );
 CREATE TABLE public.archivos (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -276,8 +319,8 @@ CREATE TABLE public.archivos (
   observaciones text,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT archivos_pkey PRIMARY KEY (id),
-  CONSTRAINT fk_archivo_orden FOREIGN KEY (orden_id) REFERENCES public.ordenes(id),
-  CONSTRAINT fk_archivo_usuario FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id)
+  CONSTRAINT fk_archivo_orden FOREIGN KEY (orden_id) REFERENCES ordenes(id) ON DELETE CASCADE,
+  CONSTRAINT fk_archivo_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
 );
 CREATE TABLE public.comentarios_orden (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -287,8 +330,8 @@ CREATE TABLE public.comentarios_orden (
   created_at timestamp with time zone DEFAULT now(),
   visibilidad text DEFAULT 'interno'::text,
   CONSTRAINT comentarios_orden_pkey PRIMARY KEY (id),
-  CONSTRAINT fk_comentario_orden FOREIGN KEY (orden_id) REFERENCES public.ordenes(id),
-  CONSTRAINT fk_comentario_usuario FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id)
+  CONSTRAINT fk_comentario_orden FOREIGN KEY (orden_id) REFERENCES ordenes(id) ON DELETE CASCADE,
+  CONSTRAINT fk_comentario_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
 );
 CREATE TABLE public.consecutivos_documentos (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -296,5 +339,135 @@ CREATE TABLE public.consecutivos_documentos (
   anio integer NOT NULL,
   ultimo_numero integer NOT NULL DEFAULT 0,
   created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT consecutivos_documentos_pkey PRIMARY KEY (id)
+  CONSTRAINT consecutivos_documentos_pkey PRIMARY KEY (id),
+  CONSTRAINT consecutivos_documentos_tipo_documento_anio_key UNIQUE (tipo_documento, anio)
+);
+CREATE TABLE public.kv_store_ea3eca68 (
+  key text NOT NULL,
+  value jsonb NOT NULL,
+  CONSTRAINT kv_store_ea3eca68_pkey PRIMARY KEY (key)
+);
+CREATE TABLE public.empleados (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  nombre text NOT NULL,
+  puesto text,
+  fecha_ingreso date NOT NULL,
+  salario_diario numeric(10,2) NOT NULL DEFAULT 0,
+  porcentaje_prima numeric(5,2) NOT NULL DEFAULT 25,
+  usuario_id uuid,
+  activo boolean NOT NULL DEFAULT true,
+  notas text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  rfc text,
+  curp text,
+  nss text,
+  fecha_baja date,
+  causa_baja text,
+  CONSTRAINT empleados_pkey PRIMARY KEY (id),
+  CONSTRAINT empleados_usuario_id_key UNIQUE (usuario_id),
+  CONSTRAINT empleados_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL,
+  CONSTRAINT chk_empleado_baja CHECK ((((fecha_baja IS NULL) AND (causa_baja IS NULL)) OR ((fecha_baja IS NOT NULL) AND (causa_baja IS NOT NULL) AND (fecha_baja >= fecha_ingreso)))),
+  CONSTRAINT empleados_causa_baja_check CHECK ((causa_baja = ANY (ARRAY['renuncia'::text, 'mutuo_acuerdo'::text, 'despido_justificado'::text, 'despido_injustificado'::text, 'rescision_patron'::text]))),
+  CONSTRAINT empleados_porcentaje_prima_check CHECK (((porcentaje_prima >= (25)::numeric) AND (porcentaje_prima <= (100)::numeric))),
+  CONSTRAINT empleados_salario_diario_check CHECK ((salario_diario >= (0)::numeric))
+);
+CREATE TABLE public.vacaciones (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  empleado_id uuid NOT NULL,
+  anio_servicio integer NOT NULL,
+  fecha_inicio date NOT NULL,
+  fecha_fin date NOT NULL,
+  dias integer NOT NULL,
+  prima_vacacional numeric(12,2) NOT NULL DEFAULT 0,
+  notas text,
+  registrado_por uuid DEFAULT private.mi_usuario_id(),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT vacaciones_pkey PRIMARY KEY (id),
+  CONSTRAINT vacaciones_empleado_id_fkey FOREIGN KEY (empleado_id) REFERENCES empleados(id) ON DELETE CASCADE,
+  CONSTRAINT vacaciones_registrado_por_fkey FOREIGN KEY (registrado_por) REFERENCES usuarios(id) ON DELETE SET NULL,
+  CONSTRAINT chk_vacaciones_fechas CHECK ((fecha_fin >= fecha_inicio)),
+  CONSTRAINT vacaciones_anio_servicio_check CHECK ((anio_servicio >= 1)),
+  CONSTRAINT vacaciones_dias_check CHECK ((dias > 0)),
+  CONSTRAINT vacaciones_prima_vacacional_check CHECK ((prima_vacacional >= (0)::numeric)),
+  CONSTRAINT vacaciones_sin_traslape EXCLUDE USING gist (empleado_id WITH =, daterange(fecha_inicio, fecha_fin, '[]'::text) WITH &&)
+);
+CREATE TABLE public.incidencias (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  empleado_id uuid NOT NULL,
+  tipo text NOT NULL,
+  fecha_inicio date NOT NULL,
+  fecha_fin date NOT NULL,
+  minutos_retardo integer,
+  motivo text,
+  acta_administrativa boolean NOT NULL DEFAULT false,
+  registrado_por uuid DEFAULT private.mi_usuario_id(),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT incidencias_pkey PRIMARY KEY (id),
+  CONSTRAINT incidencias_empleado_id_fkey FOREIGN KEY (empleado_id) REFERENCES empleados(id) ON DELETE CASCADE,
+  CONSTRAINT incidencias_registrado_por_fkey FOREIGN KEY (registrado_por) REFERENCES usuarios(id) ON DELETE SET NULL,
+  CONSTRAINT chk_incidencia_fechas CHECK ((fecha_fin >= fecha_inicio)),
+  CONSTRAINT chk_incidencia_retardo CHECK (((tipo <> 'retardo'::text) OR ((fecha_fin = fecha_inicio) AND (minutos_retardo IS NOT NULL)))),
+  CONSTRAINT chk_incidencia_suspension CHECK (((tipo <> 'suspension'::text) OR ((fecha_fin - fecha_inicio) <= 7))),
+  CONSTRAINT incidencias_minutos_retardo_check CHECK ((minutos_retardo > 0)),
+  CONSTRAINT incidencias_tipo_check CHECK ((tipo = ANY (ARRAY['retardo'::text, 'falta_injustificada'::text, 'falta_justificada'::text, 'incapacidad'::text, 'permiso_con_goce'::text, 'permiso_sin_goce'::text, 'suspension'::text])))
+);
+CREATE TABLE public.finiquitos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  empleado_id uuid NOT NULL,
+  fecha_terminacion date NOT NULL,
+  causa text NOT NULL,
+  salario_diario numeric(10,2) NOT NULL,
+  salario_diario_integrado numeric(10,2) NOT NULL,
+  conceptos jsonb NOT NULL DEFAULT '[]'::jsonb,
+  total numeric(12,2) NOT NULL,
+  notas text,
+  registrado_por uuid DEFAULT private.mi_usuario_id(),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT finiquitos_pkey PRIMARY KEY (id),
+  CONSTRAINT finiquitos_empleado_id_fkey FOREIGN KEY (empleado_id) REFERENCES empleados(id) ON DELETE CASCADE,
+  CONSTRAINT finiquitos_registrado_por_fkey FOREIGN KEY (registrado_por) REFERENCES usuarios(id) ON DELETE SET NULL,
+  CONSTRAINT finiquitos_causa_check CHECK ((causa = ANY (ARRAY['renuncia'::text, 'mutuo_acuerdo'::text, 'despido_justificado'::text, 'despido_injustificado'::text, 'rescision_patron'::text]))),
+  CONSTRAINT finiquitos_salario_diario_check CHECK ((salario_diario >= (0)::numeric)),
+  CONSTRAINT finiquitos_salario_diario_integrado_check CHECK ((salario_diario_integrado >= (0)::numeric)),
+  CONSTRAINT finiquitos_total_check CHECK ((total >= (0)::numeric))
+);
+CREATE TABLE public.documentos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  empleado_id uuid NOT NULL,
+  tipo text NOT NULL,
+  fecha date NOT NULL,
+  descripcion text,
+  archivo_path text,
+  firmado boolean NOT NULL DEFAULT false,
+  incidencia_id uuid,
+  vacacion_id uuid,
+  finiquito_id uuid,
+  registrado_por uuid DEFAULT private.mi_usuario_id(),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT documentos_pkey PRIMARY KEY (id),
+  CONSTRAINT documentos_empleado_id_fkey FOREIGN KEY (empleado_id) REFERENCES empleados(id) ON DELETE CASCADE,
+  CONSTRAINT documentos_finiquito_id_fkey FOREIGN KEY (finiquito_id) REFERENCES finiquitos(id) ON DELETE SET NULL,
+  CONSTRAINT documentos_incidencia_id_fkey FOREIGN KEY (incidencia_id) REFERENCES incidencias(id) ON DELETE SET NULL,
+  CONSTRAINT documentos_registrado_por_fkey FOREIGN KEY (registrado_por) REFERENCES usuarios(id) ON DELETE SET NULL,
+  CONSTRAINT documentos_vacacion_id_fkey FOREIGN KEY (vacacion_id) REFERENCES vacaciones(id) ON DELETE SET NULL,
+  CONSTRAINT documentos_tipo_check CHECK ((tipo = ANY (ARRAY['contrato'::text, 'alta_imss'::text, 'identificacion'::text, 'reglamento_interior'::text, 'recibo_nomina'::text, 'control_asistencia'::text, 'recibo_vacaciones'::text, 'recibo_aguinaldo'::text, 'recibo_ptu'::text, 'acta_administrativa'::text, 'justificante'::text, 'aviso_rescision'::text, 'renuncia'::text, 'convenio_terminacion'::text, 'finiquito_firmado'::text, 'otro'::text])))
+);
+CREATE TABLE public.notificaciones (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  envio_id uuid NOT NULL,
+  destinatario_id uuid NOT NULL,
+  destinatario_nombre text NOT NULL,
+  remitente_id uuid,
+  remitente_nombre text NOT NULL,
+  titulo text NOT NULL,
+  mensaje text,
+  enlace text,
+  leida_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT notificaciones_pkey PRIMARY KEY (id),
+  CONSTRAINT notificaciones_destinatario_id_fkey FOREIGN KEY (destinatario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+  CONSTRAINT notificaciones_remitente_id_fkey FOREIGN KEY (remitente_id) REFERENCES usuarios(id) ON DELETE SET NULL,
+  CONSTRAINT notificaciones_enlace_check CHECK (((enlace IS NULL) OR (((enlace ~ '^/[^/]'::text) OR (enlace = '/'::text)) AND (char_length(enlace) <= 300)))),
+  CONSTRAINT notificaciones_mensaje_check CHECK (((mensaje IS NULL) OR (char_length(mensaje) <= 2000))),
+  CONSTRAINT notificaciones_titulo_check CHECK (((char_length(btrim(titulo)) >= 1) AND (char_length(btrim(titulo)) <= 120)))
 );

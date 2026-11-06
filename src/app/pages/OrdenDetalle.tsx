@@ -560,9 +560,18 @@ export default function OrdenDetalle() {
                     <p className="font-semibold text-lg">
                       ${orden.anticipo.toLocaleString()}
                     </p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Pendiente: ${(orden.total - orden.anticipo).toLocaleString()}
-                    </p>
+                    {orden.anticipo > orden.total ? (
+                      // Órdenes antiguas con anticipo mayor al total: se muestra el
+                      // excedente como saldo a favor en lugar de un pendiente negativo.
+                      <p className="text-sm text-amber-700 mt-1">
+                        Pendiente: $0 · Saldo a favor del cliente: $
+                        {(orden.anticipo - orden.total).toLocaleString()}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Pendiente: ${(orden.total - orden.anticipo).toLocaleString()}
+                      </p>
+                    )}
                   </div>
                 </div>
               )}

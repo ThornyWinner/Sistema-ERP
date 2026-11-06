@@ -101,18 +101,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
    * Crea un usuario nuevo en dos pasos:
    *  1. Registra la cuenta en Supabase Auth con un cliente aislado (para no cerrar la
    *     sesión del administrador que está creando el usuario).
-   *  2. Inserta el perfil en la tabla `usuarios` vinculado a esa cuenta.
+   *  2. Completa el perfil en la tabla `usuarios`. El trigger `on_auth_user_created` ya
+   *     insertó un perfil básico (sin rol) al crear la cuenta, así que se actualiza ese;
+   *     solo si no existe se inserta uno nuevo.
+   * Antes de crear la cuenta se comprueba que el username y el email no estén en uso,
+   * para no crear nada si van a fallar. Si aun así el paso 2 falla, se deshace el alta
+   * completa con la RPC `eliminar_usuario`, para no dejar una cuenta de Auth con un
+   * perfil sin rol.
    */
   const addUser = async (newUser: Omit<User, 'id'>, password: string) => {
     if (!newUser.email) throw new Error('El email es obligatorio');
     const rolId = await getRoleId(newUser.rol);
+
+    // ilike sin comodines = comparación sin distinguir mayúsculas (los correos no las distinguen).
+    const [{ data: mismoUsername }, { data: mismoEmail }] = await Promise.all([
+      supabase.from('usuarios').select('id').eq('username', newUser.username).limit(1),
+      supabase.from('usuarios').select('id').ilike('email', newUser.email.replace(/[\\%_]/g, '\\$&')).limit(1),
+    ]);
+    if (mismoUsername?.length) throw new Error(`El usuario "${newUser.username}" ya existe`);
+    if (mismoEmail?.length) throw new Error(`El email ${newUser.email} ya está registrado`);
+
     const { data, error } = await createIsolatedClient().auth.signUp({ email: newUser.email, password });
     if (error) throw new Error(error.message);
     // Supabase devuelve un usuario sin identidades cuando el correo ya está registrado.
     if (!data.user || data.user.identities?.length === 0) throw new Error('Ese correo ya tiene una cuenta registrada');
-    const { error: insertError } = await supabase.from('usuarios').insert({ auth_user_id: data.user.id, rol_id: rolId, nombre: newUser.nombre, username: newUser.username, email: newUser.email, estado: newUser.estado });
-    // 23505 = violación de restricción UNIQUE en PostgreSQL (username o email duplicado).
-    if (insertError) throw new Error(insertError.code === '23505' ? 'El usuario o el email ya existen' : insertError.message);
+    const authId = data.user.id;
+    const perfil = { rol_id: rolId, nombre: newUser.nombre, username: newUser.username, email: newUser.email, estado: newUser.estado };
+
+    const { data: actualizado, error: updateError } = await supabase.from('usuarios').update(perfil).eq('auth_user_id', authId).select('id');
+    let perfilError = updateError;
+    if (!perfilError && !actualizado?.length) {
+      ({ error: perfilError } = await supabase.from('usuarios').insert({ auth_user_id: authId, ...perfil }));
+    }
+    if (perfilError) {
+      // Deshacer: borrar el perfil básico del trigger y la cuenta de Auth recién creada.
+      const { data: huerfano } = await supabase.from('usuarios').select('id').eq('auth_user_id', authId).maybeSingle();
+      const { error: rollbackError } = huerfano ? await supabase.rpc('eliminar_usuario', { p_usuario: huerfano.id }) : { error: null };
+      // 23505 = violación de restricción UNIQUE en PostgreSQL (username o email duplicado).
+      const motivo = perfilError.code === '23505' ? 'El usuario o el email ya existen' : perfilError.message;
+      throw new Error(rollbackError ? `${motivo}. La cuenta de acceso quedó creada sin perfil completo; elimínala desde la lista de usuarios.` : motivo);
+    }
     await refreshUsers();
   };
 
@@ -131,12 +159,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   /**
-   * Elimina el perfil de un usuario. Si tiene registros relacionados la base de datos
-   * lo impide (código 23503 = violación de llave foránea) y se sugiere desactivarlo.
+   * Elimina un usuario completo: su perfil en `usuarios` y su cuenta de Supabase Auth,
+   * con la RPC `eliminar_usuario` (sql/eliminar_usuario.sql), que solo permite hacerlo
+   * al administrador primario. Si tiene registros relacionados la base de datos lo
+   * impide (código 23503 = violación de llave foránea), no borra nada y se sugiere
+   * desactivarlo.
    */
   const deleteUser = async (id: string) => {
-    const { error } = await supabase.from('usuarios').delete().eq('id', id);
-    if (error) throw new Error(error.code === '23503' ? 'El usuario tiene registros asociados (órdenes, movimientos, etc.). Márcalo como inactivo en lugar de eliminarlo.' : error.message);
+    const { error } = await supabase.rpc('eliminar_usuario', { p_usuario: id });
+    if (error) {
+      if (error.code === '23503') throw new Error('El usuario tiene registros asociados (órdenes, movimientos, etc.). Márcalo como inactivo en lugar de eliminarlo.');
+      // PGRST202 = la función no existe en la base de datos (falta aplicar el script).
+      if (error.code === 'PGRST202') throw new Error('Falta instalar la función eliminar_usuario en Supabase (sql/eliminar_usuario.sql).');
+      throw new Error(error.message);
+    }
     await refreshUsers();
   };
 

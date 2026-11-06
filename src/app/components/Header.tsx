@@ -2,11 +2,13 @@
  * Header.tsx — Barra superior de la aplicación (parte de RootLayout).
  *
  * Contiene:
- *  - Un campo de búsqueda global (por ahora solo visual, sin lógica de búsqueda).
- *  - Un botón de notificaciones con indicador (también decorativo por ahora).
+ *  - El buscador global (BuscadorGlobal): órdenes, productos, materiales y proveedores.
+ *  - La campana de notificaciones entre usuarios (CampanaNotificaciones).
  *  - El menú de usuario: nombre, rol, email y opción de cerrar sesión.
  */
-import { Search, Bell, User, LogOut, ChevronDown } from "lucide-react";
+import { User, LogOut, ChevronDown } from "lucide-react";
+import BuscadorGlobal from "./BuscadorGlobal";
+import CampanaNotificaciones from "./notificaciones/CampanaNotificaciones";
 import { useAuth } from "../context/AuthContext";
 import { roleLabels } from "../utils/permissions";
 import { Badge } from "./ui/badge";
@@ -43,24 +45,14 @@ export default function Header() {
 
   return (
     <header className="h-16 bg-card border-b border-border px-6 flex items-center justify-between">
-      {/* Buscador (icono posicionado dentro del input) */}
+      {/* Buscador global: órdenes, productos, materiales y proveedores */}
       <div className="flex-1 max-w-xl">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Buscar órdenes, productos, materiales..."
-            className="w-full pl-10 pr-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-          />
-        </div>
+        <BuscadorGlobal />
       </div>
 
       <div className="flex items-center gap-4">
-        {/* Campana de notificaciones con punto rojo de aviso */}
-        <button className="relative p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors">
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-status-pending rounded-full"></span>
-        </button>
+        {/* Campana de notificaciones entre usuarios (con contador de no leídas) */}
+        <CampanaNotificaciones />
 
         <div className="flex items-center gap-3 pl-4 border-l border-border">
           {/* Menú desplegable del usuario */}

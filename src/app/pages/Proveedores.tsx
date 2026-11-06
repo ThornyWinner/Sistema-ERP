@@ -5,19 +5,38 @@
  * insumos que suministra, con un buscador por nombre, contacto o insumo. Al final,
  * tres indicadores: total de proveedores, calificación promedio y órdenes de compra.
  *
- * Nota: los botones "Agregar Proveedor", "Contactar" y "Ver Historial" aún no tienen
- * acción, y el indicador "Órdenes de Compra" es un valor fijo de ejemplo.
+ * "Agregar Proveedor" abre el formulario de alta (/proveedores/nuevo) y se deshabilita
+ * si el rol no puede crear.
+ *
+ * En cada tarjeta, "Contactar" abre ContactarProveedorDialog (llamar, WhatsApp, correo
+ * y solicitud de reabastecimiento) y "Ver Historial" abre HistorialProveedorDialog
+ * (materiales que surte y movimientos de inventario).
+ *
+ * Nota: el indicador "Órdenes de Compra" es un valor fijo de ejemplo.
  */
 import { useState } from "react";
+import { useBusquedaUrl } from "../hooks/useBusquedaUrl";
+import { useNavigate } from "react-router";
 import { Card, CardContent, CardHeader } from "../components/Card";
+import PermissionButton from "../components/PermissionButton";
+import ContactarProveedorDialog from "../components/proveedores/ContactarProveedorDialog";
+import HistorialProveedorDialog from "../components/proveedores/HistorialProveedorDialog";
+import type { Proveedor } from "../data/mockData";
 import { useErpData } from "../context/ErpDataContext";
 import { Search, Plus, Star, Phone, Mail, Package } from "lucide-react";
 
 export default function Proveedores() {
   // Proveedores reales de Supabase (con el alias mockProveedores del prototipo).
-  const { proveedores: mockProveedores } = useErpData();
+  const { proveedores: mockProveedores, materiales } = useErpData();
+  const navigate = useNavigate();
+  // Proveedor abierto en el diálogo de contacto o de historial (null = cerrado).
+  const [contactando, setContactando] = useState<Proveedor | null>(null);
+  const [viendoHistorial, setViendoHistorial] = useState<Proveedor | null>(null);
+  // Materiales que surte un proveedor (los que lo tienen como proveedor principal).
+  const materialesDe = (p: Proveedor | null) =>
+    p ? materiales.filter((m) => m.proveedorId === p.id) : [];
   // Texto del buscador.
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useBusquedaUrl();
 
   // Filtra (sin distinguir mayúsculas) por nombre, contacto o cualquiera de sus insumos.
   const filteredProveedores = mockProveedores.filter(
@@ -37,10 +56,15 @@ export default function Proveedores() {
             Gestión de proveedores de materiales e insumos
           </p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">
+        {/* Botón con control de permisos: abre el formulario de alta en /proveedores/nuevo */}
+        <PermissionButton
+          requiredPermission="canCreate"
+          onClick={() => navigate("/proveedores/nuevo")}
+          className="flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+        >
           <Plus className="w-5 h-5" />
           Agregar Proveedor
-        </button>
+        </PermissionButton>
       </div>
 
       {/* Buscador + cuadrícula de tarjetas de proveedores */}
@@ -111,10 +135,16 @@ export default function Proveedores() {
                   </div>
 
                   <div className="flex gap-2 pt-2">
-                    <button className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors text-sm">
+                    <button
+                      onClick={() => setContactando(proveedor)}
+                      className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors text-sm"
+                    >
                       Contactar
                     </button>
-                    <button className="px-4 py-2 bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-colors text-sm">
+                    <button
+                      onClick={() => setViendoHistorial(proveedor)}
+                      className="px-4 py-2 bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-colors text-sm"
+                    >
                       Ver Historial
                     </button>
                   </div>
@@ -181,6 +211,17 @@ export default function Proveedores() {
           </CardContent>
         </Card>
       </div>
+
+      <ContactarProveedorDialog
+        proveedor={contactando}
+        materiales={materialesDe(contactando)}
+        onClose={() => setContactando(null)}
+      />
+      <HistorialProveedorDialog
+        proveedor={viendoHistorial}
+        materiales={materialesDe(viendoHistorial)}
+        onClose={() => setViendoHistorial(null)}
+      />
     </div>
   );
 }

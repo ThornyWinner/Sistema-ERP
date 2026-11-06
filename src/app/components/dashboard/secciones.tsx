@@ -20,7 +20,7 @@ export function resumenFinanciero(ordenes: Orden[]) {
     // Saldo por cobrar (total − anticipo) de las órdenes en estado "anticipo".
     anticiposPendientes: ordenes
       .filter((o) => o.estadoPago === "anticipo")
-      .reduce((acc, o) => acc + ((o.total || 0) - (o.anticipo || 0)), 0),
+      .reduce((acc, o) => acc + Math.max((o.total || 0) - (o.anticipo || 0), 0), 0),
   };
 }
 

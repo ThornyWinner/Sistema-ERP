@@ -15,6 +15,8 @@ import Dashboard from "./pages/Dashboard";
 import InventarioMateriales from "./pages/InventarioMateriales";
 import InventarioProductos from "./pages/InventarioProductos";
 import ProductoForm from "./pages/ProductoForm";
+import MaterialForm from "./pages/MaterialForm";
+import ProveedorForm from "./pages/ProveedorForm";
 import Ordenes from "./pages/Ordenes";
 import OrdenDetalle from "./pages/OrdenDetalle";
 import TallerDiseno from "./pages/talleres/TallerDiseno";
@@ -51,6 +53,8 @@ export const router = createBrowserRouter([
       // Inventario de materia prima y de productos terminados.
       { path: "inventario/materiales", Component: InventarioMateriales },
       { path: "inventario/productos", Component: InventarioProductos },
+      // Alta de materia prima.
+      { path: "materiales/nuevo", Component: MaterialForm },
       // El mismo formulario sirve para crear y para editar (según exista :id).
       { path: "productos/nuevo", Component: ProductoForm },
       { path: "productos/editar/:id", Component: ProductoForm },
@@ -66,6 +70,7 @@ export const router = createBrowserRouter([
       // Secciones de seguimiento y administración.
       { path: "seguimiento", Component: Seguimiento },
       { path: "proveedores", Component: Proveedores },
+      { path: "proveedores/nuevo", Component: ProveedorForm },
       { path: "reportes", Component: Reportes },
       { path: "usuarios", Component: GestionUsuarios },
       // Control de vacaciones del personal (Ley Federal del Trabajo).

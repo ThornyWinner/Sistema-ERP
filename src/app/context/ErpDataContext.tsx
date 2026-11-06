@@ -130,9 +130,9 @@ const estadoGeneral = (nombre?: string | null, ordenVisualizacion?: number | nul
 // por llave foránea, p. ej. `proveedores(nombre)` trae el nombre del proveedor. ---
 
 const SELECT_MATERIALES =
-  'id,nombre,tipo,unidad,stock_actual,stock_minimo,precio_unitario,proveedores(nombre)';
+  'id,nombre,tipo,unidad,stock_actual,stock_minimo,precio_unitario,proveedor_id,proveedores(nombre)';
 const SELECT_PRODUCTOS =
-  'id,nombre,tipo_prenda,categorias_producto(nombre),variantes_producto(id,talla,color,stock,precio,sku)';
+  'id,nombre,tipo_prenda,imagen_url,categorias_producto(nombre),variantes_producto(id,talla,color,stock,precio,sku)';
 const SELECT_PROVEEDORES =
   'id,nombre,contacto,telefono,email,calificacion,materiales(nombre)';
 // Consulta de órdenes con todo su árbol de datos:
@@ -218,6 +218,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
         stock: Number(m.stock_actual),
         stockMinimo: Number(m.stock_minimo),
         proveedor: m.proveedores?.nombre ?? 'Sin proveedor',
+        proveedorId: m.proveedor_id ?? undefined,
         precio: Number(m.precio_unitario ?? 0),
       })),
       productos: (productosResult.data ?? []).map((p: any) => {
@@ -242,6 +243,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
           stock: variantes.reduce((s: number, v: any) => s + v.stock, 0),
           precio: variantes[0]?.precio ?? 0,
           categoria: p.categorias_producto?.nombre ?? 'Sin categoría',
+          imagen: p.imagen_url ?? undefined,
           variantes,
         };
       }),

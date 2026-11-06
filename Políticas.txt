@@ -36,7 +36,13 @@ incidencias             | AP                                            | AP (su
                         |                                               | sql/expediente_laboral.sql)
 documentos              | AP                                            | AP
 finiquitos              | AP                                            | AP
+notificaciones          | Destinatario: las suyas · remitente: lo que   | Crear: solo con la RPC enviar_notificacion
+                        | envió (para ver quién lo leyó)                | (cualquier usuario activo) · marcar leída y
+                        |                                               | eliminar: el destinatario (sql/notificaciones.sql)
 storage: expedientes    | AP (bucket privado, PDF/imagen, máx. 10 MB)   | AP
+storage: productos      | Público por URL (PNG/JPG/WEBP, máx. 5 MB)     | AP (sql/storage_productos.sql)
+storage: logos,         | Públicos por URL                              | Nadie (sin políticas de escritura)
+documentos              |                                               |
 Catálogos: roles,       | Cualquier usuario activo                      | AP
 talleres, tallas,       |                                               |
 colores, categorias_    |                                               |
@@ -55,5 +61,13 @@ Funciones auxiliares (esquema private, no expuesto por la API; SECURITY DEFINER)
   taller_ve_orden / taller_ve_producto / taller_ve_variante / taller_ve_cliente
   orden_de_detalle / orden_de_personalizacion
 
-Los triggers (folio, historial, estado de pago, salida de inventario) son SECURITY DEFINER,
-por lo que funcionan aunque el usuario no tenga permiso directo sobre esas tablas.
+Funciones RPC públicas (SECURITY DEFINER): actualizar_mi_ultimo_acceso(), directorio_usuarios(),
+enviar_notificacion() y eliminar_usuario() (solo AP; borra el perfil y la cuenta de Auth, ver
+sql/eliminar_usuario.sql). El remitente de una notificación siempre es el usuario de la sesión.
+
+Los triggers (folio, historial, estado de pago, salida de inventario, avisos de producción) son
+SECURITY DEFINER, por lo que funcionan aunque el usuario no tenga permiso directo sobre esas tablas.
+Ver Triggers.txt.
+
+Verificado contra la base real el 2026-11-05: 133 políticas en public y 8 en storage.objects
+(expedientes_* y productos_img_*).

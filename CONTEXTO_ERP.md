@@ -1,7 +1,7 @@
 # Contexto Maestro del ERP — Uniformes Industriales
 
-**Versión:** 1.1  
-**Fecha:** 10 de agosto de 2026  
+**Versión:** 1.2  
+**Fecha:** 5 de noviembre de 2026  
 **Propósito:** documento de transferencia de contexto para desarrolladores humanos y asistentes de IA que continúen el proyecto.
 
 ---
@@ -18,13 +18,13 @@ La finalidad operativa es reducir la dependencia de comunicación informal —po
 
 ## 2. Estado actual del repositorio
 
-El frontend está construido con React + TypeScript + Vite y contiene una implementación/prototipo funcional basada en datos de demostración (`mockData.ts` y `mockUsers.ts`).
+El frontend está construido con React + TypeScript + Vite y **está conectado a Supabase**: la autenticación, los usuarios y los datos de negocio se leen y escriben en la base real (`AuthContext.tsx`, `ErpDataContext.tsx` y `src/app/lib/`). Ya no hay datos de demostración en el código.
 
-La documentación del repositorio también contiene un esquema de PostgreSQL/Supabase, tablas, constraints, índices, triggers y políticas.
+La seguridad por rol se aplica en la base de datos con políticas RLS (`sql/rls_por_rol.sql`), además de en la interfaz.
 
-**Importante:** el frontend actual y la base de datos documentada **no deben considerarse automáticamente equivalentes**. Antes de implementar una funcionalidad hay que determinar si ya existe en frontend, si existe en la base de datos, si está integrada o si está pendiente.
+Los cambios de base de datos posteriores al esquema original están versionados como scripts en la carpeta `sql/`. Los archivos `.txt` de la raíz describen el esquema real y se regeneraron desde la base el 5 de noviembre de 2026.
 
-La integración completa frontend ↔ Supabase debe considerarse pendiente de validación hasta que el código demuestre explícitamente esa conexión.
+**Importante:** que una tabla exista no significa que tenga pantalla. Varias tablas del esquema original (`archivos`, `comentarios_orden`, `historial_ordenes` en la interfaz, `movimientos_producto`) existen y tienen RLS, pero la aplicación todavía no las muestra ni las escribe directamente. Antes de implementar una funcionalidad hay que comprobar en el código qué está integrado, qué es parcial y qué falta. La matriz de estado actual está en `ARQUITECTURA_ERP.md`.
 
 ---
 
@@ -90,7 +90,7 @@ El sistema contempla principalmente:
 - **Costurera:** actividades relacionadas con costura.
 - **Bordador:** actividades relacionadas con bordado.
 
-Los permisos deben respetarse tanto en la interfaz como, cuando se integre la base de datos, mediante controles reales del backend/RLS. Los controles visuales del frontend nunca deben considerarse una frontera de seguridad suficiente.
+Los permisos se respetan en la interfaz (`utils/permissions.ts`) y en la base de datos mediante RLS (`sql/rls_por_rol.sql`). Los controles visuales del frontend nunca deben considerarse una frontera de seguridad suficiente: cualquier funcionalidad nueva debe venir con sus políticas RLS. Detalle en `ROLES_Y_PERMISOS.md`.
 
 ---
 
@@ -131,6 +131,10 @@ Los clientes pueden solicitar cambios después de creada una orden. Cuando una o
 - debe registrarse qué cambió cuando el modelo lo permita
 - los usuarios afectados deben recibir notificación cuando corresponda
 
+Estado actual: la app crea órdenes (multiproducto o venta rápida) y actualiza el avance por taller, pero **todavía no permite editar una orden ya creada** (productos, cantidades, estado general o pagos adicionales). El historial de cambios de estado lo registran triggers en `historial_ordenes`.
+
+Las órdenes se atienden en orden de llegada (**FIFO**); no se captura prioridad. El anticipo no puede superar el total (restricción `chk_anticipo_no_mayor_total`).
+
 ---
 
 ## 7. Producción y talleres
@@ -161,6 +165,8 @@ Diseño → Sublimación → Corte → Costura → Bordado
 Corte → Costura → Bordado
 ```
 
+Cuando un taller marca un producto como terminado, el trigger `trg_produccion_taller_avisos` notifica a los usuarios del siguiente taller de su flujo y, si la orden completa terminó producción, al vendedor y a los administradores primarios (`sql/avisos_produccion.sql`).
+
 ---
 
 ## 8. Inventario
@@ -180,6 +186,28 @@ Son prendas/productos terminados. Pueden tener variantes por talla/color y SKU.
 Los movimientos deben dejar trazabilidad del stock anterior, cantidad, stock nuevo, usuario y referencia/motivo cuando aplique.
 
 No modificar directamente stock sin considerar el historial de movimientos y las reglas de concurrencia/transacción.
+
+Estado actual: las ventas descuentan stock de la variante con el trigger `trg_inventario_salida` (bloquea la fila y rechaza la venta si no hay existencia suficiente). La app permite dar de alta materiales y crear/editar productos con imagen, pero **no tiene todavía pantallas de entradas, ajustes ni edición de stock de materiales**.
+
+---
+
+## 8.1 Personal y relaciones laborales
+
+El módulo **Permisos Vacacionales** (`/vacaciones`, exclusivo del administrador primario) lleva el control laboral del personal conforme a la Ley Federal del Trabajo (LFT) y al Art. 123 constitucional:
+
+- empleados (con RFC, CURP, NSS, salario diario y, opcionalmente, su usuario del sistema)
+- vacaciones por año de servicio (Art. 76, reforma 2023) y prima vacacional (Art. 80)
+- incidencias: retardos, faltas, incapacidades, permisos y suspensiones
+- expediente documental con riesgos ante una demanda (Arts. 784, 804 y 805)
+- cálculo de finiquito o liquidación y baja del empleado
+
+Las reglas viven en `src/app/lib/vacaciones.ts` y `src/app/lib/laboral.ts`, y la base de datos repite las validaciones principales (`sql/vacaciones.sql`, `sql/expediente_laboral.sql`). Los importes son brutos (sin ISR). **Es una herramienta de orientación: los casos reales deben revisarse con un abogado laboral.** Estos datos son sensibles (salarios, datos personales); no relajar su RLS.
+
+---
+
+## 8.2 Notificaciones
+
+Los usuarios pueden enviarse notificaciones (a personas concretas o a roles completos) desde la campana del Header; llegan en tiempo real. El envío solo se hace con la RPC `enviar_notificacion`, que fija el remitente con la sesión. Los avisos automáticos de producción usan la misma tabla (`sql/notificaciones.sql`).
 
 ---
 
@@ -216,6 +244,12 @@ El esquema documentado incluye entidades relacionadas con:
 - archivos
 - comentarios de órdenes
 - consecutivos de documentos
+- notificaciones entre usuarios
+- empleados, vacaciones, incidencias, documentos del expediente y finiquitos
+
+En total son 35 tablas en el esquema `public` (incluida `kv_store_ea3eca68`, sobrante de Figma Make y sin uso), funciones auxiliares de RLS en el esquema `private` y cuatro buckets de Storage (`productos`, `expedientes`, `logos`, `documentos`).
+
+Los cambios posteriores al esquema original están en `sql/` (ver la tabla del `README.md`). Para cambiar la base de datos, agregar un script nuevo en esa carpeta y, después de aplicarlo, actualizar los `.txt` de la raíz.
 
 El archivo de esquema contiene una advertencia de que **no debe ejecutarse directamente como migración** sin validar orden, dependencias y constraints.
 
@@ -223,11 +257,9 @@ El archivo de esquema contiene una advertencia de que **no debe ejecutarse direc
 
 ## 10. Supabase y seguridad
 
-La arquitectura de datos está orientada a PostgreSQL/Supabase.
+La aplicación usa Supabase para Postgres, Auth, RLS, Storage y Realtime. El navegador solo usa la clave pública (publishable); el acceso real a los datos lo deciden las políticas RLS.
 
-Cuando el código frontend no contenga integración real, no debe inventarse una conexión ni afirmarse que ya existe.
-
-Las políticas RLS, triggers y funciones existentes deben revisarse antes de modificar tablas relacionadas.
+Las políticas RLS, triggers y funciones existentes deben revisarse antes de modificar tablas relacionadas. Después de cambiar políticas, ejecutar `sql/verificar_rls.sql` para comprobar lo que ve y modifica cada rol.
 
 Nunca almacenar en el repositorio:
 
@@ -243,11 +275,11 @@ Nunca almacenar en el repositorio:
 
 ## 11. Datos de demostración
 
-`src/app/data/mockData.ts` y `src/app/data/mockUsers.ts` son datos de demostración.
+Los datos mock del prototipo ya se eliminaron. `src/app/data/mockData.ts` conserva su nombre por historia, pero hoy **solo contiene los tipos TypeScript** del modelo de la UI (`Orden`, `Producto`, `Material`…), a los que `ErpDataContext` convierte las filas de Supabase. `mockUsers.ts` ya no existe.
 
-Las credenciales que aparezcan en la interfaz de demostración son exclusivamente de prueba y no deben reutilizarse en producción.
+Los datos de prueba viven en la base de datos (p. ej. `sql/seed_notificaciones.sql`) y las cuentas de prueba en `Credenciales.txt`, que está en `.gitignore`. Esas credenciales son exclusivamente de prueba y no deben reutilizarse en producción.
 
-No deben utilizarse como fuente de verdad para diseñar nuevas relaciones de base de datos.
+Quedan algunos valores fijos de ejemplo en pantalla: casi todas las gráficas e indicadores de **Reportes** (salvo el resumen de inventario) y el indicador "Órdenes de Compra" de **Proveedores**. No deben tomarse como datos reales.
 
 ---
 
@@ -264,7 +296,7 @@ Los vendedores han solicitado que una orden pueda recopilar, cuando corresponda:
 - uso de CFDI
 - correo electrónico
 
-No debe asumirse que una integración directa con CONTPAQi ya está implementada si no existe código/documentación específica que lo demuestre.
+Estado actual: **no implementado**. No hay código ni columnas de datos fiscales del cliente (la tabla `clientes` solo guarda razón social, contacto, teléfono, email, dirección y notas). No debe asumirse que una integración directa con CONTPAQi existe hasta que haya código que lo demuestre.
 
 ---
 
@@ -295,7 +327,12 @@ Las órdenes pueden tener archivos asociados, por ejemplo diseños, documentos o
 
 Los archivos reales no deben almacenarse dentro del repositorio Git.
 
-La aplicación debe utilizar almacenamiento apropiado, con permisos y URLs seguras.
+La aplicación debe utilizar almacenamiento apropiado, con permisos y URLs seguras. Hoy se usa Supabase Storage para:
+
+- `productos` (público): imágenes de referencia de productos; solo el admin primario sube o borra.
+- `expedientes` (privado): documentos del expediente laboral; solo el admin primario.
+
+Los archivos de órdenes (tabla `archivos`) y los buckets `logos` y `documentos` existen pero aún no se usan desde la app.
 
 ---
 
@@ -311,7 +348,7 @@ Antes de crear una tabla, estado, rol o trigger, buscar si ya existe una entidad
 
 ### Base de datos primero para datos persistentes
 
-Una vez integrada la base real, los datos persistentes deben provenir de ella. El frontend no debe convertirse en una segunda base de datos mediante mocks permanentes.
+Los datos persistentes provienen de la base real. El frontend no debe convertirse en una segunda base de datos mediante mocks permanentes ni `localStorage` (que solo se usa para la sesión y para recordar si ya se vio la guía).
 
 ### Auditoría
 
@@ -342,7 +379,7 @@ Implementar por fases. Después de cada cambio importante comprobar compilación
 
 ## 17. Primera tarea recomendada para cualquier nuevo agente de desarrollo
 
-Antes de escribir código nuevo, generar un diagnóstico que clasifique cada módulo como:
+Antes de escribir código nuevo, revisar (y actualizar si quedó desfasada) la matriz de estado de `ARQUITECTURA_ERP.md`, que clasifica cada módulo como:
 
 - `IMPLEMENTADO_FRONTEND`
 - `IMPLEMENTADO_BASE_DATOS`

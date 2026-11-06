@@ -1,61 +1,59 @@
-**Add your own guidelines here**
-<!--
+# Guidelines del proyecto — ERP Uniformes Industriales
 
-System Guidelines
+Reglas para quien genere o modifique código en este repositorio (personas o IA). El contexto de negocio completo está en `CONTEXTO_ERP.md` y el estado de cada módulo en `ARQUITECTURA_ERP.md`; léelos antes de un cambio grande.
 
-Use this file to provide the AI with rules and guidelines you want it to follow.
-This template outlines a few examples of things you can add. You can add your own sections and format it to suit your needs
+# Reglas generales
 
-TIP: More context isn't always better. It can confuse the LLM. Try and add the most important rules you need
+* No es un proyecto nuevo: antes de crear una tabla, ruta, componente o función, busca si ya existe algo equivalente.
+* Mantén el stack: React + TypeScript + Vite + Tailwind 4 + shadcn/ui + Supabase. No agregues librerías de UI, estado o datos sin una decisión explícita del propietario.
+* Los datos persistentes salen de Supabase. No reintroduzcas datos mock ni guardes datos de negocio en `localStorage`.
+* Nunca pongas credenciales, tokens ni la service role key en el código. El navegador solo usa `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`.
+* Si el código, la base de datos y la documentación se contradicen, señálalo en lugar de inventar una regla de negocio.
 
-# General guidelines
+# Código
 
-Any general rules you want the AI to follow.
-For example:
+* Todo en español: nombres de variables, funciones, componentes, comentarios y textos de la interfaz (`crearOrden`, `actualizarProgresoTaller`, `DashboardTaller`).
+* Cada archivo empieza con un comentario `/** Archivo.tsx — qué es. ... */` que explica su propósito, sus secciones y sus reglas. Mantenlo al día cuando cambies el archivo.
+* Componentes de la app en `src/app/components/` (agrupados por dominio: `dashboard/`, `notificaciones/`, `proveedores/`, `vacaciones/`); pantallas en `src/app/pages/`; acceso a datos y reglas en `src/app/lib/`. No edites `components/ui/` salvo para corregir un componente base de shadcn.
+* Los datos del ERP se leen con `useErpData()` (`ErpDataContext`) y la sesión con `useAuth()`. Los tipos de la UI están en `src/app/data/mockData.ts` (solo tipos, el nombre es histórico).
+* Fechas de columnas `date`: usa las utilidades de `src/app/lib/fechas.ts`; `new Date("AAAA-MM-DD")` muestra el día anterior en México.
+* Resultados de operaciones y errores: `toast.success` / `toast.error` (sonner), con mensajes claros en español.
 
-* Only use absolute positioning when necessary. Opt for responsive and well structured layouts that use flexbox and grid by default
-* Refactor code as you go to keep code clean
-* Keep file sizes small and put helper functions and components in their own files.
+# Permisos y seguridad
 
---------------
+* Toda funcionalidad nueva lleva sus dos capas de permisos:
+  * Interfaz: ruta en `getRoutePermissions` (`src/app/utils/permissions.ts`) y `PermissionButton` / `hasPermission` en las acciones de crear, editar y eliminar.
+  * Base de datos: políticas RLS por rol para cada tabla nueva, usando las funciones de `private` (`current_user_role()`, `mi_usuario_id()`, `puede_ver_orden()`…).
+* Ocultar un botón no es seguridad. Nunca desactives RLS ni uses políticas `using (true)` para que una pantalla funcione.
+* Los datos laborales (empleados, salarios, expedientes) son exclusivos del administrador primario.
+* La lógica que debe ser confiable (folios, stock, estado de pago, historial, avisos) va en triggers, constraints o RPC, no solo en el frontend.
 
-# Design system guidelines
-Rules for how the AI should make generations look like your company's design system
+# Base de datos
 
-Additionally, if you select a design system to use in the prompt box, you can reference
-your design system's components, tokens, variables and components.
-For example:
+* Cada cambio de esquema es un script nuevo en `sql/`, con un encabezado que explique qué hace y de qué depende. No ejecutes `Esquema Base de Datos.txt`: es solo referencia.
+* Antes de modificar una tabla revisa sus llaves foráneas, constraints, índices, triggers y políticas (`Constraints.txt`, `Índices.txt`, `Triggers.txt`, `Políticas.txt`).
+* No elimines triggers de auditoría ni tablas "que parecen sin uso" sin comprobar qué cubren.
+* Después de aplicar un cambio: prueba los permisos con `sql/verificar_rls.sql` y regenera los `.txt` de la raíz desde la base real.
+* No modifiques el stock directamente: las salidas pasan por `trg_inventario_salida` y quedan en `movimientos_producto`.
 
-* Use a base font-size of 14px
-* Date formats should always be in the format “Jun 10”
-* The bottom toolbar should only ever have a maximum of 4 items
-* Never use the floating action button with the bottom toolbar
-* Chips should always come in sets of 3 or more
-* Don't use a dropdown if there are 2 or fewer options
+# Reglas de negocio que no deben romperse
 
-You can also create sub sections and add more specific details
-For example:
+* Una orden no pasa necesariamente por los cinco talleres; el flujo lo define cada producto.
+* Las órdenes se atienden por orden de llegada (FIFO); no hay prioridad.
+* El anticipo no puede superar el total de la orden.
+* Un vendedor solo ve y modifica sus propias órdenes; un rol de taller solo actualiza el avance de su taller.
+* Los cálculos laborales (LFT) son orientativos e importes brutos; no los presentes como asesoría legal.
 
+# Diseño
 
-## Button
-The Button component is a fundamental interactive element in our design system, designed to trigger actions or navigate
-users through the application. It provides visual feedback and clear affordances to enhance user experience.
-
-### Usage
-Buttons should be used for important actions that users need to take, such as form submissions, confirming choices,
-or initiating processes. They communicate interactivity and should have clear, action-oriented labels.
-
-### Variants
-* Primary Button
-  * Purpose : Used for the main action in a section or page
-  * Visual Style : Bold, filled with the primary brand color
-  * Usage : One primary button per section to guide users toward the most important action
-* Secondary Button
-  * Purpose : Used for alternative or supporting actions
-  * Visual Style : Outlined with the primary color, transparent background
-  * Usage : Can appear alongside a primary button for less important actions
-* Tertiary Button
-  * Purpose : Used for the least important actions
-  * Visual Style : Text-only with no border, using primary color
-  * Usage : For actions that should be available but not emphasized
--->
+* Usa los tokens de `src/styles/theme.css` en lugar de colores fijos: `bg-primary`, `text-muted-foreground`, `border-border`, `bg-destructive`… Evita valores como `bg-[#059669]` en código nuevo.
+* Color de marca: verde esmeralda `#059669` (`--primary`). Tipografía: Work Sans, tamaño base 16 px.
+* Estados de producción y tareas, siempre con estos tokens (o con `StatusBadge`):
+  * Pendiente: rojo (`--status-pending*`)
+  * En proceso: ámbar (`--status-in-progress*`)
+  * Terminado: verde (`--status-completed*`)
+* Estilo minimalista: tarjetas blancas sobre fondo gris claro (`--background`), bordes suaves y radio `--radius` (0.5rem).
+* Las acciones sin permiso se muestran deshabilitadas con tooltip explicativo, no se ocultan (salvo módulos completos, que no aparecen en el menú).
+* Los formularios de alta siguen el diseño de `ProductoForm`: datos a la izquierda y, a la derecha, resumen en vivo con los botones de acción.
+* Diseños responsive con flexbox y grid; evita el posicionamiento absoluto salvo cuando sea necesario.
+* Texto de la interfaz en español, breve y orientado a la acción ("Nueva Orden", "Registrar vacaciones").

@@ -17,6 +17,8 @@ export interface Material {
   stockMinimo: number;
   /** Nombre del proveedor principal. */
   proveedor: string;
+  /** Id del proveedor principal (undefined si no tiene). */
+  proveedorId?: string;
   /** Precio por unidad. */
   precio: number;
 }

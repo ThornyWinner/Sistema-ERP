@@ -16,6 +16,7 @@
  * objeto orden y lo entrega al padre con `onSubmit`, que es quien lo guarda.
  */
 import { useState } from "react";
+import { toast } from "sonner";
 import { Taller, TipoVenta, MetodoPago } from "../data/mockData";
 import { useErpData } from "../context/ErpDataContext";
 import { useAuth } from "../context/AuthContext";
@@ -223,6 +224,9 @@ export default function NuevaOrdenMultiProducto({
       0
     );
   };
+  const totalOrden = calcularTotal();
+  // Un anticipo mayor al total dejaría el saldo pendiente en negativo.
+  const anticipoExcedido = formData.anticipo > totalOrden;
 
   /**
    * Construye el objeto orden y lo envía al padre. Reglas:
@@ -236,6 +240,15 @@ export default function NuevaOrdenMultiProducto({
 
     const total = calcularTotal();
     const anticipo = formData.anticipo;
+
+    // El anticipo no puede superar el total: si el cliente entrega más dinero, solo se
+    // registra el total y el excedente se le devuelve como cambio.
+    if (anticipo > total) {
+      toast.error(
+        `El anticipo ($${anticipo.toLocaleString()}) no puede ser mayor al total de la orden ($${total.toLocaleString()})`
+      );
+      return;
+    }
 
     const nuevaOrden = {
       vendedor: user?.nombre || "Usuario",
@@ -453,6 +466,8 @@ export default function NuevaOrdenMultiProducto({
                     min="0"
                     step="0.01"
                     value={formData.anticipo}
+                    aria-invalid={anticipoExcedido}
+                    aria-describedby={anticipoExcedido ? "anticipo-error" : undefined}
                     // Si el campo queda vacío (NaN) se toma como 0.
                     onChange={(e) =>
                       setFormData({
@@ -460,8 +475,24 @@ export default function NuevaOrdenMultiProducto({
                         anticipo: parseFloat(e.target.value) || 0,
                       })
                     }
-                    className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    className={`w-full px-4 py-2 bg-secondary rounded-lg border focus:outline-none focus:ring-2 ${
+                      anticipoExcedido
+                        ? "border-red-500 focus:ring-red-500/20"
+                        : "border-transparent focus:border-primary focus:ring-primary/20"
+                    }`}
                   />
+                  {anticipoExcedido && (
+                    <p id="anticipo-error" className="mt-1 text-xs text-red-600">
+                      No puede ser mayor al total (${totalOrden.toLocaleString()}).{" "}
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, anticipo: totalOrden })}
+                        className="underline font-medium"
+                      >
+                        Cobrar el total
+                      </button>
+                    </p>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -866,8 +897,11 @@ export default function NuevaOrdenMultiProducto({
                   <div>
                     <p className="text-sm text-muted-foreground">Saldo Pendiente</p>
                     <p className="text-lg font-semibold text-orange-600">
-                      ${(calcularTotal() - formData.anticipo).toLocaleString()}
+                      ${Math.max(totalOrden - formData.anticipo, 0).toLocaleString()}
                     </p>
+                    {anticipoExcedido && (
+                      <p className="text-xs text-red-600 mt-1">El anticipo supera el total</p>
+                    )}
                   </div>
                 </div>
               )}
@@ -906,7 +940,8 @@ export default function NuevaOrdenMultiProducto({
             </button>
             <button
               type="submit"
-              className="px-6 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg transition-colors"
+              disabled={anticipoExcedido}
+              className="px-6 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Crear Orden
             </button>

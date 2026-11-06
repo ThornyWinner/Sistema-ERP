@@ -11,6 +11,8 @@
  * crear) y el administrador secundario ve un aviso de modo solo lectura.
  */
 import { useState } from "react";
+import { useBusquedaUrl } from "../hooks/useBusquedaUrl";
+import { useNavigate } from "react-router";
 import { Card, CardContent, CardHeader } from "../components/Card";
 import { useErpData } from "../context/ErpDataContext";
 import { Search, Filter, Plus, AlertTriangle, Lock } from "lucide-react";
@@ -21,8 +23,9 @@ export default function InventarioMateriales() {
   // Materiales reales de Supabase (alias mockMateriales del prototipo).
   const { materiales: mockMateriales } = useErpData();
   const { user } = useAuth();
+  const navigate = useNavigate();
   // Estado de los filtros: texto, tipo ("all" | tela | hilo | accesorio) y stock ("all" | bajo | normal).
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useBusquedaUrl();
   const [filterTipo, setFilterTipo] = useState<string>("all");
   const [filterStock, setFilterStock] = useState<string>("all");
 
@@ -64,9 +67,10 @@ export default function InventarioMateriales() {
             Gestión de telas, hilos y accesorios
           </p>
         </div>
-        {/* Botón con control de permisos (por ahora sin acción de alta asociada) */}
+        {/* Botón con control de permisos: abre el formulario de alta en /materiales/nuevo */}
         <PermissionButton
           requiredPermission="canCreate"
+          onClick={() => navigate("/materiales/nuevo")}
           className="flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
         >
           <Plus className="w-5 h-5" />

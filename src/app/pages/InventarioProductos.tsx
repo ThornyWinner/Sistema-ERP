@@ -7,16 +7,17 @@
  * Debajo, una tarjeta por tipo de prenda con el número de productos y el stock total.
  */
 import { useState } from "react";
+import { useBusquedaUrl } from "../hooks/useBusquedaUrl";
 import { Card, CardContent, CardHeader } from "../components/Card";
 import { useErpData } from "../context/ErpDataContext";
-import { Search, Plus, Edit } from "lucide-react";
+import { Search, Plus, Edit, Image as ImageIcon } from "lucide-react";
 import { Link } from "react-router";
 
 export default function InventarioProductos() {
   // Productos reales de Supabase (alias mockProductos del prototipo).
   const { productos: mockProductos } = useErpData();
   // Texto de búsqueda y filtro por tipo de prenda ("all" = todos).
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useBusquedaUrl();
   // Estado para el filtro por tipo de prenda, inicializado en "all" (todos los tipos).
   const [filterTipo, setFilterTipo] = useState<string>("all");
 
@@ -135,10 +136,24 @@ export default function InventarioProductos() {
                   >
                     {/* Columna de nombre del producto */}
                     <td className="px-6 py-4">
-                      {/* Nombre del producto en negrita y color de primer plano */}
-                      <span className="font-medium text-foreground">
-                        {producto.nombre}
-                      </span>
+                      {/* Miniatura de la imagen de referencia (o icono si no tiene) y nombre */}
+                      <div className="flex items-center gap-3">
+                        {producto.imagen ? (
+                          <img
+                            src={producto.imagen}
+                            alt=""
+                            loading="lazy"
+                            className="w-10 h-10 rounded-md object-cover bg-secondary flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-md bg-secondary flex items-center justify-center flex-shrink-0">
+                            <ImageIcon className="w-4 h-4 text-muted-foreground" />
+                          </div>
+                        )}
+                        <span className="font-medium text-foreground">
+                          {producto.nombre}
+                        </span>
+                      </div>
                     </td>
                     {/* Columna de tipo de prenda con fondo primario tenue y texto primario */}
                     <td className="px-6 py-4">
