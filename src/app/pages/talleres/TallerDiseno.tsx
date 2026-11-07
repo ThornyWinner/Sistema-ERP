@@ -39,7 +39,7 @@ export default function TallerDiseno() {
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">Estado del diseño:</p>
               {isReadOnly ? (
-                <div className="flex items-center gap-2 px-2 py-1.5 bg-neutral-100 rounded text-xs text-neutral-600">
+                <div className="flex items-center gap-2 px-2 py-1.5 bg-neutral-100 dark:bg-muted rounded text-xs text-muted-foreground">
                   <Lock className="w-3 h-3" />
                   <span>Solo lectura</span>
                 </div>

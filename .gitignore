@@ -3,5 +3,38 @@ node_modules/
 Pantallas/
 dist/
 .env.*
+!.env.example
 *.local
 Credenciales.txt
+
+# Configuración local de Claude Code (permisos y rutas de cada equipo)
+.claude/settings.local.json
+
+# Postman: los environments suelen guardar tokens y URLs con llaves
+postman/environments/
+*.postman_environment.json
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-error.log*
+
+# Cachés y salidas de herramientas
+.vite/
+coverage/
+*.tsbuildinfo
+
+# Supabase CLI (migraciones locales)
+supabase/.temp/
+supabase/.branches/
+
+# Sistema operativo
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Editores (se conserva la lista de extensiones recomendadas)
+.vscode/*
+!.vscode/extensions.json
+.idea/

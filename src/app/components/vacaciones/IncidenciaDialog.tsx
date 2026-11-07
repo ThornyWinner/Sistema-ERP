@@ -146,7 +146,7 @@ export default function IncidenciaDialog({ empleado, onClose, onSaved }: Inciden
             </label>
           )}
 
-          {problema && <p className="text-sm text-red-600 font-medium">{problema}</p>}
+          {problema && <p className="text-sm text-red-600 dark:text-red-400 font-medium">{problema}</p>}
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>

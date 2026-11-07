@@ -155,7 +155,7 @@ export default function FiniquitoPanel({ empleado, vacaciones, finiquitos, onSav
         </div>
       </div>
 
-      {!fechaValida && <p className="text-sm text-red-600 font-medium">La fecha de terminación no puede ser anterior al ingreso.</p>}
+      {!fechaValida && <p className="text-sm text-red-600 dark:text-red-400 font-medium">La fecha de terminación no puede ser anterior al ingreso.</p>}
 
       {calculo && (
         <>

@@ -15,14 +15,19 @@ import { router } from "./routes";
 import { AuthProvider } from "./context/AuthContext";
 import { ErpDataProvider } from "./context/ErpDataContext";
 import { Toaster } from "./components/ui/sonner";
+import { ThemeProvider } from "next-themes";
 
 export default function App() {
   return (
-    <AuthProvider>
-      {/* Datos del ERP disponibles para todas las rutas */}
-      <ErpDataProvider><RouterProvider router={router} /></ErpDataProvider>
-      {/* Notificaciones tipo "toast" (toast.success / toast.error) */}
-      <Toaster />
-    </AuthProvider>
+    // Tema claro/oscuro: pone la clase "dark" en <html> (ver theme.css) y
+    // recuerda la elección del usuario. Por defecto, modo claro.
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+      <AuthProvider>
+        {/* Datos del ERP disponibles para todas las rutas */}
+        <ErpDataProvider><RouterProvider router={router} /></ErpDataProvider>
+        {/* Notificaciones tipo "toast" (toast.success / toast.error) */}
+        <Toaster />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

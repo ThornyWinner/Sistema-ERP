@@ -59,5 +59,5 @@ export function textoDiasRestantes(dias: number | null, sufijo = ""): string {
 
 /** Clase de color: rojo y negritas si vence en 5 días o menos (o ya venció). */
 export function claseDiasRestantes(dias: number | null): string {
-  return dias !== null && dias <= 5 ? "text-red-600 font-bold" : "text-muted-foreground";
+  return dias !== null && dias <= 5 ? "text-red-600 dark:text-red-400 font-bold" : "text-muted-foreground";
 }

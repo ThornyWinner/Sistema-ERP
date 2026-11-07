@@ -9,6 +9,7 @@ import { CheckCircle2, Clock, DollarSign, Package, ShoppingCart, Shirt, Trending
 import { Card, CardContent, CardHeader, CardTitle } from "../Card";
 import StatusBadge from "../StatusBadge";
 import type { Orden } from "../../data/mockData";
+import { saldoPendiente, totalPagado } from "../../lib/pagos";
 
 /** Totales de dinero de un conjunto de órdenes. */
 export function resumenFinanciero(ordenes: Orden[]) {
@@ -17,10 +18,12 @@ export function resumenFinanciero(ordenes: Orden[]) {
     totalIngresos: ordenes.reduce((acc, o) => acc + (o.total || 0), 0),
     // Suma de los anticipos recibidos.
     totalAnticipos: ordenes.reduce((acc, o) => acc + (o.anticipo || 0), 0),
-    // Saldo por cobrar (total − anticipo) de las órdenes en estado "anticipo".
+    // Saldo por cobrar (total − pagos, incluidos los abonos) de las órdenes en estado "anticipo".
     anticiposPendientes: ordenes
       .filter((o) => o.estadoPago === "anticipo")
-      .reduce((acc, o) => acc + Math.max((o.total || 0) - (o.anticipo || 0), 0), 0),
+      .reduce((acc, o) => acc + saldoPendiente(o), 0),
+    // Total cobrado (anticipos + abonos).
+    totalCobrado: ordenes.reduce((acc, o) => acc + totalPagado(o), 0),
   };
 }
 
@@ -94,10 +97,10 @@ export function GraficaTiposVenta({ ordenes }: { ordenes: Orden[] }) {
 
 // Colores y texto corto de la etiqueta de tipo de venta en la tabla.
 const tipoVentaCorto: Record<string, { texto: string; clase: string }> = {
-  directa: { texto: "Directa", clase: "bg-orange-500/10 text-orange-600" },
-  fabricacion: { texto: "Fabricación", clase: "bg-green-500/10 text-green-600" },
-  comercializacion: { texto: "Comercial.", clase: "bg-blue-500/10 text-blue-600" },
-  mixta: { texto: "Mixta", clase: "bg-purple-500/10 text-purple-600" },
+  directa: { texto: "Directa", clase: "bg-orange-500/10 text-orange-600 dark:text-orange-400" },
+  fabricacion: { texto: "Fabricación", clase: "bg-green-500/10 text-green-600 dark:text-green-400" },
+  comercializacion: { texto: "Comercial.", clase: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
+  mixta: { texto: "Mixta", clase: "bg-purple-500/10 text-purple-600 dark:text-purple-400" },
 };
 
 /**
@@ -128,7 +131,7 @@ export function TablaOrdenesRecientes({ ordenes, titulo = "Órdenes Recientes" }
             <tbody className="divide-y divide-border">
               {[...ordenes].reverse().slice(0, 5).map((orden) => {
                 const cantidadTotal = orden.productos.reduce((acc, p) => acc + p.cantidad, 0);
-                const tipo = tipoVentaCorto[orden.tipoVenta] ?? { texto: orden.tipoVenta, clase: "bg-gray-500/10 text-gray-600" };
+                const tipo = tipoVentaCorto[orden.tipoVenta] ?? { texto: orden.tipoVenta, clase: "bg-gray-500/10 text-gray-600 dark:text-gray-400" };
                 return (
                   <tr key={orden.id} className="hover:bg-secondary/50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -175,9 +178,9 @@ export function EstadoFinanciero({ ordenes }: { ordenes: Orden[] }) {
   ] as const;
   // Clases completas por color (Tailwind solo genera las clases escritas literalmente).
   const colores = {
-    green: { fondo: "bg-green-500/10", icono: "text-green-500", monto: "text-green-600" },
-    blue: { fondo: "bg-blue-500/10", icono: "text-blue-500", monto: "text-blue-600" },
-    orange: { fondo: "bg-orange-500/10", icono: "text-orange-500", monto: "text-orange-600" },
+    green: { fondo: "bg-green-500/10", icono: "text-green-500", monto: "text-green-600 dark:text-green-400" },
+    blue: { fondo: "bg-blue-500/10", icono: "text-blue-500", monto: "text-blue-600 dark:text-blue-400" },
+    orange: { fondo: "bg-orange-500/10", icono: "text-orange-500", monto: "text-orange-600 dark:text-orange-400" },
   };
   return (
     <Card>

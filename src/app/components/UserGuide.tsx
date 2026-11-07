@@ -216,15 +216,15 @@ export default function UserGuide({ open, onClose }: UserGuideProps) {
             <div className="space-y-2">
               {currentGuide.permissions.map((permission, index) => (
                 // El icono varía: lápiz (admin primario), ojo (admin secundario), + (resto).
-                <div key={index} className="flex items-start gap-3 p-3 bg-neutral-50 rounded-lg">
+                <div key={index} className="flex items-start gap-3 p-3 bg-neutral-50 dark:bg-muted rounded-lg">
                   {user.rol === 'admin_primario' ? (
-                    <Edit className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                    <Edit className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
                   ) : user.rol === 'admin_secundario' ? (
-                    <Eye className="w-4 h-4 text-yellow-600 flex-shrink-0 mt-0.5" />
+                    <Eye className="w-4 h-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
                   ) : (
-                    <Plus className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <Plus className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
                   )}
-                  <span className="text-sm text-neutral-700">{permission}</span>
+                  <span className="text-sm text-foreground">{permission}</span>
                 </div>
               ))}
             </div>
@@ -238,11 +238,11 @@ export default function UserGuide({ open, onClose }: UserGuideProps) {
             </h3>
             <div className="space-y-2">
               {currentGuide.tips.map((tip, index) => (
-                <div key={index} className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
+                <div key={index} className="flex items-start gap-3 p-3 bg-blue-50 dark:bg-blue-500/10 rounded-lg">
                   <div className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-medium">
                     {index + 1}
                   </div>
-                  <span className="text-sm text-blue-900">{tip}</span>
+                  <span className="text-sm text-blue-900 dark:text-blue-200">{tip}</span>
                 </div>
               ))}
             </div>
@@ -250,12 +250,12 @@ export default function UserGuide({ open, onClose }: UserGuideProps) {
 
           {/* Restricciones (solo para roles restringidos) */}
           {user.rol !== 'admin_primario' && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/30 rounded-lg p-4">
               <div className="flex items-start gap-3">
-                <ShieldAlert className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <ShieldAlert className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
                 <div>
-                  <h3 className="font-semibold text-yellow-900 mb-1">Restricciones</h3>
-                  <p className="text-sm text-yellow-700">
+                  <h3 className="font-semibold text-yellow-900 dark:text-yellow-200 mb-1">Restricciones</h3>
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300">
                     {user.rol === 'admin_secundario' 
                       ? 'No puedes crear, editar ni eliminar registros. Todos los botones de acción estarán deshabilitados.'
                       : 'Tu acceso está limitado a las secciones relevantes para tu función. Esto reduce distracciones y errores operativos.'}

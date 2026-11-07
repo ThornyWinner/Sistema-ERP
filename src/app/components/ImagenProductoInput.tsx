@@ -100,7 +100,7 @@ export default function ImagenProductoInput({
               type="button"
               onClick={onQuitar}
               disabled={deshabilitado}
-              className="flex items-center justify-center gap-2 px-3 py-2 text-sm text-red-600 bg-secondary rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+              className="flex items-center justify-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 bg-secondary rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50"
             >
               <Trash2 className="w-4 h-4" />
               Quitar

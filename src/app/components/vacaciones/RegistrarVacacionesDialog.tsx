@@ -153,7 +153,7 @@ export default function RegistrarVacacionesDialog({ empleado, periodos, onClose,
               </div>
             </div>
 
-            {problema && <p className="text-sm text-red-600 font-medium">{problema}</p>}
+            {problema && <p className="text-sm text-red-600 dark:text-red-400 font-medium">{problema}</p>}
 
             {periodo && periodo.tomados === 0 && dias > 0 && dias < Math.min(12, periodo.derecho) && (
               <p className="flex gap-2 text-xs text-muted-foreground">

@@ -324,13 +324,13 @@ export default function NuevaOrdenMultiProducto({
   const getTipoVentaColor = (tipo: TipoVenta) => {
     switch (tipo) {
       case "directa":
-        return "bg-orange-500/10 text-orange-600 border-orange-500";
+        return "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500";
       case "fabricacion":
-        return "bg-green-500/10 text-green-600 border-green-500";
+        return "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500";
       case "comercializacion":
-        return "bg-blue-500/10 text-blue-600 border-blue-500";
+        return "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500";
       case "mixta":
-        return "bg-purple-500/10 text-purple-600 border-purple-500";
+        return "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500";
     }
   };
 
@@ -482,7 +482,7 @@ export default function NuevaOrdenMultiProducto({
                     }`}
                   />
                   {anticipoExcedido && (
-                    <p id="anticipo-error" className="mt-1 text-xs text-red-600">
+                    <p id="anticipo-error" className="mt-1 text-xs text-red-600 dark:text-red-400">
                       No puede ser mayor al total (${totalOrden.toLocaleString()}).{" "}
                       <button
                         type="button"
@@ -890,17 +890,17 @@ export default function NuevaOrdenMultiProducto({
                 <div className="grid grid-cols-2 gap-4 p-4 bg-blue-500/5 rounded-lg border border-blue-500/20">
                   <div>
                     <p className="text-sm text-muted-foreground">Anticipo</p>
-                    <p className="text-lg font-semibold text-blue-600">
+                    <p className="text-lg font-semibold text-blue-600 dark:text-blue-400">
                       ${formData.anticipo.toLocaleString()}
                     </p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Saldo Pendiente</p>
-                    <p className="text-lg font-semibold text-orange-600">
+                    <p className="text-lg font-semibold text-orange-600 dark:text-orange-400">
                       ${Math.max(totalOrden - formData.anticipo, 0).toLocaleString()}
                     </p>
                     {anticipoExcedido && (
-                      <p className="text-xs text-red-600 mt-1">El anticipo supera el total</p>
+                      <p className="text-xs text-red-600 dark:text-red-400 mt-1">El anticipo supera el total</p>
                     )}
                   </div>
                 </div>

@@ -11,6 +11,7 @@ public.ordenes           | trg_ordenes_cambio_estado      | public.ordenes_regis
 public.ordenes           | trg_ordenes_generar_folio      | public.ordenes_generar_folio                | BEFORE INSERT, por fila
 public.ordenes           | trg_ordenes_historial_creacion | public.ordenes_registrar_historial_creacion | AFTER INSERT, por fila
 public.pagos             | trg_pagos_actualizar_estado    | public.pagos_actualizar_estado_orden        | AFTER INSERT, por fila
+public.pagos             | trg_pagos_validar_total        | private.validar_pago_no_excede_total        | BEFORE INSERT, por fila
 public.produccion_taller | trg_produccion_taller_avisos   | private.avisar_cambio_taller                | AFTER UPDATE OF estado, por fila
 public.vacaciones        | trg_validar_vacaciones         | private.validar_vacaciones                  | BEFORE INSERT OR UPDATE, por fila
 
@@ -29,6 +30,9 @@ Qué hace cada uno:
   trg_ordenes_historial_creacion  Registra la creación de la orden en `historial_ordenes`.
   trg_pagos_actualizar_estado     Suma los pagos de la orden y asigna su estado de pago:
                                   'Pendiente' (0), 'Anticipo' (< total) o 'Pagado' (>= total).
+  trg_pagos_validar_total         Rechaza un pago (anticipo o abono) si la suma de pagos de la orden
+                                  superaría su total; bloquea la orden (FOR UPDATE) para que dos
+                                  abonos simultáneos no rebasen el total (sql/abonos_pagos.sql).
   trg_produccion_taller_avisos    Cuando un taller termina un producto, avisa al siguiente taller
                                   de su flujo y, si la orden terminó producción, al vendedor y a
                                   los administradores primarios (sql/avisos_produccion.sql).

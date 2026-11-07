@@ -145,12 +145,22 @@ export default function Sidebar() {
   return (
     <aside className="w-64 bg-card border-r border-border flex flex-col">
       {/* Logotipo y nombre del sistema */}
-      <div className="p-6 border-b border-border">
-        <h1 className="font-semibold text-foreground flex items-center gap-2">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <Shirt className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <span>Sistema Uniformes</span>
+      <div className="px-6 py-4 border-b border-border">
+        <h1 className="flex flex-col items-center gap-1">
+          <img
+            src="/logo-uis.png"
+            alt="Uniformes Industriales de Saltillo"
+            className="w-full max-w-[180px] h-auto dark:hidden"
+          />
+          {/* Versión con letras blancas para modo oscuro */}
+          <img
+            src="/logo-uis-dark.png"
+            alt="Uniformes Industriales de Saltillo"
+            className="w-full max-w-[180px] h-auto hidden dark:block"
+          />
+          <span className="text-xs font-medium text-muted-foreground tracking-wide">
+            Sistema ERP
+          </span>
         </h1>
       </div>
 

@@ -80,9 +80,9 @@ export default function WorkflowStepper({
   const getStatusColor = (estado?: TallerEstado) => {
     switch (estado) {
       case "completed":
-        return "bg-status-completed text-status-completed-text border-status-completed";
+        return "bg-status-completed text-status-completed-text border-status-completed dark:bg-status-completed-bg";
       case "in-progress":
-        return "bg-status-in-progress text-status-in-progress-text border-status-in-progress";
+        return "bg-status-in-progress text-status-in-progress-text border-status-in-progress dark:bg-status-in-progress-bg";
       case "pending":
       default:
         return "bg-status-pending-bg text-status-pending-text border-status-pending";

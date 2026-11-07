@@ -9,6 +9,7 @@
 import { User, LogOut, ChevronDown } from "lucide-react";
 import BuscadorGlobal from "./BuscadorGlobal";
 import CampanaNotificaciones from "./notificaciones/CampanaNotificaciones";
+import ThemeToggle from "./ThemeToggle";
 import { useAuth } from "../context/AuthContext";
 import { roleLabels } from "../utils/permissions";
 import { Badge } from "./ui/badge";
@@ -39,8 +40,8 @@ export default function Header() {
   // admin secundario y gris para el resto de roles.
   const getRoleBadgeColor = (rol: string) => {
     if (rol === 'admin_primario') return 'bg-[#059669] text-white';
-    if (rol === 'admin_secundario') return 'bg-yellow-100 text-yellow-800';
-    return 'bg-neutral-100 text-neutral-800';
+    if (rol === 'admin_secundario') return 'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-800 dark:text-yellow-300';
+    return 'bg-neutral-100 dark:bg-muted text-foreground';
   };
 
   return (
@@ -51,6 +52,9 @@ export default function Header() {
       </div>
 
       <div className="flex items-center gap-4">
+        {/* Alternar modo claro / oscuro */}
+        <ThemeToggle />
+
         {/* Campana de notificaciones entre usuarios (con contador de no leídas) */}
         <CampanaNotificaciones />
 
@@ -81,7 +85,7 @@ export default function Header() {
                 <p className="text-xs">{user.email}</p>
               </div>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout} className="text-red-600 cursor-pointer">
+              <DropdownMenuItem onClick={handleLogout} className="text-red-600 dark:text-red-400 cursor-pointer">
                 <LogOut className="w-4 h-4 mr-2" />
                 Cerrar Sesión
               </DropdownMenuItem>

@@ -20,6 +20,7 @@ import {
   parseFecha,
   textoDiasRestantes,
 } from "../../lib/fechas";
+import { saldoPendiente } from "../../lib/pagos";
 import {
   EstadoFinanciero,
   GraficaTiposVenta,
@@ -28,8 +29,7 @@ import {
 } from "./secciones";
 
 /** Lo que falta por cobrar de una orden: total − pagos registrados. */
-const saldoDe = (o: Orden) =>
-  Math.max((o.total || 0) - o.pagos.reduce((acc, p) => acc + p.monto, 0), 0);
+const saldoDe = (o: Orden) => saldoPendiente(o);
 
 export default function DashboardVendedor() {
   const { ordenes } = useErpData();
@@ -161,7 +161,7 @@ export default function DashboardVendedor() {
                       <p className="text-sm text-muted-foreground truncate">{orden.cliente}</p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="font-semibold text-orange-600">${saldoDe(orden).toLocaleString()}</p>
+                      <p className="font-semibold text-orange-600 dark:text-orange-400">${saldoDe(orden).toLocaleString()}</p>
                       <p className="text-xs text-muted-foreground flex items-center justify-end gap-1">
                         {sinPagos && <AlertTriangle className="w-3 h-3 text-status-pending" />}
                         {sinPagos ? "Sin anticipo" : `de $${(orden.total || 0).toLocaleString()}`}

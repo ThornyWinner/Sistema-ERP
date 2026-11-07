@@ -118,7 +118,7 @@ export default function DetalleEmpleado(props: DetalleEmpleadoProps) {
               }`}
             >
               {p.texto}
-              {!!p.aviso && <span className="px-1.5 py-0.5 rounded-full text-xs bg-status-pending text-white">{p.aviso}</span>}
+              {!!p.aviso && <span className="px-1.5 py-0.5 rounded-full text-xs bg-status-pending dark:bg-red-600 text-white">{p.aviso}</span>}
             </button>
           ))}
         </div>

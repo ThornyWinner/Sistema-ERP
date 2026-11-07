@@ -160,7 +160,7 @@ export default function TallerKanban({
                   {onChangeEstado && (
                     <button
                       onClick={() => onChangeEstado(orden.id, "completed")}
-                      className="w-full mt-2 px-3 py-2 bg-status-completed text-primary-foreground rounded-lg hover:bg-status-completed/90 transition-colors text-sm"
+                      className="w-full mt-2 px-3 py-2 bg-status-completed text-primary-foreground dark:bg-emerald-600 dark:hover:bg-emerald-700 rounded-lg hover:bg-status-completed/90 transition-colors text-sm"
                     >
                       Completar
                     </button>

@@ -88,9 +88,9 @@ export default function Vacaciones() {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
-          <Shield className="w-16 h-16 text-neutral-300 mx-auto mb-4" />
+          <Shield className="w-16 h-16 text-neutral-300 dark:text-neutral-600 mx-auto mb-4" />
           <h2 className="text-2xl mb-2">Acceso Restringido</h2>
-          <p className="text-neutral-500">Solo el administrador primario gestiona los permisos vacacionales</p>
+          <p className="text-muted-foreground">Solo el administrador primario gestiona los permisos vacacionales</p>
         </div>
       </div>
     );

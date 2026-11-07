@@ -23,7 +23,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   // Evita redirigir a /login antes de saber si existe una sesión guardada.
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-neutral-50 text-neutral-500">
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-background text-muted-foreground">
         Cargando...
       </div>
     );

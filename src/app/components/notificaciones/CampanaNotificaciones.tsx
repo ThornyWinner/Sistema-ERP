@@ -169,7 +169,7 @@ export default function CampanaNotificaciones() {
       >
         <Bell className="w-5 h-5" />
         {noLeidas.length > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-status-pending text-white text-[10px] font-semibold">
+          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-status-pending dark:bg-red-600 text-white text-[10px] font-semibold">
             {noLeidas.length > 99 ? "99+" : noLeidas.length}
           </span>
         )}

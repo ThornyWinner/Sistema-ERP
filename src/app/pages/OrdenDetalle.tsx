@@ -7,16 +7,22 @@
  *    con el avance por taller y la personalización (bordado, hilos, logo, notas);
  *    al final, el progreso total de la orden.
  *  - Información general (vendedor, cliente con teléfono y correo, productos, fecha de entrega).
- *  - Información de pago (total, método, estado de pago, anticipo y saldo).
- *  - Historial de pagos y notas de la orden.
+ *  - Información de pago (total, método, estado de pago, pagado y saldo). Si queda saldo,
+ *    el botón "Registrar abono" permite pagar a plazos hasta liquidar la orden.
+ *  - Historial de pagos (con el saldo restante tras cada abono) y notas de la orden.
  *
  * Compatibilidad: varias secciones (marcadas como "órdenes antiguas") soportan el
  * formato del prototipo en el que la orden tenía un solo producto con campos sueltos
  * (talleres, progreso, tipoPrenda, bordadoDetalle...). Por eso se usa `(orden as any)`.
  * Con los datos actuales de Supabase siempre existe `orden.productos`.
  */
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { useErpData } from "../context/ErpDataContext";
+import { useAuth } from "../context/AuthContext";
+import RegistrarAbonoDialog from "../components/RegistrarAbonoDialog";
+import { Button } from "../components/ui/button";
+import { METODO_PAGO_LABEL, formatMonto, redondearCentavos, saldoPendiente, totalPagado } from "../lib/pagos";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/Card";
 import StatusBadge from "../components/StatusBadge";
 import OrdenCerradaBadge, { esOrdenCerrada } from "../components/OrdenCerradaBadge";
@@ -44,6 +50,7 @@ import {
   Banknote,
   Phone,
   Mail,
+  Plus,
 } from "lucide-react";
 
 export default function OrdenDetalle() {
@@ -52,6 +59,9 @@ export default function OrdenDetalle() {
   const { id } = useParams();
   const navigate = useNavigate();
   const orden = mockOrdenes.find((o) => o.id === id);
+  const { user } = useAuth();
+  // Diálogo para registrar un abono (pago a plazos).
+  const [abonoAbierto, setAbonoAbierto] = useState(false);
 
   // Id inexistente (o datos aún cargando): mensaje y botón para volver al listado.
   if (!orden) {
@@ -69,6 +79,15 @@ export default function OrdenDetalle() {
       </div>
     );
   }
+
+  // Cobranza: lo pagado sale de la suma de pagos (anticipo + abonos), no del campo anticipo.
+  const pagado = totalPagado(orden);
+  const saldo = saldoPendiente(orden);
+  // Solo el admin primario y el vendedor (RLS: de sus órdenes) pueden registrar pagos.
+  const puedeAbonar =
+    saldo > 0 &&
+    orden.estadoPago !== "cancelado" &&
+    (user?.rol === "admin_primario" || user?.rol === "vendedor");
 
   // Días que faltan para la fecha de entrega (0 = hoy, negativo = vencida, null = sin fecha).
   const diasRestantes = calcularDiasRestantes(orden.fechaEntrega);
@@ -124,15 +143,15 @@ export default function OrdenDetalle() {
   const getTipoVentaColor = () => {
     switch (orden.tipoVenta) {
       case "directa":
-        return "bg-orange-100 text-orange-800";
+        return "bg-orange-100 dark:bg-orange-500/15 text-orange-800 dark:text-orange-300";
       case "fabricacion":
-        return "bg-green-100 text-green-800";
+        return "bg-green-100 dark:bg-green-500/15 text-green-800 dark:text-green-300";
       case "comercializacion":
-        return "bg-blue-100 text-blue-800";
+        return "bg-blue-100 dark:bg-blue-500/15 text-blue-800 dark:text-blue-300";
       case "mixta":
-        return "bg-purple-100 text-purple-800";
+        return "bg-purple-100 dark:bg-purple-500/15 text-purple-800 dark:text-purple-300";
       default:
-        return "bg-gray-100 text-gray-800";
+        return "bg-gray-100 dark:bg-gray-500/15 text-gray-800 dark:text-gray-300";
     }
   };
 
@@ -194,7 +213,7 @@ export default function OrdenDetalle() {
       case "liquidado":
         return "bg-status-completed-bg text-status-completed-text";
       default:
-        return "bg-gray-100 text-gray-800";
+        return "bg-gray-100 dark:bg-gray-500/15 text-gray-800 dark:text-gray-300";
     }
   };
 
@@ -552,28 +571,67 @@ export default function OrdenDetalle() {
                   </span>
                 </div>
               </div>
-              {orden.anticipo > 0 && (
+              {orden.anticipo > orden.total ? (
+                // Órdenes antiguas con anticipo mayor al total: se muestra el
+                // excedente como saldo a favor en lugar de un pendiente negativo.
                 <div className="flex items-start gap-3">
                   <Banknote className="w-5 h-5 text-primary mt-0.5" />
                   <div className="flex-1">
                     <p className="text-sm text-muted-foreground">Anticipo</p>
-                    <p className="font-semibold text-lg">
-                      ${orden.anticipo.toLocaleString()}
+                    <p className="font-semibold text-lg">{formatMonto(orden.anticipo)}</p>
+                    <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                      Pendiente: $0 · Saldo a favor del cliente: {formatMonto(orden.anticipo - orden.total)}
                     </p>
-                    {orden.anticipo > orden.total ? (
-                      // Órdenes antiguas con anticipo mayor al total: se muestra el
-                      // excedente como saldo a favor en lugar de un pendiente negativo.
-                      <p className="text-sm text-amber-700 mt-1">
-                        Pendiente: $0 · Saldo a favor del cliente: $
-                        {(orden.anticipo - orden.total).toLocaleString()}
-                      </p>
-                    ) : (
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Pendiente: ${(orden.total - orden.anticipo).toLocaleString()}
-                      </p>
-                    )}
                   </div>
                 </div>
+              ) : (
+                (pagado > 0 || saldo > 0) && (
+                  <div className="flex items-start gap-3">
+                    <Banknote className="w-5 h-5 text-primary mt-0.5" />
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Pagado</p>
+                          <p className="font-semibold text-lg">{formatMonto(pagado)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-muted-foreground">Pendiente</p>
+                          <p className={`font-semibold text-lg ${saldo > 0 ? "text-status-pending-text" : "text-status-completed-text"}`}>
+                            {formatMonto(saldo)}
+                          </p>
+                        </div>
+                      </div>
+                      {/* Barra de avance de cobranza */}
+                      {orden.total > 0 && (
+                        <div
+                          className="h-2 w-full rounded-full bg-secondary overflow-hidden"
+                          role="progressbar"
+                          aria-label="Avance de pago"
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-valuenow={Math.round((pagado / orden.total) * 100)}
+                        >
+                          <div
+                            className="h-full bg-primary transition-all"
+                            style={{ width: `${Math.min((pagado / orden.total) * 100, 100)}%` }}
+                          />
+                        </div>
+                      )}
+                      {orden.anticipo > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          Anticipo inicial: {formatMonto(orden.anticipo)}
+                          {orden.pagos.length > 1 && ` · ${orden.pagos.length - 1} abono(s)`}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )
+              )}
+              {puedeAbonar && (
+                <Button className="w-full" onClick={() => setAbonoAbierto(true)}>
+                  <Plus className="w-4 h-4" />
+                  Registrar abono
+                </Button>
               )}
             </CardContent>
           </Card>
@@ -640,7 +698,15 @@ export default function OrdenDetalle() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {orden.pagos.map((pago, index) => (
+              {orden.pagos.map((pago, index) => {
+                // Saldo que quedó después de este pago (los pagos vienen ordenados por fecha).
+                const acumulado = redondearCentavos(
+                  orden.pagos.slice(0, index + 1).reduce((acc, p) => acc + p.monto, 0)
+                );
+                const restante = Math.max(redondearCentavos(orden.total - acumulado), 0);
+                const concepto =
+                  restante === 0 ? "Liquidación" : index === 0 ? "Anticipo" : `Abono ${index}`;
+                return (
                 <div
                   key={`${pago.fecha}-${index}`}
                   className="flex items-center justify-between p-3 bg-secondary rounded-lg"
@@ -657,11 +723,7 @@ export default function OrdenDetalle() {
                     </div>
                     <div>
                       <p className="font-medium">
-                        {pago.metodo === "efectivo"
-                          ? "Efectivo"
-                          : pago.metodo === "tarjeta"
-                          ? "Tarjeta"
-                          : "Transferencia"}
+                        {concepto} · {METODO_PAGO_LABEL[pago.metodo] ?? "Otro"}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         {formatFecha(pago.fecha, {
@@ -674,7 +736,10 @@ export default function OrdenDetalle() {
                   </div>
                   <div className="text-right">
                     <p className="font-semibold text-lg">
-                      ${pago.monto.toLocaleString()}
+                      {formatMonto(pago.monto)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Saldo: {formatMonto(restante)}
                     </p>
                     {pago.referencia && (
                       <p className="text-xs text-muted-foreground">
@@ -683,7 +748,8 @@ export default function OrdenDetalle() {
                     )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -757,6 +823,8 @@ export default function OrdenDetalle() {
           </CardContent>
         </Card>
       )}
+
+      <RegistrarAbonoDialog orden={orden} open={abonoAbierto} onClose={() => setAbonoAbierto(false)} />
 
       {/* Notas de la Orden */}
       {orden.notas && (

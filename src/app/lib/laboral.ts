@@ -112,7 +112,7 @@ export const tipoIncidenciaInfo: Record<TipoIncidencia, { texto: string; clase: 
   retardo: { texto: "Retardo", clase: "bg-status-in-progress-bg text-status-in-progress-text", ayuda: "No puede descontarse como multa (Art. 107); las medidas deben estar en el Reglamento Interior (Art. 423)." },
   falta_injustificada: { texto: "Falta injustificada", clase: "bg-status-pending-bg text-status-pending-text", ayuda: "No se paga el día. Más de 3 en 30 días es causal de rescisión (Art. 47 fr. X)." },
   falta_justificada: { texto: "Falta justificada", clase: "bg-secondary text-muted-foreground", ayuda: "Con permiso o causa justificada; conserve el justificante." },
-  incapacidad: { texto: "Incapacidad", clase: "bg-blue-500/10 text-blue-700", ayuda: "Suspende la relación sin responsabilidad (Art. 42 fr. II); el IMSS cubre el subsidio." },
+  incapacidad: { texto: "Incapacidad", clase: "bg-blue-500/10 text-blue-700 dark:text-blue-300", ayuda: "Suspende la relación sin responsabilidad (Art. 42 fr. II); el IMSS cubre el subsidio." },
   permiso_con_goce: { texto: "Permiso con goce", clase: "bg-secondary text-muted-foreground", ayuda: "Ausencia autorizada pagada." },
   permiso_sin_goce: { texto: "Permiso sin goce", clase: "bg-secondary text-muted-foreground", ayuda: "Ausencia autorizada sin pago; conserve la solicitud firmada." },
   suspension: { texto: "Suspensión", clase: "bg-status-pending-bg text-status-pending-text", ayuda: "Medida disciplinaria de máximo 8 días, oyendo antes al trabajador (Art. 423 fr. X)." },

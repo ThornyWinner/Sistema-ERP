@@ -23,7 +23,7 @@ export default function OrdenCerradaBadge({ orden, size = "md" }: OrdenCerradaBa
   // Renderiza el distintivo de orden cerrada
   return (
     <span
-      className={`inline-flex items-center gap-1.5 bg-status-completed text-white rounded-full font-semibold whitespace-nowrap ${
+      className={`inline-flex items-center gap-1.5 bg-status-completed text-white dark:bg-status-completed-bg dark:text-status-completed-text dark:ring-1 dark:ring-status-completed/40 rounded-full font-semibold whitespace-nowrap ${
         size === "sm" ? "px-2 py-0.5 text-xs" : "px-3 py-1 text-sm"
       }`}
       title="Orden entregada y pagada en su totalidad"

@@ -10,6 +10,7 @@
  * También expone operaciones de escritura:
  *  - crearOrden:               inserta una orden completa (cliente, detalles, talleres, pagos).
  *  - actualizarProgresoTaller: cambia el estado de producción de un producto en un taller.
+ *  - registrarPago:            registra un abono (pago a plazos) de una orden.
  *
  * Las filas de la base de datos (snake_case, con joins anidados) se transforman a los
  * tipos de la UI definidos en data/mockData.ts, de modo que las páginas no dependen
@@ -51,6 +52,11 @@ type ErpData = {
     taller: Taller,
     nuevoEstado: TallerEstado
   ) => Promise<void>;
+  /**
+   * Registra un abono de la orden. El trigger de la BD recalcula su estado de pago
+   * (Anticipo mientras quede saldo, Pagado al liquidarse).
+   */
+  registrarPago: (ordenId: string, pago: Pago) => Promise<void>;
 };
 
 const ErpDataContext = createContext<ErpData | undefined>(undefined);
@@ -148,7 +154,7 @@ const SELECT_ORDENES =
   'productos(nombre,tipo_prenda),variantes_producto(talla,color),' +
   'produccion_taller(estado,talleres(nombre)),' +
   'personalizaciones(lugar_bordado,logo_url,notas,personalizacion_hilos(color_hilo)))';
-const SELECT_PAGOS = 'id,orden_id,fecha,monto,metodo_pago,metodos_pago(nombre)';
+const SELECT_PAGOS = 'id,orden_id,fecha,monto,metodo_pago,referencia,metodos_pago(nombre)';
 
 /** Colecciones vacías: estado inicial y el que queda al cerrar sesión. */
 const SIN_DATOS = { materiales: [], productos: [], proveedores: [], ordenes: [] };
@@ -159,7 +165,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const userId = user?.id;
   // Estado con las cuatro colecciones de datos (las funciones y banderas van aparte).
-  const [data, setData] = useState<Omit<ErpData, 'loading' | 'error' | 'refresh' | 'crearOrden' | 'actualizarProgresoTaller'>>(SIN_DATOS);
+  const [data, setData] = useState<Omit<ErpData, 'loading' | 'error' | 'refresh' | 'crearOrden' | 'actualizarProgresoTaller' | 'registrarPago'>>(SIN_DATOS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Número de la carga más reciente: si llega tarde la respuesta de una carga anterior
@@ -202,7 +208,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
         fecha: (p as any).fecha ?? '',
         monto: Number((p as any).monto ?? 0),
         metodo: METODO_PAGO_APP[(p as any).metodos_pago?.nombre?.toLowerCase()] ?? 'efectivo',
-        referencia: undefined,
+        referencia: (p as any).referencia ?? undefined,
       });
       pagosPorOrden.set((p as any).orden_id, lista);
     }
@@ -238,8 +244,8 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
           id: p.id,
           nombre: p.nombre,
           tipo: p.tipo_prenda,
-          tallas: [...new Set(variantes.map((v: any) => v.talla).filter(Boolean))],
-          colores: [...new Set(variantes.map((v: any) => v.color).filter(Boolean))],
+          tallas: [...new Set<string>(variantes.map((v: any) => v.talla).filter(Boolean))],
+          colores: [...new Set<string>(variantes.map((v: any) => v.color).filter(Boolean))],
           stock: variantes.reduce((s: number, v: any) => s + v.stock, 0),
           precio: variantes[0]?.precio ?? 0,
           categoria: p.categorias_producto?.nombre ?? 'Sin categoría',
@@ -545,6 +551,29 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
     [refresh]
   );
 
+  /** Inserta un abono en `pagos` y recarga los datos para reflejar el nuevo saldo. */
+  const registrarPago = useCallback(
+    async (ordenId: string, pago: Pago) => {
+      const nombreMetodo = METODO_PAGO_DB[pago.metodo] ?? 'Efectivo';
+      const { data: metodoRow } = await supabase
+        .from('metodos_pago')
+        .select('id')
+        .eq('nombre', nombreMetodo)
+        .maybeSingle();
+      const { error } = await supabase.from('pagos').insert({
+        orden_id: ordenId,
+        fecha: pago.fecha || new Date().toISOString().split('T')[0],
+        monto: pago.monto,
+        metodo_pago: nombreMetodo,
+        metodo_pago_id: metodoRow?.id ?? null,
+        referencia: pago.referencia?.trim() || null,
+      });
+      if (error) throw error;
+      await refresh();
+    },
+    [refresh]
+  );
+
   // Al cambiar de usuario se descartan los datos del anterior y se cargan los del
   // nuevo; sin sesión no se carga nada (RLS no devolvería filas).
   useEffect(() => {
@@ -558,7 +587,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
   }, [userId, refresh]);
 
   return (
-    <ErpDataContext.Provider value={{ ...data, loading, error, refresh, crearOrden, actualizarProgresoTaller }}>
+    <ErpDataContext.Provider value={{ ...data, loading, error, refresh, crearOrden, actualizarProgresoTaller, registrarPago }}>
       {children}
     </ErpDataContext.Provider>
   );

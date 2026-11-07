@@ -49,11 +49,11 @@ export default function InventarioMateriales() {
     <div className="p-6 space-y-6">
       {/* Aviso de solo lectura para el administrador secundario */}
       {user?.rol === 'admin_secundario' && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start gap-3">
-          <Lock className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+        <div className="bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/30 rounded-lg p-4 flex items-start gap-3">
+          <Lock className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-medium text-yellow-900">Modo Solo Lectura</p>
-            <p className="text-sm text-yellow-700">
+            <p className="text-sm font-medium text-yellow-900 dark:text-yellow-200">Modo Solo Lectura</p>
+            <p className="text-sm text-yellow-700 dark:text-yellow-300">
               Como administrador secundario, solo puedes visualizar la información. No puedes crear, editar o eliminar registros.
             </p>
           </div>

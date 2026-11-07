@@ -4,6 +4,9 @@
  * Responsabilidades:
  *  - Restaurar la sesión de Supabase al cargar la página y cargar el perfil del usuario.
  *  - Iniciar y cerrar sesión (login / logout).
+ *  - Cerrar la sesión automáticamente tras INACTIVIDAD_MS sin actividad (ver
+ *    hooks/useSesionInactividad.ts); el motivo queda en `motivoCierre` para que
+ *    Login muestre "Tu sesión expiró".
  *  - CRUD de usuarios del sistema (tabla `usuarios` + cuentas de Supabase Auth).
  *
  * Modelo de datos:
@@ -14,9 +17,20 @@
  *
  * Uso: envolver la app con <AuthProvider> y consumir con el hook useAuth().
  */
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import type { User, UserRole } from '../types/auth';
 import { supabase, createIsolatedClient } from '../lib/supabase';
+import {
+  guardarMotivoCierre,
+  leerMotivoCierre,
+  registrarActividadAhora,
+  sesionInactivaExpirada,
+  useSesionInactividad,
+} from '../hooks/useSesionInactividad';
+
+/** Motivo de un cierre de sesión automático (null = cierre manual o sin cierre). */
+export type MotivoCierre = 'inactividad' | null;
 
 /** Valores y funciones que expone el contexto. */
 interface AuthContextType {
@@ -28,6 +42,8 @@ interface AuthContextType {
   /** Devuelve false si las credenciales son incorrectas; lanza error si el perfil no es válido. */
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
+  /** Por qué se cerró la sesión automáticamente; Login lo muestra como aviso. */
+  motivoCierre: MotivoCierre;
   /** Lista de usuarios (solo se llena al llamar a refreshUsers, p. ej. en Gestión de Usuarios). */
   users: User[];
   refreshUsers: () => Promise<void>;
@@ -51,6 +67,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [motivoCierre, setMotivoCierre] = useState<MotivoCierre>(() => leerMotivoCierre() as MotivoCierre);
+
+  /**
+   * Cierra la sesión por inactividad. scope 'local' cierra solo este navegador (todas
+   * sus pestañas), sin invalidar las sesiones del usuario en otros equipos.
+   * El motivo se guarda en localStorage para que las demás pestañas también lo muestren.
+   */
+  const expirarSesion = useCallback(async () => {
+    guardarMotivoCierre('inactividad');
+    setMotivoCierre('inactividad');
+    setUser(null);
+    setUsers([]);
+    await supabase.auth.signOut({ scope: 'local' });
+  }, []);
+
+  // Vigila la inactividad solo mientras hay sesión.
+  useSesionInactividad(!!user, () => {
+    void expirarSesion();
+    toast.info('Tu sesión expiró por inactividad', { description: 'Inicia sesión de nuevo para continuar.' });
+  });
 
   // Recarga la lista completa de usuarios ordenada por nombre.
   const refreshUsers = async () => { const { data, error } = await supabase.from('usuarios').select(USER_FIELDS).order('nombre'); if (error) throw error; setUsers((data ?? []).map(mapUser)); };
@@ -80,22 +116,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setTimeout(() => {
           // Sin sesión guardada: terminar la carga (ProtectedRoute enviará a /login).
           if (!session) { setLoading(false); return; }
+          // La sesión quedó guardada pero el usuario no volvió en más del límite
+          // (p. ej. cerró el navegador): se cierra en lugar de restaurarla.
+          if (sesionInactivaExpirada()) { expirarSesion().finally(() => setLoading(false)); return; }
           loadProfile(session.user.id).catch(() => setUser(null)).finally(() => setLoading(false));
         }, 0);
       } else if (event === 'SIGNED_OUT') {
         // Sesión cerrada (manualmente, por expiración o desde otra pestaña): limpiar estado.
         setUser(null);
         setUsers([]);
+        // Si otra pestaña cerró la sesión por inactividad, mostrar el mismo motivo aquí.
+        setMotivoCierre(leerMotivoCierre() as MotivoCierre);
       }
     });
     // Al desmontar, cancelar la suscripción para evitar fugas de memoria.
     return () => listener.subscription.unsubscribe();
-  }, []);
+  }, [expirarSesion]);
 
   // Inicia sesión con email/contraseña; si las credenciales son válidas, carga el perfil.
-  const login = async (email: string, password: string) => { const { data, error } = await supabase.auth.signInWithPassword({ email, password }); if (error || !data.user) return false; await loadProfile(data.user.id); return true; };
-  // Cierra la sesión en Supabase y limpia el estado local.
-  const logout = async () => { await supabase.auth.signOut(); setUser(null); setUsers([]); };
+  // Al entrar se reinicia el contador de inactividad y se descarta el aviso de expiración.
+  const login = async (email: string, password: string) => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error || !data.user) return false;
+    registrarActividadAhora();
+    guardarMotivoCierre(null);
+    setMotivoCierre(null);
+    await loadProfile(data.user.id);
+    return true;
+  };
+  // Cierra la sesión en Supabase y limpia el estado local (cierre manual: sin aviso).
+  const logout = async () => { guardarMotivoCierre(null); setMotivoCierre(null); await supabase.auth.signOut(); setUser(null); setUsers([]); };
 
   /**
    * Crea un usuario nuevo en dos pasos:
@@ -176,7 +226,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await refreshUsers();
   };
 
-  return <AuthContext.Provider value={{ user, isAuthenticated: !!user, loading, login, logout, users, refreshUsers, addUser, updateUser, deleteUser }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, isAuthenticated: !!user, loading, login, logout, motivoCierre, users, refreshUsers, addUser, updateUser, deleteUser }}>{children}</AuthContext.Provider>;
 };
 
 /** Hook para acceder al contexto de autenticación. Debe usarse dentro de <AuthProvider>. */

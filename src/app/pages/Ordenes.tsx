@@ -25,6 +25,7 @@ import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 import { useErpData } from "../context/ErpDataContext";
+import { formatMonto, totalPagado } from "../lib/pagos";
 import {
   claseDiasRestantes,
   diasRestantes as calcularDiasRestantes,
@@ -142,15 +143,15 @@ export default function Ordenes() {
   const getTipoVentaColor = (tipo: string) => {
     switch (tipo) {
       case "directa":
-        return "bg-orange-500/10 text-orange-600 border-orange-500/20";
+        return "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20";
       case "fabricacion":
-        return "bg-green-500/10 text-green-600 border-green-500/20";
+        return "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20";
       case "comercializacion":
-        return "bg-blue-500/10 text-blue-600 border-blue-500/20";
+        return "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20";
       case "mixta":
-        return "bg-purple-500/10 text-purple-600 border-purple-500/20";
+        return "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20";
       default:
-        return "bg-gray-500/10 text-gray-600 border-gray-500/20";
+        return "bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20";
     }
   };
 
@@ -383,16 +384,16 @@ export default function Ordenes() {
                             <span
                               className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                                 orden.estadoPago === "liquidado"
-                                  ? "bg-status-completed text-status-completed-text"
+                                  ? "bg-status-completed text-status-completed-text dark:bg-status-completed-bg"
                                   : orden.estadoPago === "anticipo"
-                                  ? "bg-status-in-progress text-status-in-progress-text"
+                                  ? "bg-status-in-progress text-status-in-progress-text dark:bg-status-in-progress-bg"
                                   : "bg-status-pending-bg text-status-pending-text"
                               }`}
                             >
                               {orden.estadoPago === "liquidado"
                                 ? "Pagado"
                                 : orden.estadoPago === "anticipo"
-                                ? `Anticipo: $${(orden.anticipo || 0).toLocaleString()}`
+                                ? `Abonado: ${formatMonto(totalPagado(orden))}`
                                 : "Pendiente"}
                             </span>
                           </div>

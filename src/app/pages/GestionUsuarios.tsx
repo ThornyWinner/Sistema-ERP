@@ -80,9 +80,9 @@ export default function GestionUsuarios() {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
-          <Shield className="w-16 h-16 text-neutral-300 mx-auto mb-4" />
+          <Shield className="w-16 h-16 text-neutral-300 dark:text-neutral-600 mx-auto mb-4" />
           <h2 className="text-2xl mb-2">Acceso Restringido</h2>
-          <p className="text-neutral-500">
+          <p className="text-muted-foreground">
             Solo los administradores primarios pueden gestionar usuarios
           </p>
         </div>
@@ -180,7 +180,7 @@ export default function GestionUsuarios() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl mb-2">Gestión de Usuarios</h1>
-          <p className="text-neutral-500">Administra usuarios y permisos del sistema</p>
+          <p className="text-muted-foreground">Administra usuarios y permisos del sistema</p>
         </div>
         
         {/* Diálogo compartido para crear y editar usuarios */}
@@ -306,7 +306,7 @@ export default function GestionUsuarios() {
       </div>
 
       {/* Tabla de usuarios */}
-      <div className="bg-white rounded-lg border border-neutral-200">
+      <div className="bg-card rounded-lg border border-border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -325,25 +325,25 @@ export default function GestionUsuarios() {
                   <div>
                     <p className="font-medium">{user.nombre}</p>
                     {user.email && (
-                      <p className="text-sm text-neutral-500">{user.email}</p>
+                      <p className="text-sm text-muted-foreground">{user.email}</p>
                     )}
                   </div>
                 </TableCell>
                 <TableCell>{user.username}</TableCell>
                 <TableCell>
-                  <Badge variant="outline" className="bg-neutral-50">
+                  <Badge variant="outline" className="bg-neutral-50 dark:bg-muted">
                     {roleLabels[user.rol] ?? 'Sin rol'}
                   </Badge>
                 </TableCell>
                 <TableCell>
                   <Badge 
                     variant={user.estado === 'activo' ? 'default' : 'secondary'}
-                    className={user.estado === 'activo' ? 'bg-green-100 text-green-800' : ''}
+                    className={user.estado === 'activo' ? 'bg-green-100 dark:bg-green-500/15 text-green-800 dark:text-green-300' : ''}
                   >
                     {user.estado === 'activo' ? 'Activo' : 'Inactivo'}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-sm text-neutral-500">
+                <TableCell className="text-sm text-muted-foreground">
                   {user.ultimoAcceso}
                 </TableCell>
                 <TableCell className="text-right">
@@ -362,7 +362,7 @@ export default function GestionUsuarios() {
                       onClick={() => setDeletingUser(user)}
                       disabled={user.id === currentUser?.id}
                     >
-                      <Trash2 className="w-4 h-4 text-red-600" />
+                      <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
                     </Button>
                   </div>
                 </TableCell>
@@ -394,7 +394,7 @@ export default function GestionUsuarios() {
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <span>@{deletingUser.username}</span>
-                  <Badge variant="outline" className="bg-neutral-50">
+                  <Badge variant="outline" className="bg-neutral-50 dark:bg-muted">
                     {roleLabels[deletingUser.rol] ?? 'Sin rol'}
                   </Badge>
                 </div>

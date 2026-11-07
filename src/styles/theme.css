@@ -65,30 +65,47 @@
 }
 
 /* ===== Tema oscuro =====
-   Se aplica cuando un elemento ancestro tiene la clase .dark. Usa colores en formato
-   OKLCH (valores por defecto de shadcn/ui). Actualmente la app no activa este modo. */
+   Se aplica cuando <html> tiene la clase .dark (la pone next-themes con el botón
+   ThemeToggle). Mantiene el verde de marca y usa una escala de grises fríos
+   (gray-950 → gray-700) para que fondo, tarjetas y bordes se distingan entre sí. */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
+  --background: #0B0F17;
+  --foreground: #F3F4F6;
+  --card: #151B26;
+  --card-foreground: #F3F4F6;
+  --popover: #1A2130;
+  --popover-foreground: #F3F4F6;
+  /* Verde de marca igual que en claro (texto blanco encima; contraste AA sobre tarjetas) */
+  --primary: #059669;
+  --primary-foreground: #FFFFFF;
+  --secondary: #222A38;
+  --secondary-foreground: #F3F4F6;
+  --muted: #222A38;
+  --muted-foreground: #9CA3AF;
+  --accent: #2A3343;
+  --accent-foreground: #F3F4F6;
+  --destructive: #EF4444;
+  --border: #2A3343;
+  --input: #2A3343;
+  --input-background: #111722;
+  --ring: #10B981;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --sidebar: oklch(0.205 0 0);
+  --sidebar: #151B26;
+
+  /* Estados: fondos translúcidos oscuros y texto claro del mismo tono */
+  --status-pending: #F87171;
+  --status-pending-bg: rgba(239, 68, 68, 0.15);
+  --status-pending-text: #FCA5A5;
+  --status-in-progress: #FBBF24;
+  --status-in-progress-bg: rgba(245, 158, 11, 0.15);
+  --status-in-progress-text: #FCD34D;
+  --status-completed: #34D399;
+  --status-completed-bg: rgba(16, 185, 129, 0.15);
+  --status-completed-text: #6EE7B7;
+
+  /* Controles nativos (scrollbars, date pickers, selects) en oscuro */
+  color-scheme: dark;
 }
 
 /* ===== Registro de variables en Tailwind =====
@@ -129,6 +146,30 @@
   --color-status-completed: var(--status-completed);
   --color-status-completed-bg: var(--status-completed-bg);
   --color-status-completed-text: var(--status-completed-text);
+}
+
+/* ===== Gráficas (recharts) en modo oscuro =====
+   Recharts pinta tooltip, cuadrícula y ejes con colores fijos (blanco/grises claros),
+   a veces como estilo en línea; por eso se usa !important, solo dentro de .dark. */
+.dark .recharts-default-tooltip {
+  background-color: var(--popover) !important;
+  border-color: var(--border) !important;
+  color: var(--popover-foreground) !important;
+}
+.dark .recharts-cartesian-grid line {
+  stroke: var(--border) !important;
+}
+.dark .recharts-cartesian-axis-tick-value,
+.dark .recharts-cartesian-axis-tick-value tspan {
+  fill: var(--muted-foreground);
+}
+.dark .recharts-cartesian-axis-line,
+.dark .recharts-cartesian-axis-tick-line {
+  stroke: var(--border);
+}
+.dark .recharts-pie-sector path,
+.dark .recharts-pie path {
+  stroke: var(--card);
 }
 
 /* ===== Estilos base de elementos HTML ===== */
