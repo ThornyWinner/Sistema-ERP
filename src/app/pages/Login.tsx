@@ -31,8 +31,10 @@ export default function Login() {
   const { login, isAuthenticated, loading: authLoading, motivoCierre } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  // Ruta de origen guardada por ProtectedRoute; si no existe, se vuelve a "/".
-  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? '/';
+  // Ruta de origen guardada por ProtectedRoute (con sus parámetros, p. ej. el ?sede= del
+  // QR del checador); si no existe, se vuelve a "/".
+  const origen = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from;
+  const from = origen?.pathname ? `${origen.pathname}${origen.search ?? ''}` : '/';
 
   // Envía las credenciales y gestiona los tres resultados posibles (éxito, fallo, error).
   const handleSubmit = async (e: React.SyntheticEvent) => {

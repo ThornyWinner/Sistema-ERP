@@ -3,6 +3,7 @@
  *
  * Estructura:
  *  - "/login": página pública de inicio de sesión.
+ *  - "/checar": reloj checador (QR de cada sede), con sesión pero sin menú lateral.
  *  - "/":      ruta protegida (requiere sesión). Renderiza RootLayout (sidebar +
  *              header) y, dentro de su <Outlet />, la página hija que coincida.
  *
@@ -30,6 +31,8 @@ import Reportes from "./pages/Reportes";
 import Login from "./pages/Login";
 import GestionUsuarios from "./pages/GestionUsuarios";
 import Vacaciones from "./pages/Vacaciones";
+import Asistencia from "./pages/Asistencia";
+import Checar from "./pages/Checar";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 export const router = createBrowserRouter([
@@ -37,6 +40,16 @@ export const router = createBrowserRouter([
   {
     path: "/login",
     Component: Login,
+  },
+  // Reloj checador (se abre desde el QR de cada sede, en el celular): requiere sesión,
+  // pero va sin menú lateral para verse completo en pantallas pequeñas.
+  {
+    path: "/checar",
+    Component: () => (
+      <ProtectedRoute>
+        <Checar />
+      </ProtectedRoute>
+    ),
   },
   // Ruta raíz protegida: si no hay sesión, ProtectedRoute redirige a /login.
   {
@@ -75,6 +88,7 @@ export const router = createBrowserRouter([
       { path: "usuarios", Component: GestionUsuarios },
       // Control de vacaciones del personal (Ley Federal del Trabajo).
       { path: "vacaciones", Component: Vacaciones },
+      { path: "asistencia", Component: Asistencia },
     ],
   },
 ]);

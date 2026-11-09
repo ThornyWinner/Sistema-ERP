@@ -139,6 +139,11 @@ export interface Orden {
   /** Importe total y monto adelantado por el cliente. */
   total: number;
   anticipo: number;
+  /** Suma de las partidas (cantidad × precio) y descuento; total = subtotal − descuento. */
+  subtotal?: number;
+  descuento?: number;
+  /** Nombre del estado detallado en la BD (p. ej. "En Corte", "Entregada", "Cancelada"). */
+  estadoNombre?: string;
   /** Historial de pagos registrados. */
   pagos: Pago[];
   notas?: string;

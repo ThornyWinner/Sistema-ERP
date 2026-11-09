@@ -42,8 +42,6 @@ historial_ordenes       | idx_historial_orden                             | btre
 incidencias             | idx_incidencias_empleado_fecha                  | btree (empleado_id, fecha_inicio)
 incidencias             | idx_incidencias_registrado_por                  | btree (registrado_por)
 incidencias             | incidencias_pkey                                | UNIQUE btree (id)
-kv_store_ea3eca68       | kv_store_ea3eca68_key_idx                       | btree (key text_pattern_ops)
-kv_store_ea3eca68       | kv_store_ea3eca68_pkey                          | UNIQUE btree (key)
 materiales              | materiales_pkey                                 | UNIQUE btree (id)
 metodos_pago            | metodos_pago_nombre_key                         | UNIQUE btree (nombre)
 metodos_pago            | metodos_pago_pkey                               | UNIQUE btree (id)

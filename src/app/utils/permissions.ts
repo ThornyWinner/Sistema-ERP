@@ -27,6 +27,9 @@ export const roleLabels: Record<UserRole, string> = {
 const fullPermission: Permission = { canView: true, canCreate: true, canEdit: true, canDelete: true };
 const readOnlyPermission: Permission = { canView: true, canCreate: false, canEdit: false, canDelete: false };
 const noPermission: Permission = { canView: false, canCreate: false, canEdit: false, canDelete: false };
+// Órdenes del admin secundario: consulta todas, crea las suyas y edita/abona solo las
+// que registró él (la BD lo limita con private.puede_editar_orden); no elimina.
+const ordenesPropiasPermission: Permission = { canView: true, canCreate: true, canEdit: true, canDelete: false };
 
 // Define rutas y permisos por rol
 /**
@@ -121,7 +124,29 @@ const getRoutePermissions = (role: UserRole): RoutePermission[] => {
       icon: 'CalendarDays',
       permission: noPermission,
     },
+    {
+      // Control de asistencia (checadas, retardos, faltas, horarios y sedes): admin primario.
+      route: '/asistencia',
+      label: 'Asistencia',
+      icon: 'Clock',
+      permission: noPermission,
+    },
+    {
+      // Reloj checador: todo el personal checa su entrada y salida (ver al final).
+      route: '/checar',
+      label: 'Checar asistencia',
+      icon: 'ScanLine',
+      permission: noPermission,
+    },
   ];
+
+  return permisosPorRol(role, routes).map(r =>
+    r.route === '/checar' ? { ...r, permission: fullPermission } : r
+  );
+};
+
+/** Aplica los permisos de cada rol sobre el catálogo de módulos. */
+const permisosPorRol = (role: UserRole, routes: RoutePermission[]): RoutePermission[] => {
 
   // Aplicar permisos según rol
   switch (role) {
@@ -129,10 +154,16 @@ const getRoutePermissions = (role: UserRole): RoutePermission[] => {
     case 'admin_primario':
       return routes.map(r => ({ ...r, permission: fullPermission }));
 
-    // Administrador secundario: puede ver todos los módulos pero sin modificar nada,
-    // excepto Permisos Vacacionales (datos de salario), exclusivo del primario.
+    // Administrador secundario: ve todos los módulos en solo lectura, excepto:
+    //  - Órdenes: crea órdenes y edita/abona solo las que registró él.
+    //  - Permisos Vacacionales y Asistencia (datos del personal): sin acceso, exclusivos
+    //    del primario.
     case 'admin_secundario':
-      return routes.map(r => (r.route === '/vacaciones' ? r : { ...r, permission: readOnlyPermission }));
+      return routes.map(r => {
+        if (r.route === '/vacaciones' || r.route === '/asistencia') return r;
+        if (r.route === '/ordenes') return { ...r, permission: ordenesPropiasPermission };
+        return { ...r, permission: readOnlyPermission };
+      });
 
     // Vendedor: control total del Dashboard y Órdenes; inventarios en solo lectura.
     case 'vendedor':

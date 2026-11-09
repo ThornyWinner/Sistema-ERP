@@ -11,6 +11,7 @@
  *  - crearOrden:               inserta una orden completa (cliente, detalles, talleres, pagos).
  *  - actualizarProgresoTaller: cambia el estado de producción de un producto en un taller.
  *  - registrarPago:            registra un abono (pago a plazos) de una orden.
+ *  - editarOrden:              aplica los cambios que pidió el cliente (función editar_orden de la BD).
  *
  * Las filas de la base de datos (snake_case, con joins anidados) se transforman a los
  * tipos de la UI definidos en data/mockData.ts, de modo que las páginas no dependen
@@ -57,6 +58,41 @@ type ErpData = {
    * (Anticipo mientras quede saldo, Pagado al liquidarse).
    */
   registrarPago: (ordenId: string, pago: Pago) => Promise<void>;
+  /**
+   * Aplica los cambios que pidió el cliente a una orden (función editar_orden de la BD,
+   * en una sola transacción): datos generales, partidas, inventario, total y estado de
+   * pago. Deja el motivo en el historial y avisa al admin y a los talleres afectados.
+   */
+  editarOrden: (ordenId: string, cambios: CambiosOrden, motivo: string) => Promise<void>;
+};
+
+/** Partida tal como la recibe editar_orden (id null = partida nueva). */
+export type PartidaEditada = {
+  id: string | null;
+  producto_id: string | null;
+  variante_id: string | null;
+  cantidad: number;
+  precio_unitario: number;
+  tipo_produccion: ProductoOrden['tipoProduccion'];
+  notas: string | null;
+  talleres: Taller[];
+  personalizacion: {
+    lugar_bordado: string | null;
+    logo_url: string | null;
+    notas: string | null;
+    hilos: string[];
+  } | null;
+};
+
+/** Estado completo deseado de la orden que se envía a editar_orden. */
+export type CambiosOrden = {
+  fecha_entrega: string | null;
+  notas: string | null;
+  descuento: number;
+  cliente_telefono: string | null;
+  cliente_email: string | null;
+  /** Lista COMPLETA de partidas: las que no vengan se quitan de la orden. */
+  partidas: PartidaEditada[];
 };
 
 const ErpDataContext = createContext<ErpData | undefined>(undefined);
@@ -147,10 +183,10 @@ const SELECT_PROVEEDORES =
 //  - orden_detalles: cada producto de la orden, con su variante, su avance en cada
 //    taller (produccion_taller) y su personalización (bordado, logo, hilos).
 const SELECT_ORDENES =
-  'id,folio,fecha_creacion,fecha_entrega,total,anticipo,notas,' +
+  'id,folio,fecha_creacion,fecha_entrega,subtotal,descuento,total,anticipo,notas,' +
   'usuarios!ordenes_vendedor_id_fkey(id,nombre),clientes(razon_social,telefono,email),' +
   'estados_orden(nombre,orden_visualizacion),estados_pago(nombre),metodos_pago(nombre),tipos_venta(nombre),' +
-  'orden_detalles(id,cantidad,precio_unitario,tipo_produccion,notas,' +
+  'orden_detalles(id,producto_id,variante_id,cantidad,precio_unitario,tipo_produccion,notas,' +
   'productos(nombre,tipo_prenda),variantes_producto(talla,color),' +
   'produccion_taller(estado,talleres(nombre)),' +
   'personalizaciones(lugar_bordado,logo_url,notas,personalizacion_hilos(color_hilo)))';
@@ -165,7 +201,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const userId = user?.id;
   // Estado con las cuatro colecciones de datos (las funciones y banderas van aparte).
-  const [data, setData] = useState<Omit<ErpData, 'loading' | 'error' | 'refresh' | 'crearOrden' | 'actualizarProgresoTaller' | 'registrarPago'>>(SIN_DATOS);
+  const [data, setData] = useState<Omit<ErpData, 'loading' | 'error' | 'refresh' | 'crearOrden' | 'actualizarProgresoTaller' | 'registrarPago' | 'editarOrden'>>(SIN_DATOS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Número de la carga más reciente: si llega tarde la respuesta de una carga anterior
@@ -283,6 +319,9 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
           estadoPago,
           total: Number(o.total ?? 0),
           anticipo: Number(o.anticipo ?? 0),
+          subtotal: o.subtotal != null ? Number(o.subtotal) : undefined,
+          descuento: Number(o.descuento ?? 0),
+          estadoNombre: o.estados_orden?.nombre ?? undefined,
           pagos: pagosPorOrden.get(o.id) ?? [],
           notas: o.notas ?? undefined,
           productos: (o.orden_detalles ?? []).map((d: any): ProductoOrden => {
@@ -328,6 +367,8 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
                   }
                 : undefined,
               notas: d.notas ?? undefined,
+              productoId: d.producto_id ?? undefined,
+              varianteId: d.variante_id ?? undefined,
             };
           }),
         };
@@ -574,6 +615,20 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
     [refresh]
   );
 
+  /** Llama a la función editar_orden de la BD y recarga los datos. */
+  const editarOrden = useCallback(
+    async (ordenId: string, cambios: CambiosOrden, motivo: string) => {
+      const { error } = await supabase.rpc('editar_orden', {
+        p_orden: ordenId,
+        p_cambios: cambios,
+        p_motivo: motivo,
+      });
+      if (error) throw error;
+      await refresh();
+    },
+    [refresh]
+  );
+
   // Al cambiar de usuario se descartan los datos del anterior y se cargan los del
   // nuevo; sin sesión no se carga nada (RLS no devolvería filas).
   useEffect(() => {
@@ -587,7 +642,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
   }, [userId, refresh]);
 
   return (
-    <ErpDataContext.Provider value={{ ...data, loading, error, refresh, crearOrden, actualizarProgresoTaller, registrarPago }}>
+    <ErpDataContext.Provider value={{ ...data, loading, error, refresh, crearOrden, actualizarProgresoTaller, registrarPago, editarOrden }}>
       {children}
     </ErpDataContext.Provider>
   );

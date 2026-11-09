@@ -7,6 +7,8 @@
  *  - Terminación: cálculo de finiquito o liquidación y baja (FiniquitoPanel).
  */
 import { useState } from "react";
+import { useTransicionBreve } from "../../hooks/useTransicionBreve";
+import Esqueleto from "../Esqueleto";
 import { toast } from "sonner";
 import { AlertTriangle, Download, FileText, Info, Plus, ShieldAlert, Trash2 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
@@ -52,6 +54,8 @@ const nivelClase = {
 export default function DetalleEmpleado(props: DetalleEmpleadoProps) {
   const { empleado, vacaciones, incidencias, documentos, finiquitos, onRegistrarVacaciones, onCambios } = props;
   const [pestana, setPestana] = useState<Pestana>("vacaciones");
+  // Skeleton breve al cambiar de pestaña.
+  const cambiandoPestana = useTransicionBreve(pestana, 250);
   const [dialogoIncidencia, setDialogoIncidencia] = useState(false);
   // Tipo sugerido al abrir el diálogo de documento (null = cerrado).
   const [dialogoDocumento, setDialogoDocumento] = useState<TipoDocumento | null>(null);
@@ -124,6 +128,8 @@ export default function DetalleEmpleado(props: DetalleEmpleadoProps) {
         </div>
       </CardHeader>
 
+      {/* El contenido de la pestaña nueva se muestra unos instantes como su propio esqueleto */}
+      <Esqueleto activo={cambiandoPestana}>
       <CardContent className="space-y-6">
         {/* ============ Vacaciones ============ */}
         {pestana === "vacaciones" && (
@@ -419,6 +425,7 @@ export default function DetalleEmpleado(props: DetalleEmpleadoProps) {
           <FiniquitoPanel empleado={empleado} vacaciones={vacaciones} finiquitos={finiquitos} onSaved={onCambios} />
         )}
       </CardContent>
+      </Esqueleto>
 
       <IncidenciaDialog empleado={dialogoIncidencia ? empleado : null} onClose={() => setDialogoIncidencia(false)} onSaved={onCambios} />
       <DocumentoDialog

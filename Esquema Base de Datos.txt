@@ -8,7 +8,6 @@
 --
 -- Origen de las tablas:
 --   roles … consecutivos_documentos   esquema original del ERP
---   kv_store_ea3eca68                 tabla sobrante de Figma Make (sin uso, RLS sin políticas)
 --   empleados, vacaciones             sql/vacaciones.sql
 --   incidencias, finiquitos,
 --   documentos (+ columnas de baja
@@ -341,11 +340,6 @@ CREATE TABLE public.consecutivos_documentos (
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT consecutivos_documentos_pkey PRIMARY KEY (id),
   CONSTRAINT consecutivos_documentos_tipo_documento_anio_key UNIQUE (tipo_documento, anio)
-);
-CREATE TABLE public.kv_store_ea3eca68 (
-  key text NOT NULL,
-  value jsonb NOT NULL,
-  CONSTRAINT kv_store_ea3eca68_pkey PRIMARY KEY (key)
 );
 CREATE TABLE public.empleados (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

@@ -184,8 +184,6 @@ Generado desde la base real (esquema public) el 2026-11-05. Fuente: Esquema Base
 | consecutivos_documentos | 3  | anio                     | integer                  | NO       |                         |
 | consecutivos_documentos | 4  | ultimo_numero            | integer                  | NO       | 0                       |
 | consecutivos_documentos | 5  | created_at               | timestamp with time zone | YES      | now()                   |
-| kv_store_ea3eca68       | 1  | key                      | text                     | NO       |                         |
-| kv_store_ea3eca68       | 2  | value                    | jsonb                    | NO       |                         |
 | empleados               | 1  | id                       | uuid                     | NO       | gen_random_uuid()       |
 | empleados               | 2  | nombre                   | text                     | NO       |                         |
 | empleados               | 3  | puesto                   | text                     | YES      |                         |

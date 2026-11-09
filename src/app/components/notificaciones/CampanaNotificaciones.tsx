@@ -26,6 +26,8 @@ import {
   type Notificacion,
 } from "../../lib/notificaciones";
 import NuevaNotificacionDialog from "./NuevaNotificacionDialog";
+import Esqueleto from "../Esqueleto";
+import { useTransicionBreve } from "../../hooks/useTransicionBreve";
 
 type Pestana = "recibidas" | "enviadas";
 
@@ -36,6 +38,8 @@ export default function CampanaNotificaciones() {
 
   const [abierto, setAbierto] = useState(false);
   const [pestana, setPestana] = useState<Pestana>("recibidas");
+  // Skeleton breve al cambiar entre Recibidas y Enviadas.
+  const cambiandoPestana = useTransicionBreve(pestana, 250);
   const [recibidas, setRecibidas] = useState<Notificacion[]>([]);
   const [enviadas, setEnviadas] = useState<Notificacion[]>([]);
   const [expandida, setExpandida] = useState<string | null>(null);
@@ -221,7 +225,8 @@ export default function CampanaNotificaciones() {
           </div>
 
           {/* Contenido */}
-          <div className="overflow-y-auto">
+          {/* La lista de la pestaña nueva se muestra unos instantes como su propio esqueleto */}
+          <Esqueleto activo={cambiandoPestana} className="overflow-y-auto">
             {error ? (
               <p className="px-4 py-6 text-sm text-center text-status-pending-text">
                 No se pudieron cargar las notificaciones: {error}
@@ -330,7 +335,7 @@ export default function CampanaNotificaciones() {
                 })}
               </ul>
             )}
-          </div>
+          </Esqueleto>
         </div>
       )}
 

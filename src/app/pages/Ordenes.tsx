@@ -25,6 +25,7 @@ import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 import { useErpData } from "../context/ErpDataContext";
+import { hasPermission } from "../utils/permissions";
 import { formatMonto, totalPagado } from "../lib/pagos";
 import {
   claseDiasRestantes,
@@ -45,6 +46,10 @@ export default function Ordenes() {
   // Visibilidad de los dos diálogos de creación.
   const [showNuevaOrden, setShowNuevaOrden] = useState(false);
   const [showVentaRapida, setShowVentaRapida] = useState(false);
+
+  // Registrar órdenes (Nueva Orden y Venta Rápida): admin primario, admin secundario y
+  // vendedores. La BD exige que la orden quede a nombre de quien la registra.
+  const puedeCrear = !!user && hasPermission(user.rol, "/ordenes", "canCreate");
 
   // Filtrar órdenes según el rol del usuario
   const ordenesVisibles = user?.rol === "vendedor"
@@ -182,7 +187,8 @@ export default function Ordenes() {
             Gestión de órdenes activas y en proceso
           </p>
         </div>
-        {/* Botones de acción */}
+        {/* Botones de acción (solo para quien puede registrar órdenes) */}
+        {puedeCrear && (
         <div className="flex gap-3">
           {/* Botón de Venta Rápida (abre el diálogo VentaRapidaDialog) */}
           <button
@@ -201,6 +207,7 @@ export default function Ordenes() {
             Nueva Orden
           </button>
         </div>
+        )}
       </div>
 
       {/* Filtros + tabla de órdenes */}

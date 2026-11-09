@@ -247,7 +247,7 @@ El esquema documentado incluye entidades relacionadas con:
 - notificaciones entre usuarios
 - empleados, vacaciones, incidencias, documentos del expediente y finiquitos
 
-En total son 35 tablas en el esquema `public` (incluida `kv_store_ea3eca68`, sobrante de Figma Make y sin uso), funciones auxiliares de RLS en el esquema `private` y cuatro buckets de Storage (`productos`, `expedientes`, `logos`, `documentos`).
+En total son 34 tablas en el esquema `public`, funciones auxiliares de RLS en el esquema `private` y cuatro buckets de Storage (`productos`, `expedientes`, `logos`, `documentos`).
 
 Los cambios posteriores al esquema original están en `sql/` (ver la tabla del `README.md`). Para cambiar la base de datos, agregar un script nuevo en esa carpeta y, después de aplicarlo, actualizar los `.txt` de la raíz.
 

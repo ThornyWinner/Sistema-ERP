@@ -1,0 +1,37 @@
+/*
+ * esqueleto.css — "Modo esqueleto" del componente Esqueleto.tsx.
+ *
+ * La página real sigue montada debajo de la capa de bloques: aquí solo se ocultan
+ * su contenido (texto, íconos, imágenes, controles) para que se vean únicamente
+ * sus contenedores (tarjetas, tablas, bordes) y los bloques grises que dibuja
+ * Esqueleto.tsx encima, en la posición exacta de cada elemento.
+ */
+.modo-esqueleto {
+  cursor: progress;
+  user-select: none;
+}
+
+/* Texto invisible (la barra gris lo sustituye); se conserva el espacio que ocupa */
+.modo-esqueleto *:not(.esqueleto-capa, .esqueleto-capa *) {
+  color: transparent !important;
+  text-shadow: none !important;
+  caret-color: transparent !important;
+}
+.modo-esqueleto ::placeholder {
+  color: transparent !important;
+}
+
+/* Controles, íconos, imágenes y gráficas: se ocultan por completo, queda su bloque */
+.modo-esqueleto :is(
+    button, input, select, textarea, img, video, canvas, svg,
+    [role="combobox"], [role="switch"], [role="checkbox"],
+    [data-slot="badge"], [data-slot="select-trigger"]
+  ):not(.esqueleto-capa *) {
+  visibility: hidden !important;
+}
+
+/* Sin animaciones ni transiciones de la página debajo del esqueleto */
+.modo-esqueleto *:not(.esqueleto-capa, .esqueleto-capa *) {
+  transition: none !important;
+  animation: none !important;
+}

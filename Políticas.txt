@@ -50,7 +50,6 @@ producto, estados_orden,|                                               |
 estados_pago, estados_  |                                               |
 produccion, metodos_    |                                               |
 pago, tipos_venta       |                                               |
-kv_store_ea3eca68       | Nadie (tabla sobrante de Figma Make)          | Nadie
 
 Funciones auxiliares (esquema private, no expuesto por la API; SECURITY DEFINER):
   current_user_role()            rol del usuario actual si está activo

@@ -29,6 +29,8 @@ import {
   TrendingUp,
   Truck,
   CalendarDays,
+  Clock,
+  ScanLine,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
@@ -68,6 +70,8 @@ export default function Sidebar() {
     reportes: accessibleRoutes.find(r => r.route === '/reportes'),
     usuarios: accessibleRoutes.find(r => r.route === '/usuarios'),
     vacaciones: accessibleRoutes.find(r => r.route === '/vacaciones'),
+    asistencia: accessibleRoutes.find(r => r.route === '/asistencia'),
+    checar: accessibleRoutes.find(r => r.route === '/checar'),
   };
 
   // Traduce el nombre de icono guardado en permissions.ts al componente de lucide-react.
@@ -86,6 +90,8 @@ export default function Sidebar() {
     BarChart3,
     Users,
     CalendarDays,
+    Clock,
+    ScanLine,
   };
 
   // Abre o cierra una sección desplegable (añade o quita su nombre de la lista).
@@ -336,6 +342,12 @@ export default function Sidebar() {
 
         {/* Permisos Vacacionales (solo administrador primario) */}
         {menuStructure.vacaciones && renderMenuItem(menuStructure.vacaciones)}
+
+        {/* Control de asistencia (admin primario) */}
+        {menuStructure.asistencia && renderMenuItem(menuStructure.asistencia)}
+
+        {/* Reloj checador: todo el personal */}
+        {menuStructure.checar && renderMenuItem(menuStructure.checar)}
       </nav>
     </aside>
   );

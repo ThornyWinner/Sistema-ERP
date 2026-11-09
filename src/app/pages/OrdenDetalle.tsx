@@ -21,6 +21,7 @@ import { useParams, useNavigate } from "react-router";
 import { useErpData } from "../context/ErpDataContext";
 import { useAuth } from "../context/AuthContext";
 import RegistrarAbonoDialog from "../components/RegistrarAbonoDialog";
+import EditarOrdenDialog from "../components/EditarOrdenDialog";
 import { Button } from "../components/ui/button";
 import { METODO_PAGO_LABEL, formatMonto, redondearCentavos, saldoPendiente, totalPagado } from "../lib/pagos";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/Card";
@@ -51,6 +52,7 @@ import {
   Phone,
   Mail,
   Plus,
+  Pencil,
 } from "lucide-react";
 
 export default function OrdenDetalle() {
@@ -62,6 +64,8 @@ export default function OrdenDetalle() {
   const { user } = useAuth();
   // Diálogo para registrar un abono (pago a plazos).
   const [abonoAbierto, setAbonoAbierto] = useState(false);
+  // Diálogo para editar la orden cuando el cliente pide cambios.
+  const [edicionAbierta, setEdicionAbierta] = useState(false);
 
   // Id inexistente (o datos aún cargando): mensaje y botón para volver al listado.
   if (!orden) {
@@ -83,11 +87,20 @@ export default function OrdenDetalle() {
   // Cobranza: lo pagado sale de la suma de pagos (anticipo + abonos), no del campo anticipo.
   const pagado = totalPagado(orden);
   const saldo = saldoPendiente(orden);
-  // Solo el admin primario y el vendedor (RLS: de sus órdenes) pueden registrar pagos.
-  const puedeAbonar =
-    saldo > 0 &&
-    orden.estadoPago !== "cancelado" &&
-    (user?.rol === "admin_primario" || user?.rol === "vendedor");
+  // Quién puede modificar la orden (editarla o registrarle abonos):
+  //  - admin primario: cualquier orden;
+  //  - admin secundario y vendedores: solo las que registraron ellos mismos.
+  // La BD aplica la misma regla (private.puede_editar_orden) y vuelve a validar todo.
+  const esPropia = !!user && orden.vendedorId === user.id;
+  const puedeModificar =
+    user?.rol === "admin_primario" ||
+    ((user?.rol === "admin_secundario" || user?.rol === "vendedor") && esPropia);
+
+  const puedeAbonar = saldo > 0 && orden.estadoPago !== "cancelado" && puedeModificar;
+
+  // La edición, además, solo mientras la orden no esté entregada ni cancelada.
+  const ordenAbierta = orden.estadoNombre !== "Entregada" && orden.estadoNombre !== "Cancelada";
+  const puedeEditar = ordenAbierta && puedeModificar;
 
   // Días que faltan para la fecha de entrega (0 = hoy, negativo = vencida, null = sin fecha).
   const diasRestantes = calcularDiasRestantes(orden.fechaEntrega);
@@ -246,6 +259,12 @@ export default function OrdenDetalle() {
             Detalles de la orden de producción
           </p>
         </div>
+        {puedeEditar && (
+          <Button variant="outline" onClick={() => setEdicionAbierta(true)}>
+            <Pencil className="w-4 h-4" />
+            Editar orden
+          </Button>
+        )}
       </div>
 
       {/* Flujo de Trabajo: por producto (formato actual) o único (formato antiguo) */}
@@ -825,6 +844,9 @@ export default function OrdenDetalle() {
       )}
 
       <RegistrarAbonoDialog orden={orden} open={abonoAbierto} onClose={() => setAbonoAbierto(false)} />
+      {puedeEditar && (
+        <EditarOrdenDialog orden={orden} open={edicionAbierta} onClose={() => setEdicionAbierta(false)} />
+      )}
 
       {/* Notas de la Orden */}
       {orden.notas && (
