@@ -85,6 +85,7 @@ export default function InventarioProductos() {
               <option value="pantalon">Pantalones</option>
               <option value="overol">Overoles</option>
               <option value="chaleco">Chalecos</option>
+              <option value="otro">Otros</option>
             </select>
           </div>
         </CardHeader>
@@ -254,9 +255,9 @@ export default function InventarioProductos() {
       </Card>
 
       {/* Resumen por tipo de prenda: número de productos y stock acumulado */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-6">
         {/* Mapea cada tipo de prenda a una tarjeta con el número de productos y el stock total */}
-        {["camisa", "pantalon", "overol", "chaleco"].map((tipo) => {
+        {["camisa", "pantalon", "overol", "chaleco", "otro"].map((tipo) => {
           // Filtra los productos por tipo y calcula el número de productos y el stock total
           const count = mockProductos.filter((p) => p.tipo === tipo).length;
           // Calcula el stock total sumando el stock de cada producto del tipo
@@ -269,7 +270,9 @@ export default function InventarioProductos() {
               {/* Encabezado de la tarjeta con el tipo de prenda en mayúsculas y color de primer plano */}
               <CardContent className="p-6">
                 {/* Tipo de prenda en un párrafo con texto pequeño, color de texto atenuado y capitalizado */}
-                <p className="text-sm text-muted-foreground mb-1 capitalize">{tipo}s</p>
+                <p className="text-sm text-muted-foreground mb-1">
+                  {({ camisa: "Camisas", pantalon: "Pantalones", overol: "Overoles", chaleco: "Chalecos", otro: "Otros artículos" } as Record<string, string>)[tipo]}
+                </p>
                 {/* Número de productos del tipo de prenda en un párrafo con texto grande y negrita */}
                 <p className="text-3xl font-semibold">{count}</p>
                 {/* Stock total del tipo de prenda en un párrafo con texto pequeño, color de texto atenuado y margen superior */}

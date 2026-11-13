@@ -48,7 +48,7 @@ import {
   DialogTitle,
 } from "../components/ui/dialog";
 
-// ----- Tipos ---------------------------------------------------------------------------
+{/* Tipos */}
 interface Sede {
   id: string;
   nombre: string;
@@ -100,6 +100,7 @@ interface IncidenciaDia {
   origen: "manual" | "checador";
 }
 
+// Constantes
 const DIAS = ["", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const CLASE_SELECT =
   "h-9 w-full rounded-md border border-input bg-input-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]";
@@ -593,6 +594,8 @@ function SedeCard({ sede, onCambio }: { sede: Sede; onCambio: () => void }) {
   const [qr, setQr] = useState<string | null>(null);
   const [ubicando, setUbicando] = useState(false);
   const [guardando, setGuardando] = useState(false);
+  const [confirmarQr, setConfirmarQr] = useState(false);
+  const [regenerando, setRegenerando] = useState(false);
 
   useEffect(() => {
     setLat(sede.latitud?.toString() ?? "");
@@ -637,9 +640,11 @@ function SedeCard({ sede, onCambio }: { sede: Sede; onCambio: () => void }) {
   };
 
   const regenerar = async () => {
-    if (!confirm(`¿Generar un QR nuevo para ${sede.nombre}? El QR impreso actual dejará de funcionar.`)) return;
+    setRegenerando(true);
     const { error } = await supabase.rpc("regenerar_qr_sede", { p_sede: sede.id });
+    setRegenerando(false);
     if (error) return toast.error("No se pudo regenerar el QR", { description: error.message });
+    setConfirmarQr(false);
     toast.success("QR regenerado; imprime y reemplaza el anterior");
     onCambio();
   };
@@ -689,7 +694,7 @@ function SedeCard({ sede, onCambio }: { sede: Sede; onCambio: () => void }) {
           <Button variant="outline" className="flex-1" onClick={imprimir} disabled={!qr}>
             <Printer className="w-4 h-4" /> Imprimir
           </Button>
-          <Button variant="outline" onClick={regenerar} aria-label="Generar un QR nuevo">
+          <Button variant="outline" onClick={() => setConfirmarQr(true)} aria-label="Generar un QR nuevo">
             <RefreshCw className="w-4 h-4" />
           </Button>
         </div>
@@ -728,6 +733,30 @@ function SedeCard({ sede, onCambio }: { sede: Sede; onCambio: () => void }) {
           </Button>
         </div>
       </CardContent>
+
+      <Dialog open={confirmarQr} onOpenChange={(o) => !regenerando && setConfirmarQr(o)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="mx-auto sm:mx-0 mb-1 flex h-11 w-11 items-center justify-center rounded-full bg-status-pending-bg text-status-pending-text">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <DialogTitle>¿Generar un QR nuevo para {sede.nombre}?</DialogTitle>
+            <DialogDescription>
+              El código QR impreso actualmente dejará de funcionar de inmediato. El personal no podrá
+              checar hasta que imprimas y coloques el nuevo.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmarQr(false)} disabled={regenerando}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={regenerar} disabled={regenerando}>
+              <RefreshCw className={`w-4 h-4 ${regenerando ? "animate-spin" : ""}`} />
+              {regenerando ? "Generando…" : "Generar QR nuevo"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

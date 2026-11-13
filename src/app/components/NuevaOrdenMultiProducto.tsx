@@ -17,10 +17,12 @@
  */
 import { useState } from "react";
 import { toast } from "sonner";
-import { Taller, TipoVenta, MetodoPago } from "../data/mockData";
+import type { Taller, TipoVenta, MetodoPago, Producto, VarianteProducto } from "../data/mockData";
 import { useErpData } from "../context/ErpDataContext";
 import { useAuth } from "../context/AuthContext";
 import { hoyISO } from "../lib/fechas";
+import { calcularImportes } from "../lib/impuestos";
+import DesgloseImportes from "./DesgloseImportes";
 import {
   X,
   User,
@@ -37,6 +39,8 @@ import {
   FileText,
   Phone,
   Mail,
+  Search,
+  Boxes,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./Card";
 
@@ -65,13 +69,55 @@ const tallerLabels: Record<Taller, string> = {
   bordado: "Bordado",
 };
 
+/**
+ * Producto tal como se captura en el formulario. Los campos bordado* se guardan planos
+ * y al enviar se convierten en el objeto `personalizacion`. En venta directa,
+ * productoId/varianteId apuntan a la variante de inventario elegida: con ella la BD
+ * descuenta el stock (trigger trg_inventario_salida).
+ */
+type ProductoCaptura = {
+  nombre: string;
+  tipoPrenda: string;
+  marca: string;
+  talla: string;
+  color: string;
+  cantidad: number;
+  precioUnitario: number;
+  tipoProduccion: "directa" | "fabricacion" | "comercializacion";
+  talleres: Taller[];
+  proveedorId?: string;
+  productoId?: string;
+  varianteId?: string;
+  requiereBordado: boolean;
+  bordadoUbicacion: "frente" | "espalda" | "bolsillo" | "personalizado";
+  bordadoColores: string;
+  bordadoNotas: string;
+};
+
+const productoVacio = (): ProductoCaptura => ({
+  nombre: "",
+  tipoPrenda: "camisa",
+  marca: "",
+  talla: "",
+  color: "",
+  cantidad: 1,
+  precioUnitario: 0,
+  tipoProduccion: "fabricacion",
+  talleres: ["corte", "costura"],
+  requiereBordado: false,
+  bordadoUbicacion: "bolsillo",
+  bordadoColores: "",
+  bordadoNotas: "",
+});
+
 export default function NuevaOrdenMultiProducto({
   isOpen,
   onClose,
   onSubmit,
 }: NuevaOrdenMultiProductoProps) {
   // Proveedores reales de Supabase (se conserva el alias mockProveedores del prototipo).
-  const { proveedores: mockProveedores } = useErpData();
+  // `catalogo`: productos del inventario con sus variantes y stock (para venta directa).
+  const { proveedores: mockProveedores, productos: catalogo } = useErpData();
   const { user } = useAuth();
   // Datos generales de la orden.
   const [formData, setFormData] = useState({
@@ -85,42 +131,8 @@ export default function NuevaOrdenMultiProducto({
     notas: "",
   });
 
-  // Lista de productos capturados. Los campos bordado* se guardan planos aquí y al
-  // enviar se convierten en el objeto `personalizacion`. Empieza con un producto vacío.
-  const [productos, setProductos] = useState<
-    Array<{
-      nombre: string;
-      tipoPrenda: string;
-      marca: string;
-      talla: string;
-      color: string;
-      cantidad: number;
-      precioUnitario: number;
-      tipoProduccion: "directa" | "fabricacion" | "comercializacion";
-      talleres: Taller[];
-      proveedorId?: string;
-      requiereBordado: boolean;
-      bordadoUbicacion: "frente" | "espalda" | "bolsillo" | "personalizado";
-      bordadoColores: string;
-      bordadoNotas: string;
-    }>
-  >([
-    {
-      nombre: "",
-      tipoPrenda: "camisa",
-      marca: "",
-      talla: "",
-      color: "",
-      cantidad: 1,
-      precioUnitario: 0,
-      tipoProduccion: "fabricacion",
-      talleres: ["corte", "costura"],
-      requiereBordado: false,
-      bordadoUbicacion: "bolsillo",
-      bordadoColores: "",
-      bordadoNotas: "",
-    },
-  ]);
+  // Lista de productos capturados; empieza con un producto vacío.
+  const [productos, setProductos] = useState<ProductoCaptura[]>(() => [productoVacio()]);
 
   // Índices de los productos cuya tarjeta está desplegada (el primero empieza abierto).
   const [productosExpandidos, setProductosExpandidos] = useState<Set<number>>(
@@ -131,24 +143,7 @@ export default function NuevaOrdenMultiProducto({
 
   // Añade un producto vacío al final y lo deja desplegado para capturarlo.
   const agregarProducto = () => {
-    setProductos([
-      ...productos,
-      {
-        nombre: "",
-        tipoPrenda: "camisa",
-        marca: "",
-        talla: "",
-        color: "",
-        cantidad: 1,
-        precioUnitario: 0,
-        tipoProduccion: "fabricacion",
-        talleres: ["corte", "costura"],
-        requiereBordado: false,
-        bordadoUbicacion: "bolsillo",
-        bordadoColores: "",
-        bordadoNotas: "",
-      },
-    ]);
+    setProductos([...productos, productoVacio()]);
     setProductosExpandidos(new Set([...productosExpandidos, productos.length]));
   };
 
@@ -172,9 +167,12 @@ export default function NuevaOrdenMultiProducto({
    *  - varios tipos de producción distintos → "mixta"
    *  - un único tipo → ese mismo tipo.
    */
-  const actualizarProducto = (index: number, campo: string, valor: any) => {
-    const nuevosProductos = [...productos];
-    (nuevosProductos[index] as any)[campo] = valor;
+  const actualizarProducto = (index: number, campo: string, valor: any) =>
+    actualizarCampos(index, { [campo]: valor });
+
+  /** Igual que actualizarProducto, pero cambia varios campos de una vez (sin mutar el estado). */
+  const actualizarCampos = (index: number, cambios: Partial<ProductoCaptura>) => {
+    const nuevosProductos = productos.map((p, i) => (i === index ? { ...p, ...cambios } : p));
 
     // Auto-detectar tipo de venta basado en tipoProduccion
     const tipos = nuevosProductos.map((p) => p.tipoProduccion);
@@ -193,6 +191,45 @@ export default function NuevaOrdenMultiProducto({
 
     setFormData({ ...formData, tipoVenta: nuevoTipoVenta });
     setProductos(nuevosProductos);
+  };
+
+  /**
+   * Cambia el tipo de producción. Al salir de venta directa se suelta la variante de
+   * inventario elegida (los demás tipos se capturan a mano y no descuentan stock).
+   */
+  const cambiarTipoProduccion = (index: number, tipo: ProductoCaptura["tipoProduccion"]) => {
+    const cambios: Partial<ProductoCaptura> = { tipoProduccion: tipo };
+    if (tipo !== "directa") Object.assign(cambios, { productoId: undefined, varianteId: undefined });
+    actualizarCampos(index, cambios);
+  };
+
+  /**
+   * Piezas de una variante que aún quedan para el producto `index`: su stock menos lo
+   * que ya apartaron otros productos de esta misma orden con la misma variante.
+   */
+  const disponibleVariante = (varianteId: string, index: number) => {
+    const variante = catalogo.flatMap((p) => p.variantes).find((v) => v.id === varianteId);
+    if (!variante) return 0;
+    const apartado = productos.reduce(
+      (s, p, i) => (i !== index && p.varianteId === varianteId ? s + (p.cantidad || 0) : s),
+      0
+    );
+    return Math.max(variante.stock - apartado, 0);
+  };
+
+  // Llena el producto con los datos de la variante de inventario elegida.
+  const elegirVariante = (index: number, producto: Producto, variante: VarianteProducto) => {
+    const disponible = disponibleVariante(variante.id, index);
+    actualizarCampos(index, {
+      productoId: producto.id,
+      varianteId: variante.id,
+      nombre: producto.nombre,
+      tipoPrenda: producto.tipo,
+      talla: variante.talla,
+      color: variante.color,
+      precioUnitario: variante.precio || producto.precio,
+      cantidad: Math.min(Math.max(productos[index].cantidad || 1, 1), disponible),
+    });
   };
 
   // Activa/desactiva un taller en un producto, manteniendo el orden oficial del flujo.
@@ -217,13 +254,11 @@ export default function NuevaOrdenMultiProducto({
     setProductosExpandidos(nuevosExpandidos);
   };
 
-  // Total de la orden = Σ (cantidad × precio unitario) de todos los productos.
-  const calcularTotal = () => {
-    return productos.reduce(
-      (acc, p) => acc + p.cantidad * p.precioUnitario,
-      0
-    );
-  };
+  // Importes de la orden: los precios son antes de IVA, así que el total a cobrar es
+  // subtotal + IVA 16 % (mismo cálculo que la BD y que la factura).
+  const calcularImportesOrden = () =>
+    calcularImportes(productos.map((p) => ({ cantidad: p.cantidad, precioUnitario: p.precioUnitario })));
+  const calcularTotal = () => calcularImportesOrden().total;
   const totalOrden = calcularTotal();
   // Un anticipo mayor al total dejaría el saldo pendiente en negativo.
   const anticipoExcedido = formData.anticipo > totalOrden;
@@ -248,6 +283,22 @@ export default function NuevaOrdenMultiProducto({
         `El anticipo ($${anticipo.toLocaleString()}) no puede ser mayor al total de la orden ($${total.toLocaleString()})`
       );
       return;
+    }
+
+    // Venta directa: cada producto debe salir del inventario y no exceder lo disponible.
+    for (const [i, p] of productos.entries()) {
+      if (p.tipoProduccion !== "directa") continue;
+      if (!p.varianteId) {
+        toast.error(`Producto ${i + 1}: selecciona del inventario el producto en stock a vender`);
+        setProductosExpandidos(new Set([...productosExpandidos, i]));
+        return;
+      }
+      const disponible = disponibleVariante(p.varianteId, i);
+      if (p.cantidad > disponible) {
+        toast.error(`Producto ${i + 1} (${p.nombre}): solo hay ${disponible} pieza(s) disponibles`);
+        setProductosExpandidos(new Set([...productosExpandidos, i]));
+        return;
+      }
     }
 
     const nuevaOrden = {
@@ -285,7 +336,12 @@ export default function NuevaOrdenMultiProducto({
               },
             ]
           : [],
-      productos: productos.map((p, i) => ({
+      productos: productos.map((p, i) => {
+        // La venta directa es producto terminado: no pasa por talleres (aunque el estado
+        // conserve los talleres por defecto, que solo se ocultan en pantalla).
+        const directa = p.tipoProduccion === "directa";
+        const talleres = directa ? [] : p.talleres;
+        return {
         id: `p${i}`,
         nombre: p.nombre,
         tipoPrenda: p.tipoPrenda as any,
@@ -295,8 +351,10 @@ export default function NuevaOrdenMultiProducto({
         cantidad: p.cantidad,
         precioUnitario: p.precioUnitario,
         tipoProduccion: p.tipoProduccion,
-        talleres: p.talleres,
-        progreso: Object.fromEntries(p.talleres.map((t) => [t, "pending"])),
+        talleres,
+        progreso: Object.fromEntries(talleres.map((t) => [t, "pending"])),
+        productoId: directa ? p.productoId : undefined,
+        varianteId: directa ? p.varianteId : undefined,
         proveedorId: p.proveedorId || undefined,
         proveedorNombre: p.proveedorId
           ? mockProveedores.find((pr) => pr.id === p.proveedorId)?.nombre
@@ -312,7 +370,8 @@ export default function NuevaOrdenMultiProducto({
               notas: p.bordadoNotas || undefined,
             }
           : undefined,
-      })),
+        };
+      }),
       notas: formData.notas || undefined,
     };
 
@@ -518,6 +577,12 @@ export default function NuevaOrdenMultiProducto({
             <CardContent className="space-y-4">
               {productos.map((producto, index) => {
                 const expandido = productosExpandidos.has(index);
+                const directa = producto.tipoProduccion === "directa";
+                // Piezas que se pueden vender de la variante elegida (solo venta directa).
+                const disponible =
+                  directa && producto.varianteId
+                    ? disponibleVariante(producto.varianteId, index)
+                    : undefined;
                 return (
                   <div
                     key={index}
@@ -569,6 +634,19 @@ export default function NuevaOrdenMultiProducto({
                     {expandido && (
                       <div className="p-4 space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          {directa ? (
+                            // Venta directa: el producto sale del inventario, no se captura.
+                            <div className="md:col-span-2">
+                              <p className="block text-sm font-medium mb-2">
+                                Producto en Inventario *
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {producto.varianteId
+                                  ? "Se descontará del stock al crear la orden."
+                                  : "Elige abajo la prenda en existencia que se va a vender."}
+                              </p>
+                            </div>
+                          ) : (
                           <div className="md:col-span-2">
                             <label className="block text-sm font-medium mb-2">
                               Nombre del Producto *
@@ -583,6 +661,7 @@ export default function NuevaOrdenMultiProducto({
                               className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                             />
                           </div>
+                          )}
                           <div>
                             <label className="block text-sm font-medium mb-2">
                               Tipo de Producción *
@@ -591,10 +670,9 @@ export default function NuevaOrdenMultiProducto({
                               required
                               value={producto.tipoProduccion}
                               onChange={(e) =>
-                                actualizarProducto(
+                                cambiarTipoProduccion(
                                   index,
-                                  "tipoProduccion",
-                                  e.target.value
+                                  e.target.value as ProductoCaptura["tipoProduccion"]
                                 )
                               }
                               className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -608,6 +686,17 @@ export default function NuevaOrdenMultiProducto({
                           </div>
                         </div>
 
+                        {directa ? (
+                          <SelectorStock
+                            catalogo={catalogo}
+                            seleccion={producto}
+                            disponibleVariante={(varianteId) => disponibleVariante(varianteId, index)}
+                            onElegir={(p, v) => elegirVariante(index, p, v)}
+                            onCambiar={() =>
+                              actualizarCampos(index, { productoId: undefined, varianteId: undefined })
+                            }
+                          />
+                        ) : (
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                           <div>
                             <label className="block text-sm font-medium mb-2">
@@ -671,16 +760,24 @@ export default function NuevaOrdenMultiProducto({
                             />
                           </div>
                         </div>
+                        )}
 
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm font-medium mb-2">
                               Cantidad *
+                              {disponible !== undefined && (
+                                <span className="ml-2 font-normal text-muted-foreground">
+                                  (disponibles: {disponible})
+                                </span>
+                              )}
                             </label>
                             <input
                               type="number"
                               required
                               min="1"
+                              // Venta directa: no se puede vender más de lo que hay en stock.
+                              max={disponible}
                               value={producto.cantidad}
                               onChange={(e) =>
                                 actualizarProducto(
@@ -877,12 +974,10 @@ export default function NuevaOrdenMultiProducto({
                 );
               })}
 
-              {/* Total general de la orden */}
-              <div className="flex items-center justify-between p-4 bg-secondary rounded-lg border-2 border-primary">
-                <span className="text-lg font-semibold">Total de la Orden:</span>
-                <span className="text-2xl font-bold text-primary">
-                  ${calcularTotal().toLocaleString()}
-                </span>
+              {/* Total general de la orden: subtotal + IVA (precios antes de IVA) */}
+              <div className="p-4 bg-secondary rounded-lg border-2 border-primary">
+                <p className="text-lg font-semibold mb-2">Total de la Orden</p>
+                <DesgloseImportes importes={calcularImportesOrden()} className="text-base" />
               </div>
 
               {/* Desglose de anticipo y saldo pendiente (solo si hay anticipo) */}
@@ -948,6 +1043,112 @@ export default function NuevaOrdenMultiProducto({
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Selector de prendas en existencia para un producto de venta directa.
+ * Sin selección: buscador + lista de variantes con piezas disponibles (descontando lo
+ * que ya apartaron otros productos de la orden). Con selección: resumen y "Cambiar".
+ */
+function SelectorStock({
+  catalogo,
+  seleccion,
+  disponibleVariante,
+  onElegir,
+  onCambiar,
+}: {
+  catalogo: Producto[];
+  seleccion: ProductoCaptura;
+  disponibleVariante: (varianteId: string) => number;
+  onElegir: (producto: Producto, variante: VarianteProducto) => void;
+  onCambiar: () => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+
+  if (seleccion.varianteId) {
+    const disponible = disponibleVariante(seleccion.varianteId);
+    return (
+      <div className="flex items-center justify-between gap-4 p-4 rounded-lg border-2 border-primary bg-primary/5">
+        <div className="flex items-center gap-3 min-w-0">
+          <Boxes className="w-5 h-5 text-primary shrink-0" />
+          <div className="min-w-0">
+            <p className="font-medium truncate">{seleccion.nombre}</p>
+            <p className="text-sm text-muted-foreground">
+              Talla {seleccion.talla} • {seleccion.color} • {disponible} disponible(s)
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onCambiar}
+          className="px-3 py-1.5 text-sm bg-secondary hover:bg-secondary/80 rounded-lg transition-colors shrink-0"
+        >
+          Cambiar
+        </button>
+      </div>
+    );
+  }
+
+  const texto = busqueda.trim().toLowerCase();
+  const opciones = catalogo
+    .flatMap((producto) =>
+      producto.variantes.map((variante) => ({
+        producto,
+        variante,
+        disponible: disponibleVariante(variante.id),
+      }))
+    )
+    .filter(({ disponible }) => disponible > 0)
+    .filter(
+      ({ producto, variante }) =>
+        !texto ||
+        [producto.nombre, variante.talla, variante.color, variante.sku ?? ""]
+          .join(" ")
+          .toLowerCase()
+          .includes(texto)
+    );
+
+  return (
+    <div className="space-y-3">
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <input
+          type="search"
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          placeholder="Buscar en stock por nombre, talla, color o SKU…"
+          className="w-full pl-9 pr-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+        />
+      </div>
+      {opciones.length === 0 ? (
+        <p className="py-6 text-center text-sm text-muted-foreground border border-dashed border-border rounded-lg">
+          {texto ? "Ninguna prenda en stock coincide con la búsqueda." : "No hay prendas con existencia en el inventario."}
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
+          {opciones.map(({ producto, variante, disponible }) => (
+            <button
+              key={variante.id}
+              type="button"
+              onClick={() => onElegir(producto, variante)}
+              className="flex items-center justify-between gap-3 p-3 text-left border border-border rounded-lg hover:border-primary hover:bg-primary/5 transition-colors"
+            >
+              <div className="min-w-0">
+                <p className="font-medium truncate">{producto.nombre}</p>
+                <p className="text-xs text-muted-foreground">
+                  Talla {variante.talla} • {variante.color}
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-sm font-medium">${(variante.precio || producto.precio).toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">Stock: {disponible}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

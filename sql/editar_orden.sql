@@ -21,9 +21,9 @@
 --  5. Inventario: al cambiar la variante o la cantidad, o al quitar una partida, se
 --     devuelve el stock anterior y se descuenta el nuevo, con su movimiento en
 --     movimientos_producto. Falla si no alcanza el stock.
---  6. Importes: subtotal = Σ cantidad × precio; total = subtotal − descuento. Falla si
---     el nuevo total queda por debajo de lo ya pagado. Recalcula el estado de pago
---     (Pendiente / Anticipo / Pagado) igual que el trigger de pagos.
+--  6. Importes: private.recalcular_totales_orden (sql/iva_ordenes.sql) calcula subtotal,
+--     IVA por partida y total = subtotal − descuento + IVA, y el estado de pago. Falla si
+--     el nuevo total queda por debajo de lo ya pagado.
 --  7. Constancia: guarda en historial_ordenes el motivo y el detalle de lo que cambió,
 --     y avisa por la campana al admin primario y a los talleres afectados.
 --
@@ -394,47 +394,40 @@ begin
     v_cambios := v_cambios || format('%s: %s', v_etq_ant, array_to_string(v_cambio_partida, '; '));
   end loop;
 
-  -- 5. Importes y estado de pago ---------------------------------------------------
+  -- 5. Importes: los calcula private.recalcular_totales_orden (IVA por partida) -------
   v_descuento := round(coalesce((p_cambios->>'descuento')::numeric, v_orden.descuento, 0), 2);
-  select coalesce(sum(cantidad * coalesce(precio_unitario, 0)), 0) into v_subtotal
+  select coalesce(sum(round(cantidad * coalesce(precio_unitario, 0), 2)), 0) into v_subtotal
   from public.orden_detalles where orden_id = p_orden;
-  v_subtotal := round(v_subtotal, 2);
   if v_descuento < 0 or v_descuento > v_subtotal then
     raise exception 'El descuento debe estar entre $0 y el subtotal ($%)', to_char(v_subtotal, 'FM999,999,990.00');
-  end if;
-  v_total := v_subtotal - v_descuento;
-  select coalesce(sum(monto), 0) into v_pagado from public.pagos where orden_id = p_orden;
-  if v_total < v_pagado then
-    raise exception 'El nuevo total ($%) es menor a lo que el cliente ya pagó ($%)',
-      to_char(v_total, 'FM999,999,990.00'), to_char(v_pagado, 'FM999,999,990.00');
   end if;
   if v_descuento <> round(coalesce(v_orden.descuento, 0), 2) then
     v_cambios := v_cambios || format('Descuento: $%s → $%s',
       to_char(coalesce(v_orden.descuento, 0), 'FM999,999,990.00'), to_char(v_descuento, 'FM999,999,990.00'));
   end if;
+
+  update public.ordenes
+     set fecha_entrega = v_fecha,
+         notas = nullif(trim(p_cambios->>'notas'), ''),
+         descuento = v_descuento
+   where id = p_orden;
+  -- Subtotal, IVA, total y estado de pago (el trigger del descuento también lo hace;
+  -- se llama explícito para cubrir el caso en que el descuento no cambió).
+  perform private.recalcular_totales_orden(p_orden);
+
+  select total into v_total from public.ordenes where id = p_orden;
+  select coalesce(sum(monto), 0) into v_pagado from public.pagos where orden_id = p_orden;
+  if v_total < v_pagado then
+    raise exception 'El nuevo total ($%, con IVA) es menor a lo que el cliente ya pagó ($%)',
+      to_char(v_total, 'FM999,999,990.00'), to_char(v_pagado, 'FM999,999,990.00');
+  end if;
   if v_total <> round(coalesce(v_orden.total, 0), 2) then
-    v_cambios := v_cambios || format('Total: $%s → $%s',
+    v_cambios := v_cambios || format('Total con IVA: $%s → $%s',
       to_char(coalesce(v_orden.total, 0), 'FM999,999,990.00'), to_char(v_total, 'FM999,999,990.00'));
   end if;
 
   if cardinality(v_cambios) = 0 then
     raise exception 'No hay cambios que guardar';
-  end if;
-
-  update public.ordenes
-     set fecha_entrega = v_fecha,
-         notas = nullif(trim(p_cambios->>'notas'), ''),
-         descuento = v_descuento,
-         subtotal = v_subtotal,
-         total = v_total
-   where id = p_orden;
-
-  select nombre into v_estado_pago_nombre from public.estados_pago where id = v_orden.estado_pago_id;
-  if coalesce(v_estado_pago_nombre, 'Pendiente') in ('Pendiente', 'Anticipo', 'Pagado') then
-    update public.ordenes
-       set estado_pago_id = (select id from public.estados_pago where nombre =
-             case when v_pagado = 0 then 'Pendiente' when v_pagado < v_total then 'Anticipo' else 'Pagado' end)
-     where id = p_orden;
   end if;
 
   -- 6. Constancia: historial y avisos ------------------------------------------------

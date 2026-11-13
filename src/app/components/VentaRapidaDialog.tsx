@@ -13,6 +13,8 @@ import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import type { MetodoPago, Producto } from "../data/mockData";
 import { hoyISO } from "../lib/fechas";
+import { calcularImportes } from "../lib/impuestos";
+import DesgloseImportes from "./DesgloseImportes";
 import {
   X,
   User,
@@ -128,8 +130,10 @@ export default function VentaRapidaDialog({
     );
   };
 
-  // Suma de precio × cantidad de todos los renglones del carrito.
-  const calcularTotal = () => carrito.reduce((acc, item) => acc + item.precio * item.cantidad, 0);
+  // Importes del carrito: precios antes de IVA; se cobra subtotal + IVA 16 %.
+  const calcularImportesCarrito = () =>
+    calcularImportes(carrito.map((item) => ({ cantidad: item.cantidad, precioUnitario: item.precio })));
+  const calcularTotal = () => calcularImportesCarrito().total;
 
   /**
    * Construye la orden de venta directa a partir del carrito y la envía al padre.
@@ -389,12 +393,7 @@ export default function VentaRapidaDialog({
                 ))}
 
                 <div className="pt-4 border-t border-border">
-                  <div className="flex items-center justify-between text-lg font-semibold">
-                    <span>Total:</span>
-                    <span className="text-2xl text-primary">
-                      ${calcularTotal().toLocaleString()}
-                    </span>
-                  </div>
+                  <DesgloseImportes importes={calcularImportesCarrito()} className="text-base" />
                 </div>
               </CardContent>
             </Card>

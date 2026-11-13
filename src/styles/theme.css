@@ -45,11 +45,8 @@
   --font-weight-normal: 400;
   /* Anillo de foco visible al navegar con teclado */
   --ring: #059669;
-  /* Paleta de las gráficas (recharts) */
   /* Radio de esquinas base; de él se derivan radius-sm/md/lg/xl */
   --radius: 0.5rem;
-  /* Colores del menú lateral */
-  --sidebar: #ffffff;
 
   /* Colores propios del ERP para estados de órdenes/tareas (usados por StatusBadge):
      pendiente = rojo, en proceso = ámbar, completado = verde, stock bajo = rojo intenso */
@@ -91,7 +88,6 @@
   --ring: #10B981;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --sidebar: #151B26;
 
   /* Estados: fondos translúcidos oscuros y texto claro del mismo tono */
   --status-pending: #F87171;
@@ -136,7 +132,6 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --color-sidebar: var(--sidebar);
   --color-status-pending: var(--status-pending);
   --color-status-pending-bg: var(--status-pending-bg);
   --color-status-pending-text: var(--status-pending-text);
@@ -154,6 +149,12 @@
 .dark .recharts-default-tooltip {
   background-color: var(--popover) !important;
   border-color: var(--border) !important;
+  color: var(--popover-foreground) !important;
+}
+/* Recharts pinta el texto de cada renglón con color en línea (en las donas/pasteles
+   es #000 porque la porción no expone su color al tooltip), así que se fuerza aquí. */
+.dark .recharts-default-tooltip .recharts-tooltip-label,
+.dark .recharts-default-tooltip .recharts-tooltip-item {
   color: var(--popover-foreground) !important;
 }
 .dark .recharts-cartesian-grid line {

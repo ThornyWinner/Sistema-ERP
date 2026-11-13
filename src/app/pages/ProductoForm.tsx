@@ -24,7 +24,13 @@ import { useErpData } from "../context/ErpDataContext";
 import { useAuth } from "../context/AuthContext";
 import { hasPermission } from "../utils/permissions";
 import ImagenProductoInput from "../components/ImagenProductoInput";
-import { cargarCategorias, guardarProducto } from "../lib/productos";
+import {
+  cargarCategorias,
+  cargarFiscalProducto,
+  guardarProducto,
+  type DatosFiscalesProducto,
+} from "../lib/productos";
+import { CLAVES_PROD_SERV, CLAVES_UNIDAD, OBJETOS_IMPUESTO, etiquetaSat } from "../lib/sat";
 
 export default function ProductoForm() {
   // Productos reales de Supabase (alias mockProductos del prototipo).
@@ -80,6 +86,27 @@ export default function ProductoForm() {
   const urlImagenActual = quitarImagen ? null : productoExistente?.imagen ?? null;
 
   const [guardando, setGuardando] = useState(false);
+
+  // Datos para facturar (CFDI 4.0). Se leen aparte porque no vienen en la carga general.
+  const [fiscal, setFiscal] = useState<DatosFiscalesProducto>({
+    codigo: "",
+    clave_prod_serv: "",
+    clave_unidad: "H87",
+    unidad_medida: "Pieza",
+    objeto_imp: "02",
+  });
+  useEffect(() => {
+    if (!id) return;
+    cargarFiscalProducto(id)
+      .then((d) => d && setFiscal({
+        codigo: d.codigo ?? "",
+        clave_prod_serv: d.clave_prod_serv ?? "",
+        clave_unidad: d.clave_unidad ?? "H87",
+        unidad_medida: d.unidad_medida ?? "Pieza",
+        objeto_imp: d.objeto_imp ?? "02",
+      }))
+      .catch(() => undefined);
+  }, [id]);
 
   // Categorías existentes, sugeridas al escribir (se puede escribir una nueva).
   const [categorias, setCategorias] = useState<string[]>([]);
@@ -155,6 +182,10 @@ export default function ProductoForm() {
       toast.error("El precio no puede ser negativo");
       return;
     }
+    if (fiscal.clave_prod_serv && !/^[0-9]{8}$/.test(fiscal.clave_prod_serv)) {
+      toast.error("La clave SAT de producto o servicio lleva 8 dígitos");
+      return;
+    }
 
     setGuardando(true);
     try {
@@ -167,6 +198,13 @@ export default function ProductoForm() {
           stockInicial,
           tallas: formData.tallas,
           colores: formData.colores,
+          fiscal: {
+            codigo: fiscal.codigo?.trim() || null,
+            clave_prod_serv: fiscal.clave_prod_serv || null,
+            clave_unidad: fiscal.clave_unidad.trim().toUpperCase() || "H87",
+            unidad_medida: fiscal.unidad_medida.trim() || "Pieza",
+            objeto_imp: fiscal.objeto_imp,
+          },
         },
         archivoImagen
           ? { tipo: "nueva", archivo: archivoImagen }
@@ -289,6 +327,7 @@ export default function ProductoForm() {
                       <option value="pantalon">Pantalón</option>
                       <option value="overol">Overol</option>
                       <option value="chaleco">Chaleco</option>
+                      <option value="otro">Otro (no prenda)</option>
                     </select>
                   </div>
                   
@@ -370,6 +409,85 @@ export default function ProductoForm() {
                         : "Se asigna a cada combinación de talla y color."}
                     </p>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Datos fiscales para facturar (claves del catálogo del SAT) */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Datos para facturar (CFDI)</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Código del producto</label>
+                  <input
+                    type="text"
+                    value={fiscal.codigo ?? ""}
+                    onChange={(e) => setFiscal({ ...fiscal, codigo: e.target.value })}
+                    className="w-full px-4 py-2 bg-input-background border border-border rounded-lg focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    placeholder="Ej: 1012"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Clave SAT producto/servicio</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={8}
+                    list="sat-prodserv-producto"
+                    value={fiscal.clave_prod_serv ?? ""}
+                    onChange={(e) => setFiscal({ ...fiscal, clave_prod_serv: e.target.value.replace(/\D/g, "") })}
+                    className="w-full px-4 py-2 bg-input-background border border-border rounded-lg focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    placeholder="Ej: 53102700"
+                  />
+                  <datalist id="sat-prodserv-producto">
+                    {CLAVES_PROD_SERV.map((c) => (
+                      <option key={c.clave} value={c.clave}>
+                        {c.descripcion}
+                      </option>
+                    ))}
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Clave unidad SAT</label>
+                  <input
+                    type="text"
+                    list="sat-unidad-producto"
+                    value={fiscal.clave_unidad}
+                    onChange={(e) => setFiscal({ ...fiscal, clave_unidad: e.target.value.toUpperCase() })}
+                    className="w-full px-4 py-2 bg-input-background border border-border rounded-lg focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                  <datalist id="sat-unidad-producto">
+                    {CLAVES_UNIDAD.map((u) => (
+                      <option key={u.clave} value={u.clave}>
+                        {u.descripcion}
+                      </option>
+                    ))}
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Unidad de medida</label>
+                  <input
+                    type="text"
+                    value={fiscal.unidad_medida}
+                    onChange={(e) => setFiscal({ ...fiscal, unidad_medida: e.target.value })}
+                    className="w-full px-4 py-2 bg-input-background border border-border rounded-lg focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">Objeto de impuesto</label>
+                  <select
+                    value={fiscal.objeto_imp}
+                    onChange={(e) => setFiscal({ ...fiscal, objeto_imp: e.target.value })}
+                    className="w-full px-4 py-2 bg-input-background border border-border rounded-lg focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  >
+                    {OBJETOS_IMPUESTO.map((o) => (
+                      <option key={o.clave} value={o.clave}>
+                        {etiquetaSat(o)}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </CardContent>
             </Card>

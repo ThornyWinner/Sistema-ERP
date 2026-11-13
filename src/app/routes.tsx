@@ -33,6 +33,11 @@ import GestionUsuarios from "./pages/GestionUsuarios";
 import Vacaciones from "./pages/Vacaciones";
 import Asistencia from "./pages/Asistencia";
 import Checar from "./pages/Checar";
+import Facturas from "./pages/facturacion/Facturas";
+import FacturaForm from "./pages/facturacion/FacturaForm";
+import ComplementosPago from "./pages/facturacion/ComplementosPago";
+import ConfiguracionFiscal from "./pages/facturacion/ConfiguracionFiscal";
+import Clientes from "./pages/catalogos/Clientes";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 export const router = createBrowserRouter([
@@ -89,6 +94,13 @@ export const router = createBrowserRouter([
       // Control de vacaciones del personal (Ley Federal del Trabajo).
       { path: "vacaciones", Component: Vacaciones },
       { path: "asistencia", Component: Asistencia },
+      // Facturación CFDI 4.0 (reemplazo de CONTPAQi Vende) y catálogo de clientes.
+      { path: "facturacion/facturas", Component: Facturas },
+      { path: "facturacion/facturas/nueva", Component: FacturaForm },
+      { path: "facturacion/facturas/:id", Component: FacturaForm },
+      { path: "facturacion/complementos", Component: ComplementosPago },
+      { path: "facturacion/configuracion", Component: ConfiguracionFiscal },
+      { path: "catalogos/clientes", Component: Clientes },
     ],
   },
 ]);

@@ -25,6 +25,7 @@ import { Lock, Pencil, Plus, Trash2 } from "lucide-react";
 import type { Orden, ProductoOrden, Taller } from "../data/mockData";
 import { useErpData, type CambiosOrden, type PartidaEditada } from "../context/ErpDataContext";
 import { formatMonto, redondearCentavos, totalPagado } from "../lib/pagos";
+import { calcularImportes } from "../lib/impuestos";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -243,11 +244,14 @@ export default function EditarOrdenDialog({ orden, open, onClose }: EditarOrdenD
     return variante.stock + apartado;
   };
 
-  const subtotal = redondearCentavos(
-    partidas.reduce((s, p) => s + (Number(p.cantidad) || 0) * (Number(p.precio) || 0), 0)
-  );
+  // Precios antes de IVA: total = subtotal − descuento + IVA 16 % (mismo cálculo que la BD).
   const descuentoNum = redondearCentavos(Number(descuento) || 0);
-  const total = redondearCentavos(subtotal - descuentoNum);
+  const importes = calcularImportes(
+    partidas.map((p) => ({ cantidad: Number(p.cantidad) || 0, precioUnitario: Number(p.precio) || 0 })),
+    descuentoNum
+  );
+  const subtotal = importes.subtotal;
+  const total = importes.total;
   const errorDescuento = descuentoNum < 0 || descuentoNum > subtotal ? "El descuento debe estar entre $0 y el subtotal." : null;
   const errorTotal = total < pagado ? `El total no puede quedar por debajo de lo ya pagado (${formatMonto(pagado)}).` : null;
   const erroresPartidas = partidas.map(revisarPartida);
@@ -363,7 +367,7 @@ export default function EditarOrdenDialog({ orden, open, onClose }: EditarOrdenD
                 />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Nuevo total</p>
+                <p className="text-xs text-muted-foreground">Nuevo total (con IVA {formatMonto(importes.iva)})</p>
                 <p className="font-semibold">
                   {formatMonto(total)}
                   {total !== orden.total && (

@@ -37,7 +37,8 @@ export interface VarianteProducto {
 export interface Producto {
   id: string;
   nombre: string;
-  tipo: "camisa" | "pantalon" | "overol" | "chaleco";
+  /** "otro": artículos que no son prenda (EPP, servicios, promocionales…), p. ej. los del catálogo de CONTPAQi. */
+  tipo: "camisa" | "pantalon" | "overol" | "chaleco" | "otro";
   /** Tallas y colores disponibles (derivados de las variantes). */
   tallas: string[];
   colores: string[];
@@ -136,12 +137,14 @@ export interface Orden {
   estado: "pending" | "in-progress" | "completed";
   metodoPago: MetodoPago;
   estadoPago: EstadoPago;
-  /** Importe total y monto adelantado por el cliente. */
+  /** Importe total a cobrar (subtotal − descuento + IVA) y monto adelantado por el cliente. */
   total: number;
   anticipo: number;
   /** Suma de las partidas (cantidad × precio) y descuento; total = subtotal − descuento. */
   subtotal?: number;
   descuento?: number;
+  /** IVA trasladado (16 %): los precios de las partidas son antes de IVA. */
+  iva?: number;
   /** Nombre del estado detallado en la BD (p. ej. "En Corte", "Entregada", "Cancelada"). */
   estadoNombre?: string;
   /** Historial de pagos registrados. */

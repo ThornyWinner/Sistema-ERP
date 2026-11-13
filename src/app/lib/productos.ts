@@ -96,7 +96,29 @@ export type DatosProducto = {
   stockInicial: number;
   tallas: string[];
   colores: string[];
+  /** Datos para facturar (CFDI 4.0); si se omiten, no se modifican. */
+  fiscal?: DatosFiscalesProducto;
 };
+
+/** Columnas fiscales de `productos` (ver sql/facturacion.sql). */
+export type DatosFiscalesProducto = {
+  codigo: string | null;
+  clave_prod_serv: string | null;
+  clave_unidad: string;
+  unidad_medida: string;
+  objeto_imp: string;
+};
+
+/** Lee los datos fiscales de un producto (no vienen en la carga general del ERP). */
+export async function cargarFiscalProducto(id: string): Promise<DatosFiscalesProducto | null> {
+  const { data, error } = await supabase
+    .from("productos")
+    .select("codigo,clave_prod_serv,clave_unidad,unidad_medida,objeto_imp")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  return data as DatosFiscalesProducto | null;
+}
 
 export type CambioImagen =
   | { tipo: "sin_cambio" }
@@ -120,6 +142,7 @@ export async function guardarProducto(
     nombre: datos.nombre.trim(),
     tipo_prenda: datos.tipo,
     categoria_id: await categoriaId(datos.categoria),
+    ...(datos.fiscal ?? {}),
   };
 
   let productoId: string;

@@ -21,6 +21,7 @@ import { useParams, useNavigate } from "react-router";
 import { useErpData } from "../context/ErpDataContext";
 import { useAuth } from "../context/AuthContext";
 import RegistrarAbonoDialog from "../components/RegistrarAbonoDialog";
+import DesgloseImportes from "../components/DesgloseImportes";
 import EditarOrdenDialog from "../components/EditarOrdenDialog";
 import { Button } from "../components/ui/button";
 import { METODO_PAGO_LABEL, formatMonto, redondearCentavos, saldoPendiente, totalPagado } from "../lib/pagos";
@@ -53,6 +54,7 @@ import {
   Mail,
   Plus,
   Pencil,
+  ReceiptText,
 } from "lucide-react";
 
 export default function OrdenDetalle() {
@@ -263,6 +265,13 @@ export default function OrdenDetalle() {
           <Button variant="outline" onClick={() => setEdicionAbierta(true)}>
             <Pencil className="w-4 h-4" />
             Editar orden
+          </Button>
+        )}
+        {/* Factura de la orden (borrador prellenado con cliente y partidas) */}
+        {user?.rol === "admin_primario" && orden.estadoNombre !== "Cancelada" && (
+          <Button variant="outline" onClick={() => navigate(`/facturacion/facturas/nueva?orden=${orden.id}`)}>
+            <ReceiptText className="w-4 h-4" />
+            Facturar
           </Button>
         )}
       </div>
@@ -567,9 +576,16 @@ export default function OrdenDetalle() {
                 <DollarSign className="w-5 h-5 text-primary mt-0.5" />
                 <div className="flex-1">
                   <p className="text-sm text-muted-foreground">Total</p>
-                  <p className="text-2xl font-semibold">
-                    ${orden.total.toLocaleString()}
-                  </p>
+                  <p className="text-2xl font-semibold">{formatMonto(orden.total)}</p>
+                  <DesgloseImportes
+                    className="mt-2"
+                    importes={{
+                      subtotal: orden.subtotal ?? orden.total,
+                      descuento: orden.descuento ?? 0,
+                      iva: orden.iva ?? 0,
+                      total: orden.total,
+                    }}
+                  />
                 </div>
               </div>
               <div className="flex items-start gap-3">

@@ -31,6 +31,11 @@ import {
   CalendarDays,
   Clock,
   ScanLine,
+  FileText,
+  Receipt,
+  Settings,
+  Contact,
+  Landmark,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
@@ -42,7 +47,7 @@ export default function Sidebar() {
   const location = useLocation();
   const { user } = useAuth();
   // Secciones desplegables abiertas; ambas empiezan expandidas.
-  const [expandedSections, setExpandedSections] = useState<string[]>(["Inventario", "Talleres"]);
+  const [expandedSections, setExpandedSections] = useState<string[]>(["Inventario", "Talleres", "Facturación"]);
 
   if (!user) return null;
 
@@ -65,6 +70,12 @@ export default function Sidebar() {
       costura: accessibleRoutes.find(r => r.route === '/talleres/costura'),
       bordado: accessibleRoutes.find(r => r.route === '/talleres/bordado'),
     },
+    facturacion: {
+      facturas: accessibleRoutes.find(r => r.route === '/facturacion/facturas'),
+      complementos: accessibleRoutes.find(r => r.route === '/facturacion/complementos'),
+      configuracion: accessibleRoutes.find(r => r.route === '/facturacion/configuracion'),
+    },
+    clientes: accessibleRoutes.find(r => r.route === '/catalogos/clientes'),
     seguimiento: accessibleRoutes.find(r => r.route === '/seguimiento'),
     proveedores: accessibleRoutes.find(r => r.route === '/proveedores'),
     reportes: accessibleRoutes.find(r => r.route === '/reportes'),
@@ -92,6 +103,10 @@ export default function Sidebar() {
     CalendarDays,
     Clock,
     ScanLine,
+    FileText,
+    Receipt,
+    Settings,
+    Contact,
   };
 
   // Abre o cierra una sección desplegable (añade o quita su nombre de la lista).
@@ -327,6 +342,58 @@ export default function Sidebar() {
             )}
           </div>
         )}
+
+        {/* Facturación (CFDI): facturas, complementos de pago y configuración fiscal */}
+        {menuStructure.facturacion.facturas && (
+          <div>
+            <button
+              onClick={() => toggleSection('Facturación')}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+            >
+              <span className="flex items-center gap-3">
+                <Landmark className="w-5 h-5" />
+                <span>Facturación</span>
+              </span>
+              <ChevronDown
+                className={`w-4 h-4 transition-transform ${
+                  expandedSections.includes('Facturación') ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+            {expandedSections.includes('Facturación') && (
+              <div className="ml-4 mt-1 space-y-1">
+                {[
+                  { ruta: menuStructure.facturacion.facturas, Icon: FileText },
+                  { ruta: menuStructure.facturacion.complementos, Icon: Receipt },
+                  { ruta: menuStructure.facturacion.configuracion, Icon: Settings },
+                ].map(({ ruta, Icon }) =>
+                  ruta ? (
+                    <Link
+                      key={ruta.route}
+                      to={ruta.route}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                        location.pathname.startsWith(ruta.route)
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span>{ruta.label}</span>
+                      {!ruta.permission.canEdit && (
+                        <Badge variant="secondary" className="text-xs ml-auto">
+                          Solo lectura
+                        </Badge>
+                      )}
+                    </Link>
+                  ) : null
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Catálogo de clientes */}
+        {menuStructure.clientes && renderMenuItem(menuStructure.clientes)}
 
         {/* Seguimiento */}
         {menuStructure.seguimiento && renderMenuItem(menuStructure.seguimiento)}

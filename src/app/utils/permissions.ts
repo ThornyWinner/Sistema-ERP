@@ -30,6 +30,9 @@ const noPermission: Permission = { canView: false, canCreate: false, canEdit: fa
 // Órdenes del admin secundario: consulta todas, crea las suyas y edita/abona solo las
 // que registró él (la BD lo limita con private.puede_editar_orden); no elimina.
 const ordenesPropiasPermission: Permission = { canView: true, canCreate: true, canEdit: true, canDelete: false };
+// Clientes: admin secundario y vendedores dan de alta y corrigen clientes (también lo hacen
+// al crear órdenes); solo el primario elimina.
+const clientesPermission: Permission = { canView: true, canCreate: true, canEdit: true, canDelete: false };
 
 // Define rutas y permisos por rol
 /**
@@ -101,6 +104,32 @@ const getRoutePermissions = (role: UserRole): RoutePermission[] => {
       permission: noPermission,
     },
     {
+      // Facturación (CFDI 4.0): el primario factura; el secundario consulta.
+      route: '/facturacion/facturas',
+      label: 'Facturas',
+      icon: 'FileText',
+      permission: noPermission,
+    },
+    {
+      route: '/facturacion/complementos',
+      label: 'Complementos de Pago',
+      icon: 'Receipt',
+      permission: noPermission,
+    },
+    {
+      route: '/facturacion/configuracion',
+      label: 'Configuración fiscal',
+      icon: 'Settings',
+      permission: noPermission,
+    },
+    {
+      // Catálogo de clientes con datos fiscales.
+      route: '/catalogos/clientes',
+      label: 'Clientes',
+      icon: 'Contact',
+      permission: noPermission,
+    },
+    {
       route: '/proveedores',
       label: 'Proveedores',
       icon: 'Truck',
@@ -162,6 +191,7 @@ const permisosPorRol = (role: UserRole, routes: RoutePermission[]): RoutePermiss
       return routes.map(r => {
         if (r.route === '/vacaciones' || r.route === '/asistencia') return r;
         if (r.route === '/ordenes') return { ...r, permission: ordenesPropiasPermission };
+        if (r.route === '/catalogos/clientes') return { ...r, permission: clientesPermission };
         return { ...r, permission: readOnlyPermission };
       });
 
@@ -174,6 +204,7 @@ const permisosPorRol = (role: UserRole, routes: RoutePermission[]): RoutePermiss
         if (r.route.startsWith('/inventario')) {
           return { ...r, permission: readOnlyPermission };
         }
+        if (r.route === '/catalogos/clientes') return { ...r, permission: clientesPermission };
         return r;
       });
     

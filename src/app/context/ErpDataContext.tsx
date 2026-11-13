@@ -21,6 +21,7 @@
  */
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { calcularImportes } from '../lib/impuestos';
 import { useAuth } from './AuthContext';
 import type {
   Material,
@@ -183,7 +184,7 @@ const SELECT_PROVEEDORES =
 //  - orden_detalles: cada producto de la orden, con su variante, su avance en cada
 //    taller (produccion_taller) y su personalización (bordado, logo, hilos).
 const SELECT_ORDENES =
-  'id,folio,fecha_creacion,fecha_entrega,subtotal,descuento,total,anticipo,notas,' +
+  'id,folio,fecha_creacion,fecha_entrega,subtotal,descuento,iva,total,anticipo,notas,' +
   'usuarios!ordenes_vendedor_id_fkey(id,nombre),clientes(razon_social,telefono,email),' +
   'estados_orden(nombre,orden_visualizacion),estados_pago(nombre),metodos_pago(nombre),tipos_venta(nombre),' +
   'orden_detalles(id,producto_id,variante_id,cantidad,precio_unitario,tipo_produccion,notas,' +
@@ -321,6 +322,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
           anticipo: Number(o.anticipo ?? 0),
           subtotal: o.subtotal != null ? Number(o.subtotal) : undefined,
           descuento: Number(o.descuento ?? 0),
+          iva: Number(o.iva ?? 0),
           estadoNombre: o.estados_orden?.nombre ?? undefined,
           pagos: pagosPorOrden.get(o.id) ?? [],
           notas: o.notas ?? undefined,
@@ -439,6 +441,12 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      // Importes con IVA (precios antes de IVA). La BD los vuelve a calcular con un
+      // trigger al insertar cada partida (private.recalcular_totales_orden).
+      const importes = calcularImportes(
+        orden.productos.map((p) => ({ cantidad: p.cantidad, precioUnitario: p.precioUnitario }))
+      );
+
       // Inserta la cabecera de la orden y recupera el id y el folio generados.
       const { data: ordenRow, error: ordenError } = await supabase
         .from('ordenes')
@@ -447,8 +455,9 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
           vendedor_id: orden.vendedorId || null,
           fecha_creacion: orden.fechaCreacion || new Date().toISOString().split('T')[0],
           fecha_entrega: orden.fechaEntrega || null,
-          subtotal: orden.total,
-          total: orden.total,
+          subtotal: importes.subtotal,
+          iva: importes.iva,
+          total: importes.total,
           anticipo: orden.anticipo || 0,
           notas: orden.notas || null,
           estado_id: estadoRow?.id ?? null,
