@@ -71,6 +71,10 @@ export const router = createBrowserRouter([
       // Órdenes: listado y detalle de una orden concreta.
       { path: "ordenes", lazy: pagina(() => import("./pages/Ordenes")) },
       { path: "ordenes/:id", lazy: pagina(() => import("./pages/OrdenDetalle")) },
+      // Cotizaciones a clientes (se convierten en orden).
+      { path: "cotizaciones", lazy: pagina(() => import("./pages/Cotizaciones")) },
+      // Cobranza: antigüedad de saldos y recordatorios.
+      { path: "cobranza", lazy: pagina(() => import("./pages/Cobranza")) },
       // Tableros de cada taller del flujo de producción.
       { path: "talleres/diseno", lazy: pagina(() => import("./pages/talleres/TallerDiseno")) },
       { path: "talleres/sublimacion", lazy: pagina(() => import("./pages/talleres/TallerSublimacion")) },
@@ -82,6 +86,8 @@ export const router = createBrowserRouter([
       { path: "proveedores", lazy: pagina(() => import("./pages/Proveedores")) },
       { path: "proveedores/nuevo", lazy: pagina(() => import("./pages/ProveedorForm")) },
       { path: "reportes", lazy: pagina(() => import("./pages/Reportes")) },
+      // Metas mensuales y comisiones de vendedores (admins).
+      { path: "comisiones", lazy: pagina(() => import("./pages/Comisiones")) },
       { path: "usuarios", lazy: pagina(() => import("./pages/GestionUsuarios")) },
       // Control de vacaciones del personal (Ley Federal del Trabajo).
       { path: "vacaciones", lazy: pagina(() => import("./pages/Vacaciones")) },
@@ -93,6 +99,8 @@ export const router = createBrowserRouter([
       { path: "facturacion/complementos", lazy: pagina(() => import("./pages/facturacion/ComplementosPago")) },
       { path: "facturacion/configuracion", lazy: pagina(() => import("./pages/facturacion/ConfiguracionFiscal")) },
       { path: "catalogos/clientes", lazy: pagina(() => import("./pages/catalogos/Clientes")) },
+      // Mayoreo y precios especiales por cliente.
+      { path: "catalogos/precios", lazy: pagina(() => import("./pages/catalogos/ListasPrecios")) },
       // Activo fijo y su depreciación (solo administrador primario).
       { path: "activo-fijo", lazy: pagina(() => import("./pages/ActivoFijo")) },
     ],

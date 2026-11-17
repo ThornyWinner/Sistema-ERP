@@ -1,7 +1,8 @@
 /**
  * DashboardVendedor.tsx — Panel personal de ventas (rol vendedor).
  *
- * Solo resume las órdenes del vendedor que inició sesión: lo vendido, órdenes activas,
+ * Solo resume las órdenes del vendedor que inició sesión: avance de su meta del mes y
+ * comisión (MetaMensualCard), lo vendido, órdenes activas,
  * saldo por cobrar, entregas próximas, tipos de venta, órdenes con saldo pendiente,
  * órdenes recientes y estado financiero.
  */
@@ -27,6 +28,7 @@ import {
   TablaOrdenesRecientes,
   TarjetasTiposVenta,
 } from "./secciones";
+import MetaMensualCard from "./MetaMensualCard";
 
 /** Lo que falta por cobrar de una orden: total − pagos registrados. */
 const saldoDe = (o: Orden) => saldoPendiente(o);
@@ -86,6 +88,8 @@ export default function DashboardVendedor() {
         />
       </div>
 
+      <MetaMensualCard vendedorId={user?.id} />
+
       <TarjetasTiposVenta ordenes={misOrdenes} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -137,11 +141,14 @@ export default function DashboardVendedor() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Órdenes con saldo: a quién hay que cobrarle y cuánto */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Wallet className="w-5 h-5 text-primary" />
               Pendientes de Cobro
             </CardTitle>
+            <Link to="/cobranza" className="text-sm text-primary hover:underline font-medium">
+              Ver cobranza →
+            </Link>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">

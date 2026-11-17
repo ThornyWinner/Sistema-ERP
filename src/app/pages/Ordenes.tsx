@@ -134,7 +134,7 @@ export default function Ordenes() {
   // guardó, para que el diálogo siga abierto con lo capturado cuando falla.
   const handleNuevaOrden = async (nuevaOrden: Orden): Promise<boolean> => {
     try {
-      const folio = await crearOrden(nuevaOrden);
+      const { folio } = await crearOrden(nuevaOrden);
       toast.success("Orden creada exitosamente", {
         description: `${folio} - ${nuevaOrden.cliente}`,
       });

@@ -68,6 +68,20 @@ const getRoutePermissions = (role: UserRole): RoutePermission[] => {
       permission: noPermission,
     },
     {
+      // Cotizaciones a clientes; se convierten en orden cuando el cliente acepta.
+      route: '/cotizaciones',
+      label: 'Cotizaciones',
+      icon: 'Calculator',
+      permission: noPermission,
+    },
+    {
+      // Cobranza: antigüedad de saldos (admins: toda la cartera; vendedor: la suya).
+      route: '/cobranza',
+      label: 'Cobranza',
+      icon: 'HandCoins',
+      permission: noPermission,
+    },
+    {
       route: '/talleres/diseno',
       label: 'Diseño',
       icon: 'Palette',
@@ -130,6 +144,13 @@ const getRoutePermissions = (role: UserRole): RoutePermission[] => {
       permission: noPermission,
     },
     {
+      // Mayoreo y precios especiales por cliente: el primario los define; los demás consultan.
+      route: '/catalogos/precios',
+      label: 'Listas de precios',
+      icon: 'Tags',
+      permission: noPermission,
+    },
+    {
       // Activo fijo (maquinaria, mobiliario, equipo, vehículos) y su depreciación: admin primario.
       route: '/activo-fijo',
       label: 'Activo Fijo',
@@ -146,6 +167,14 @@ const getRoutePermissions = (role: UserRole): RoutePermission[] => {
       route: '/reportes',
       label: 'Reportes',
       icon: 'BarChart3',
+      permission: noPermission,
+    },
+    {
+      // Metas y comisiones de vendedores: el primario las fija; el secundario consulta.
+      // (El vendedor ve su avance y comisión en su Dashboard.)
+      route: '/comisiones',
+      label: 'Metas y Comisiones',
+      icon: 'Target',
       permission: noPermission,
     },
     {
@@ -191,27 +220,29 @@ const permisosPorRol = (role: UserRole, routes: RoutePermission[]): RoutePermiss
       return routes.map(r => ({ ...r, permission: fullPermission }));
 
     // Administrador secundario: ve todos los módulos en solo lectura, excepto:
-    //  - Órdenes: crea órdenes y edita/abona solo las que registró él.
+    //  - Órdenes y Cotizaciones: crea las suyas y edita/abona solo las que registró él
+    //    (en Cobranza ve toda la cartera y abona solo a sus órdenes).
     //  - Permisos Vacacionales, Asistencia (datos del personal) y Activo Fijo: sin acceso,
     //    exclusivos del primario.
     case 'admin_secundario':
       return routes.map(r => {
         if (r.route === '/vacaciones' || r.route === '/asistencia' || r.route === '/activo-fijo') return r;
-        if (r.route === '/ordenes') return { ...r, permission: ordenesPropiasPermission };
+        if (r.route === '/ordenes' || r.route === '/cotizaciones') return { ...r, permission: ordenesPropiasPermission };
         if (r.route === '/catalogos/clientes') return { ...r, permission: clientesPermission };
         return { ...r, permission: readOnlyPermission };
       });
 
-    // Vendedor: control total del Dashboard y Órdenes; inventarios en solo lectura.
+    // Vendedor: control total del Dashboard, Órdenes, Cotizaciones y Cobranza (las suyas); inventarios en solo lectura.
     case 'vendedor':
       return routes.map(r => {
-        if (r.route === '/' || r.route === '/ordenes') {
+        if (r.route === '/' || r.route === '/ordenes' || r.route === '/cotizaciones' || r.route === '/cobranza') {
           return { ...r, permission: fullPermission };
         }
         if (r.route.startsWith('/inventario')) {
           return { ...r, permission: readOnlyPermission };
         }
         if (r.route === '/catalogos/clientes') return { ...r, permission: clientesPermission };
+        if (r.route === '/catalogos/precios') return { ...r, permission: readOnlyPermission };
         return r;
       });
     

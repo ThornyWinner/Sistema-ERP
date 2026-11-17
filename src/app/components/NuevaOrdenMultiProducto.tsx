@@ -15,16 +15,18 @@
  * sus productos (si hay mezcla de tipos → "mixta"). Al enviar, el formulario arma el
  * objeto orden y lo entrega al padre con `onSubmit`, que es quien lo guarda.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { TIPOS_PRENDA, describirVariante, type Taller, type TipoVenta, type MetodoPago, type Producto, type VarianteProducto } from "../data/mockData";
 import { useErpData } from "../context/ErpDataContext";
 import { useAuth } from "../context/AuthContext";
-import { hoyISO } from "../lib/fechas";
+import { fechaISO, hoyISO } from "../lib/fechas";
 import { calcularImportes } from "../lib/impuestos";
 import DesgloseImportes from "./DesgloseImportes";
 import PanelPoliticasVenta from "./PanelPoliticasVenta";
 import { usePoliticasVenta } from "../lib/politicasVenta";
+import { piezasMayoreo, precioSugerido, useListasPrecios, type PrecioCalculado } from "../lib/listasPrecios";
+import { formatMonto } from "../lib/pagos";
 import {
   X,
   User,
@@ -47,11 +49,47 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./Card";
 
+/**
+ * Datos con los que se llena el formulario al abrirlo: editar una cotización o
+ * convertirla en orden (ver lib/cotizaciones.ts).
+ */
+export interface CapturaInicial {
+  cliente: string;
+  clienteTelefono: string;
+  clienteEmail: string;
+  /** Solo cotización: fecha hasta la que es válida (AAAA-MM-DD). */
+  vigencia?: string;
+  descuento: number;
+  notas: string;
+  productos: ProductoCaptura[];
+}
+
+/** Lo que entrega el formulario en modo cotización. */
+export interface CotizacionCapturada {
+  cliente: string;
+  telefono: string;
+  email: string;
+  vigencia: string;
+  descuento: number;
+  notas: string;
+  productos: ProductoCaptura[];
+}
+
 interface NuevaOrdenMultiProductoProps {
   isOpen: boolean;
   onClose: () => void;
-  /** Recibe la orden construida (el folio definitivo lo asigna la base de datos). */
-  onSubmit: (orden: any) => Promise<boolean> | void;
+  /**
+   * Modo orden: recibe la orden construida (el folio lo asigna la BD).
+   * Modo cotización: recibe una CotizacionCapturada.
+   * Si devuelve false (no se guardó), el formulario queda abierto.
+   */
+  onSubmit: (datos: any) => Promise<boolean> | void;
+  /** "cotizacion": sin anticipo ni método de pago, con vigencia y sin exigir stock. */
+  modo?: "orden" | "cotizacion";
+  /** Datos con que se llena el formulario cada vez que se abre con un valor nuevo. */
+  inicial?: CapturaInicial | null;
+  /** Título del encabezado (por omisión según el modo). */
+  titulo?: string;
 }
 
 // Talleres en el orden real del flujo de producción.
@@ -78,7 +116,7 @@ const tallerLabels: Record<Taller, string> = {
  * productoId/varianteId apuntan a la variante de inventario elegida: con ella la BD
  * descuenta el stock (trigger trg_inventario_salida).
  */
-type ProductoCaptura = {
+export type ProductoCaptura = {
   nombre: string;
   tipoPrenda: string;
   marca: string;
@@ -89,6 +127,14 @@ type ProductoCaptura = {
   color: string;
   cantidad: number;
   precioUnitario: number;
+  /**
+   * Precio de lista antes de mayoreo / precio especial del cliente (listasPrecios.ts).
+   * Si está definido, precioUnitario se recalcula al cambiar cantidad o cliente; al
+   * escribir el precio a mano se borra.
+   */
+  precioLista?: number;
+  /** Regla de precio aplicada ("Mayoreo 50+ pzs −5 %"…). */
+  reglaPrecio?: string;
   tipoProduccion: "directa" | "fabricacion" | "comercializacion";
   talleres: Taller[];
   proveedorId?: string;
@@ -100,7 +146,7 @@ type ProductoCaptura = {
   bordadoNotas: string;
 };
 
-const productoVacio = (): ProductoCaptura => ({
+export const productoVacio = (): ProductoCaptura => ({
   nombre: "",
   tipoPrenda: "camisa",
   marca: "",
@@ -116,28 +162,55 @@ const productoVacio = (): ProductoCaptura => ({
   bordadoNotas: "",
 });
 
+/**
+ * Tipo de venta de la orden según los tipos de producción de sus productos:
+ * varios tipos distintos → "mixta"; un único tipo → ese mismo tipo.
+ */
+function tipoVentaDe(productos: ProductoCaptura[]): TipoVenta {
+  const tipos = new Set(productos.map((p) => p.tipoProduccion));
+  if (tipos.size > 1) return "mixta";
+  if (tipos.has("directa")) return "directa";
+  if (tipos.has("comercializacion")) return "comercializacion";
+  return "fabricacion";
+}
+
+/** Fecha ISO de hoy + `dias` (vigencia por omisión de una cotización). */
+function enDias(dias: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + dias);
+  return fechaISO(d);
+}
+
+const formVacio = () => ({
+  cliente: "",
+  clienteTelefono: "",
+  clienteEmail: "",
+  fechaEntrega: "",
+  /** Solo cotización: válida hasta (15 días por omisión). */
+  vigencia: enDias(15),
+  tipoVenta: "fabricacion" as TipoVenta,
+  metodoPago: "transferencia" as MetodoPago,
+  anticipo: 0,
+  /** Descuento en pesos sobre el subtotal (antes de IVA). */
+  descuento: 0,
+  notas: "",
+});
+
 export default function NuevaOrdenMultiProducto({
   isOpen,
   onClose,
   onSubmit,
+  modo = "orden",
+  inicial = null,
+  titulo,
 }: NuevaOrdenMultiProductoProps) {
+  const esCotizacion = modo === "cotizacion";
   // Proveedores reales de Supabase (se conserva el alias mockProveedores del prototipo).
   // `catalogo`: productos del inventario con sus variantes y stock (para venta directa).
   const { proveedores: mockProveedores, productos: catalogo } = useErpData();
   const { user } = useAuth();
   // Datos generales de la orden.
-  const [formData, setFormData] = useState({
-    cliente: "",
-    clienteTelefono: "",
-    clienteEmail: "",
-    fechaEntrega: "",
-    tipoVenta: "fabricacion" as TipoVenta,
-    metodoPago: "transferencia" as MetodoPago,
-    anticipo: 0,
-    /** Descuento en pesos sobre el subtotal (antes de IVA). */
-    descuento: 0,
-    notas: "",
-  });
+  const [formData, setFormData] = useState(formVacio);
 
   // Lista de productos capturados; empieza con un producto vacío.
   const [productos, setProductos] = useState<ProductoCaptura[]>(() => [productoVacio()]);
@@ -148,6 +221,32 @@ export default function NuevaOrdenMultiProducto({
   );
   // Mientras se guarda, el botón queda deshabilitado (evita órdenes duplicadas).
   const [guardando, setGuardando] = useState(false);
+
+  // Al abrir con datos iniciales (editar o convertir una cotización), el formulario
+  // parte de ellos; sin datos iniciales conserva lo capturado (borrador al cancelar).
+  useEffect(() => {
+    if (!isOpen || !inicial) return;
+    const lista = inicial.productos.length ? inicial.productos : [productoVacio()];
+    setFormData({
+      ...formVacio(),
+      cliente: inicial.cliente,
+      clienteTelefono: inicial.clienteTelefono,
+      clienteEmail: inicial.clienteEmail,
+      vigencia: inicial.vigencia || enDias(15),
+      descuento: inicial.descuento,
+      notas: inicial.notas,
+      tipoVenta: tipoVentaDe(lista),
+    });
+    setProductos(lista);
+    setProductosExpandidos(new Set(lista.map((_, i) => i)));
+  }, [isOpen, inicial]);
+
+  /** Deja el formulario en blanco (después de guardar). */
+  const limpiar = () => {
+    setFormData(formVacio());
+    setProductos([productoVacio()]);
+    setProductosExpandidos(new Set([0]));
+  };
 
   // Importes de la orden: los precios son antes de IVA, así que el total a cobrar es
   // subtotal − descuento + IVA 16 % (mismo cálculo que la BD y que la factura).
@@ -165,7 +264,39 @@ export default function NuevaOrdenMultiProducto({
     descuento: formData.descuento,
     subtotal: importesOrden.subtotal,
     activo: isOpen,
+    // Una cotización no deja saldo: el crédito se revisa al convertirla en orden.
+    revisarCredito: !esCotizacion,
   });
+
+  // Mayoreo y precios especiales por cliente (sql/listas_precios.sql).
+  const listas = useListasPrecios(isOpen);
+  // El mayoreo cuenta todas las piezas del mismo producto en el documento.
+  const reglaDe = (p: ProductoCaptura, lista: ProductoCaptura[] = productos, cliente = formData.cliente) =>
+    precioSugerido(listas, {
+      cliente,
+      productoId: p.productoId,
+      precioBase: p.precioLista ?? p.precioUnitario,
+      cantidad: piezasMayoreo(p, lista),
+    });
+  /** Recalcula precio y regla de las partidas con precio de lista (cambió cantidad, producto o cliente). */
+  const recalcularPrecios = (lista: ProductoCaptura[], cliente = formData.cliente): ProductoCaptura[] =>
+    lista.map((p) => {
+      if (p.precioLista == null) return p;
+      const r = reglaDe(p, lista, cliente);
+      return { ...p, precioUnitario: r.precio, reglaPrecio: r.regla ?? undefined };
+    });
+
+  // Al cambiar el cliente (o cargar las listas) se recalculan las partidas con precio de lista.
+  useEffect(() => {
+    if (!isOpen) return;
+    setProductos((prev) => {
+      const nuevos = recalcularPrecios(prev);
+      return nuevos.some((p, i) => p.precioUnitario !== prev[i].precioUnitario || p.reglaPrecio !== prev[i].reglaPrecio)
+        ? nuevos
+        : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, formData.cliente, listas]);
 
   if (!isOpen) return null;
 
@@ -184,7 +315,8 @@ export default function NuevaOrdenMultiProducto({
       alert("Debe haber al menos un producto");
       return;
     }
-    setProductos(productos.filter((_, i) => i !== index));
+    // Al quitar piezas de un producto puede cambiar su mayoreo.
+    setProductos(recalcularPrecios(productos.filter((_, i) => i !== index)));
     const nuevosExpandidos = new Set(productosExpandidos);
     nuevosExpandidos.delete(index);
     setProductosExpandidos(nuevosExpandidos);
@@ -200,24 +332,19 @@ export default function NuevaOrdenMultiProducto({
 
   /** Igual que actualizarProducto, pero cambia varios campos de una vez (sin mutar el estado). */
   const actualizarCampos = (index: number, cambios: Partial<ProductoCaptura>) => {
-    const nuevosProductos = productos.map((p, i) => (i === index ? { ...p, ...cambios } : p));
-
-    // Auto-detectar tipo de venta basado en tipoProduccion
-    const tipos = nuevosProductos.map((p) => p.tipoProduccion);
-    const tiposUnicos = new Set(tipos);
-
-    let nuevoTipoVenta: TipoVenta = "fabricacion";
-    if (tiposUnicos.size > 1) {
-      nuevoTipoVenta = "mixta";
-    } else if (tiposUnicos.has("directa")) {
-      nuevoTipoVenta = "directa";
-    } else if (tiposUnicos.has("comercializacion")) {
-      nuevoTipoVenta = "comercializacion";
-    } else if (tiposUnicos.has("fabricacion")) {
-      nuevoTipoVenta = "fabricacion";
+    // Precio escrito a mano: deja de seguir la lista de precios.
+    const manual = "precioUnitario" in cambios && !("precioLista" in cambios);
+    let nuevosProductos = productos.map((p, i) => {
+      if (i !== index) return p;
+      const nuevo = { ...p, ...cambios };
+      return manual ? { ...nuevo, precioLista: undefined, reglaPrecio: undefined } : nuevo;
+    });
+    // Cambió cantidad, producto o precio de lista: el mayoreo de todas las partidas puede cambiar.
+    if (["cantidad", "nombre", "productoId", "precioLista"].some((k) => k in cambios)) {
+      nuevosProductos = recalcularPrecios(nuevosProductos);
     }
-
-    setFormData({ ...formData, tipoVenta: nuevoTipoVenta });
+    // Auto-detectar tipo de venta basado en tipoProduccion
+    setFormData({ ...formData, tipoVenta: tipoVentaDe(nuevosProductos) });
     setProductos(nuevosProductos);
   };
 
@@ -248,7 +375,14 @@ export default function NuevaOrdenMultiProducto({
   // Llena el producto con los datos de la variante de inventario elegida.
   const elegirVariante = (index: number, producto: Producto, variante: VarianteProducto) => {
     const disponible = disponibleVariante(variante.id, index);
+    const cantidad = esCotizacion
+      ? Math.max(productos[index].cantidad || 1, 1)
+      : Math.min(Math.max(productos[index].cantidad || 1, 1), disponible);
+    // Precio de la variante (con su sobreprecio por talla); actualizarCampos lo ajusta
+    // por mayoreo / precio del cliente.
+    const precioLista = variante.precio || producto.precio;
     actualizarCampos(index, {
+      precioLista,
       productoId: producto.id,
       varianteId: variante.id,
       nombre: producto.nombre,
@@ -257,8 +391,9 @@ export default function NuevaOrdenMultiProducto({
       manga: variante.manga || undefined,
       talla: variante.talla,
       color: variante.color,
-      precioUnitario: variante.precio || producto.precio,
-      cantidad: Math.min(Math.max(productos[index].cantidad || 1, 1), disponible),
+      precioUnitario: precioLista,
+      // En una cotización no se aparta stock: la cantidad no se limita a lo disponible.
+      cantidad,
     });
   };
 
@@ -303,7 +438,45 @@ export default function NuevaOrdenMultiProducto({
 
     // Límite de crédito y tope de descuento (la BD vuelve a validarlos al guardar).
     if (politicas.bloqueo) {
-      toast.error("No se puede crear la orden", { description: politicas.bloqueo });
+      toast.error(esCotizacion ? "No se puede guardar la cotización" : "No se puede crear la orden", {
+        description: politicas.bloqueo,
+      });
+      return;
+    }
+
+    /** Entrega los datos al padre; si se guardaron, limpia y cierra el formulario. */
+    const enviar = async (datos: unknown) => {
+      setGuardando(true);
+      try {
+        const ok = await onSubmit(datos);
+        if (ok !== false) {
+          limpiar();
+          onClose();
+        }
+      } finally {
+        setGuardando(false);
+      }
+    };
+
+    // Cotización: no hay anticipo ni se aparta stock; solo se pide elegir la prenda
+    // de inventario en los productos de venta directa.
+    if (esCotizacion) {
+      const sinPrenda = productos.findIndex((p) => p.tipoProduccion === "directa" && !p.varianteId);
+      if (sinPrenda >= 0) {
+        toast.error(`Producto ${sinPrenda + 1}: selecciona del inventario la prenda a cotizar`);
+        setProductosExpandidos(new Set([...productosExpandidos, sinPrenda]));
+        return;
+      }
+      const cotizacion: CotizacionCapturada = {
+        cliente: formData.cliente.trim(),
+        telefono: formData.clienteTelefono.trim(),
+        email: formData.clienteEmail.trim(),
+        vigencia: formData.vigencia,
+        descuento: importesOrden.descuento,
+        notas: formData.notas,
+        productos,
+      };
+      await enviar(cotizacion);
       return;
     }
 
@@ -411,13 +584,7 @@ export default function NuevaOrdenMultiProducto({
 
     // Si la BD rechaza la orden (p. ej. por las políticas de venta), el formulario
     // queda abierto con lo capturado para corregirlo.
-    setGuardando(true);
-    try {
-      const ok = await onSubmit(nuevaOrden);
-      if (ok !== false) onClose();
-    } finally {
-      setGuardando(false);
-    }
+    await enviar(nuevaOrden);
   };
 
   // Colores de la etiqueta del tipo de venta mostrada en el encabezado.
@@ -441,7 +608,7 @@ export default function NuevaOrdenMultiProducto({
         {/* Encabezado fijo: título, etiqueta del tipo de venta calculado y botón cerrar */}
         <div className="sticky top-0 bg-background border-b border-border px-6 py-4 flex items-center justify-between z-10">
           <div className="flex items-center gap-3">
-            <h2>Nueva Orden de Producción</h2>
+            <h2>{titulo ?? (esCotizacion ? "Nueva Cotización" : "Nueva Orden de Producción")}</h2>
             <span
               className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border-2 ${getTipoVentaColor(
                 formData.tipoVenta
@@ -458,6 +625,7 @@ export default function NuevaOrdenMultiProducto({
           </div>
           <button
             onClick={onClose}
+            aria-label="Cerrar"
             className="p-2 hover:bg-secondary rounded-lg transition-colors"
           >
             <X className="w-5 h-5" />
@@ -490,11 +658,11 @@ export default function NuevaOrdenMultiProducto({
                 <div>
                   <label className="block text-sm font-medium mb-2">
                     <Phone className="w-4 h-4 inline mr-2" />
-                    Teléfono de Contacto *
+                    Teléfono de Contacto{esCotizacion ? "" : " *"}
                   </label>
                   <input
                     type="tel"
-                    required
+                    required={!esCotizacion}
                     value={formData.clienteTelefono}
                     onChange={(e) =>
                       setFormData({ ...formData, clienteTelefono: e.target.value })
@@ -506,11 +674,11 @@ export default function NuevaOrdenMultiProducto({
                 <div>
                   <label className="block text-sm font-medium mb-2">
                     <Mail className="w-4 h-4 inline mr-2" />
-                    Correo Electrónico *
+                    Correo Electrónico{esCotizacion ? "" : " *"}
                   </label>
                   <input
                     type="email"
-                    required
+                    required={!esCotizacion}
                     value={formData.clienteEmail}
                     onChange={(e) =>
                       setFormData({ ...formData, clienteEmail: e.target.value })
@@ -519,6 +687,23 @@ export default function NuevaOrdenMultiProducto({
                     className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
                 </div>
+                {esCotizacion ? (
+                  <div>
+                    <label htmlFor="no-vigencia" className="block text-sm font-medium mb-2">
+                      <Calendar className="w-4 h-4 inline mr-2" />
+                      Válida hasta *
+                    </label>
+                    <input
+                      id="no-vigencia"
+                      type="date"
+                      required
+                      min={hoyISO()}
+                      value={formData.vigencia}
+                      onChange={(e) => setFormData({ ...formData, vigencia: e.target.value })}
+                      className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                  </div>
+                ) : (
                 <div>
                   <label className="block text-sm font-medium mb-2">
                     <Calendar className="w-4 h-4 inline mr-2" />
@@ -535,6 +720,10 @@ export default function NuevaOrdenMultiProducto({
                     className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
                 </div>
+                )}
+                {/* Cobro: solo en órdenes (la cotización no recibe pagos) */}
+                {!esCotizacion && (
+                <>
                 <div>
                   <label className="block text-sm font-medium mb-2">
                     <CreditCard className="w-4 h-4 inline mr-2" />
@@ -595,6 +784,8 @@ export default function NuevaOrdenMultiProducto({
                     </p>
                   )}
                 </div>
+                </>
+                )}
                 <div>
                   <label htmlFor="no-descuento" className="block text-sm font-medium mb-2">
                     <Percent className="w-4 h-4 inline mr-2" />
@@ -715,7 +906,11 @@ export default function NuevaOrdenMultiProducto({
                                 Producto en Inventario *
                               </p>
                               <p className="text-sm text-muted-foreground">
-                                {producto.varianteId
+                                {esCotizacion
+                                  ? producto.varianteId
+                                    ? "La cotización no aparta stock; se revisa al convertirla en orden."
+                                    : "Elige abajo la prenda en existencia que se va a cotizar."
+                                  : producto.varianteId
                                   ? "Se descontará del stock al crear la orden."
                                   : "Elige abajo la prenda en existencia que se va a vender."}
                               </p>
@@ -849,8 +1044,9 @@ export default function NuevaOrdenMultiProducto({
                               type="number"
                               required
                               min="1"
-                              // Venta directa: no se puede vender más de lo que hay en stock.
-                              max={disponible}
+                              // Venta directa: no se puede vender más de lo que hay en stock
+                              // (en una cotización sí se puede cotizar más).
+                              max={esCotizacion ? undefined : disponible}
                               value={producto.cantidad}
                               onChange={(e) =>
                                 actualizarProducto(
@@ -880,6 +1076,20 @@ export default function NuevaOrdenMultiProducto({
                                 )
                               }
                               className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            />
+                            <AvisoPrecioLista
+                              producto={producto}
+                              calculo={reglaDe(producto)}
+                              onAplicar={(precioLista, precio, regla) =>
+                                actualizarCampos(index, { precioLista, precioUnitario: precio, reglaPrecio: regla })
+                              }
+                              onQuitar={() =>
+                                actualizarCampos(index, {
+                                  precioLista: undefined,
+                                  reglaPrecio: undefined,
+                                  precioUnitario: producto.precioLista ?? producto.precioUnitario,
+                                })
+                              }
                             />
                           </div>
                         </div>
@@ -1081,7 +1291,7 @@ export default function NuevaOrdenMultiProducto({
             <CardHeader>
               <CardTitle className="text-lg">
                 <FileText className="w-5 h-5 inline mr-2" />
-                Notas de la Orden
+                {esCotizacion ? "Notas y condiciones" : "Notas de la Orden"}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -1092,7 +1302,7 @@ export default function NuevaOrdenMultiProducto({
                 }
                 rows={3}
                 className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                placeholder="Instrucciones especiales, comentarios adicionales..."
+                placeholder={esCotizacion ? "Tiempo de entrega estimado, anticipo requerido, condiciones de pago…" : "Instrucciones especiales, comentarios adicionales..."}
               />
             </CardContent>
           </Card>
@@ -1111,11 +1321,61 @@ export default function NuevaOrdenMultiProducto({
               disabled={anticipoExcedido || guardando || !!politicas.bloqueo}
               className="px-6 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {guardando ? "Guardando…" : "Crear Orden"}
+              {guardando ? "Guardando…" : esCotizacion ? "Guardar Cotización" : "Crear Orden"}
             </button>
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Aviso bajo el precio unitario: regla de mayoreo / precio especial aplicada (con
+ * "Quitar"), o sugerida (con "Aplicar") cuando el precio se escribió a mano; y cuánto
+ * mejoraría con la siguiente escala de mayoreo.
+ */
+function AvisoPrecioLista({
+  producto,
+  calculo,
+  onAplicar,
+  onQuitar,
+}: {
+  producto: ProductoCaptura;
+  calculo: PrecioCalculado;
+  onAplicar: (precioLista: number, precio: number, regla: string) => void;
+  onQuitar: () => void;
+}) {
+  const aplicada = producto.precioLista != null && !!producto.reglaPrecio;
+  const sugerida = !aplicada && calculo.regla && calculo.precio !== producto.precioUnitario;
+  if (!aplicada && !sugerida && !calculo.siguiente) return null;
+  return (
+    <div className="mt-1.5 space-y-1 text-xs">
+      {aplicada && (
+        <p className="text-status-completed">
+          ✓ {producto.reglaPrecio} · lista {formatMonto(producto.precioLista!)}{" "}
+          <button type="button" onClick={onQuitar} className="text-muted-foreground underline hover:text-foreground">
+            Quitar
+          </button>
+        </p>
+      )}
+      {sugerida && (
+        <p className="text-primary">
+          {calculo.regla}: {formatMonto(calculo.precio)}{" "}
+          <button
+            type="button"
+            onClick={() => onAplicar(producto.precioUnitario, calculo.precio, calculo.regla!)}
+            className="font-medium underline"
+          >
+            Aplicar
+          </button>
+        </p>
+      )}
+      {calculo.siguiente && (
+        <p className="text-muted-foreground">
+          Con {calculo.siguiente.cantidadMin} pzs o más de este producto: −{calculo.siguiente.descuentoPct} %
+        </p>
+      )}
     </div>
   );
 }

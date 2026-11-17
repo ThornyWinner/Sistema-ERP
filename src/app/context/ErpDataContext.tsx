@@ -47,7 +47,7 @@ type ErpData = {
   /** Vuelve a descargar todos los datos. */
   refresh: () => Promise<void>;
   /** Guarda una orden nueva y devuelve su folio (generado por la base de datos). */
-  crearOrden: (orden: Orden) => Promise<string>;
+  crearOrden: (orden: Orden) => Promise<{ id: string; folio: string }>;
   /** Cambia el estado (pendiente / en proceso / completado) de un producto en un taller. */
   actualizarProgresoTaller: (
     ordenDetalleId: string,
@@ -595,7 +595,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
       }
 
       await refresh();
-      return ordenRow.folio as string;
+      return { id: ordenRow.id as string, folio: ordenRow.folio as string };
     },
     [refresh]
   );

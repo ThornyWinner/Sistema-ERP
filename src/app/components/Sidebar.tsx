@@ -17,6 +17,7 @@ import {
   Package,
   ShoppingBag,
   ClipboardList,
+  Calculator,
   Wrench,
   BarChart3,
   Users,
@@ -37,6 +38,9 @@ import {
   Contact,
   Landmark,
   Building2,
+  Target,
+  HandCoins,
+  Tags,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
@@ -64,6 +68,8 @@ export default function Sidebar() {
       productos: accessibleRoutes.find(r => r.route === '/inventario/productos'),
     },
     ordenes: accessibleRoutes.find(r => r.route === '/ordenes'),
+    cotizaciones: accessibleRoutes.find(r => r.route === '/cotizaciones'),
+    cobranza: accessibleRoutes.find(r => r.route === '/cobranza'),
     talleres: {
       diseno: accessibleRoutes.find(r => r.route === '/talleres/diseno'),
       sublimacion: accessibleRoutes.find(r => r.route === '/talleres/sublimacion'),
@@ -77,10 +83,12 @@ export default function Sidebar() {
       configuracion: accessibleRoutes.find(r => r.route === '/facturacion/configuracion'),
     },
     clientes: accessibleRoutes.find(r => r.route === '/catalogos/clientes'),
+    precios: accessibleRoutes.find(r => r.route === '/catalogos/precios'),
     activoFijo: accessibleRoutes.find(r => r.route === '/activo-fijo'),
     seguimiento: accessibleRoutes.find(r => r.route === '/seguimiento'),
     proveedores: accessibleRoutes.find(r => r.route === '/proveedores'),
     reportes: accessibleRoutes.find(r => r.route === '/reportes'),
+    comisiones: accessibleRoutes.find(r => r.route === '/comisiones'),
     usuarios: accessibleRoutes.find(r => r.route === '/usuarios'),
     vacaciones: accessibleRoutes.find(r => r.route === '/vacaciones'),
     asistencia: accessibleRoutes.find(r => r.route === '/asistencia'),
@@ -93,6 +101,10 @@ export default function Sidebar() {
     Package,
     ShoppingBag,
     ClipboardList,
+    Calculator,
+    Target,
+    HandCoins,
+    Tags,
     Palette,
     Droplet,
     Scissors,
@@ -254,6 +266,12 @@ export default function Sidebar() {
         {/* Órdenes */}
         {menuStructure.ordenes && renderMenuItem(menuStructure.ordenes)}
 
+        {/* Cotizaciones */}
+        {menuStructure.cotizaciones && renderMenuItem(menuStructure.cotizaciones)}
+
+        {/* Cobranza */}
+        {menuStructure.cobranza && renderMenuItem(menuStructure.cobranza)}
+
         {/* Talleres: se muestra si el rol puede ver al menos un taller
             (los roles de taller solo verán el suyo) */}
         {(menuStructure.talleres.diseno || menuStructure.talleres.sublimacion || 
@@ -398,6 +416,9 @@ export default function Sidebar() {
         {/* Catálogo de clientes */}
         {menuStructure.clientes && renderMenuItem(menuStructure.clientes)}
 
+        {/* Listas de precios (mayoreo y precios por cliente) */}
+        {menuStructure.precios && renderMenuItem(menuStructure.precios)}
+
         {/* Activo fijo (admin primario) */}
         {menuStructure.activoFijo && renderMenuItem(menuStructure.activoFijo)}
 
@@ -409,6 +430,9 @@ export default function Sidebar() {
 
         {/* Reportes */}
         {menuStructure.reportes && renderMenuItem(menuStructure.reportes)}
+
+        {/* Metas y comisiones */}
+        {menuStructure.comisiones && renderMenuItem(menuStructure.comisiones)}
 
         {/* Gestión de Usuarios */}
         {menuStructure.usuarios && renderMenuItem(menuStructure.usuarios)}

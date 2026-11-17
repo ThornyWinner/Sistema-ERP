@@ -24,7 +24,8 @@ import RegistrarAbonoDialog from "../components/RegistrarAbonoDialog";
 import DesgloseImportes from "../components/DesgloseImportes";
 import EditarOrdenDialog from "../components/EditarOrdenDialog";
 import ContactarClienteDialog from "../components/ContactarClienteDialog";
-import { imprimirNotaOrden, progresoOrden } from "../lib/notaOrden";
+import AprobacionDisenoCard from "../components/disenos/AprobacionDisenoCard";
+import { imprimirNotaOrden, plantillasMensaje, progresoOrden } from "../lib/notaOrden";
 import { enlaceWhatsApp } from "../lib/contacto";
 import { Button } from "../components/ui/button";
 import { METODO_PAGO_LABEL, formatMonto, redondearCentavos, saldoPendiente, totalPagado } from "../lib/pagos";
@@ -428,6 +429,9 @@ export default function OrdenDetalle() {
           </CardContent>
         </Card>
       )}
+
+      {/* Bocetos y aprobación del diseño por el cliente (productos que pasan por Diseño) */}
+      <AprobacionDisenoCard orden={orden} puedeEditar={puedeModificar && orden.estadoNombre !== "Cancelada"} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 {/* Información General */}
@@ -861,7 +865,17 @@ export default function OrdenDetalle() {
       )}
 
       <RegistrarAbonoDialog orden={orden} open={abonoAbierto} onClose={() => setAbonoAbierto(false)} />
-      <ContactarClienteDialog orden={orden} open={contactoAbierto} onClose={() => setContactoAbierto(false)} />
+      <ContactarClienteDialog
+        open={contactoAbierto}
+        onClose={() => setContactoAbierto(false)}
+        cliente={orden.cliente}
+        telefono={orden.clienteTelefono}
+        email={orden.clienteEmail}
+        plantillas={plantillasMensaje(orden)}
+        folio={`Orden ${orden.numero}`}
+        onGuardarPdf={() => imprimirNotaOrden(orden)}
+        textoPdf="Guardar nota en PDF"
+      />
       {puedeEditar && (
         <EditarOrdenDialog orden={orden} open={edicionAbierta} onClose={() => setEdicionAbierta(false)} />
       )}

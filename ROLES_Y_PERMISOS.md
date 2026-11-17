@@ -59,13 +59,14 @@ Todos los roles tienen además el **buscador global** (solo busca en los módulo
 - Badge amarillo de rol en el header
 - Aviso de solo lectura en Inventario de Materiales
 - Botones de alta deshabilitados con tooltip (materiales, productos, proveedores)
-- En el Taller de Diseño, los botones Aprobar/Rechazar se sustituyen por "Solo lectura"
+- En el Taller de Diseño ve los bocetos y su aprobación, pero no sube versiones ni avanza el tablero ("Solo lectura")
 
 ### 3. Vendedor (`vendedor`)
 
 **Acceso:** Dashboard y Órdenes (control total); Inventario de materiales y productos (solo lectura).
 
 - ✅ Crear órdenes multiproducto y ventas rápidas de mostrador
+- ✅ Hacer **cotizaciones** (`/cotizaciones`): enviarlas en PDF o WhatsApp, marcarlas aceptadas o rechazadas y convertirlas en orden con un clic (`sql/cotizaciones.sql`)
 - ✅ Dar de alta y actualizar clientes al capturar una orden (sin cambiar su límite ni sus días de crédito: eso lo asigna el admin primario)
 - ⚖️ **Políticas de venta** (`sql/politicas_venta.sql`, también aplican al admin secundario):
   - Descuento máximo del 10 % del subtotal (el admin primario lo cambia en Catálogo de Clientes).
@@ -75,6 +76,10 @@ Todos los roles tienen además el **buscador global** (solo busca en los módulo
 - 👁️ Consultar inventario y proveedores (en la base de datos; el módulo de Proveedores no aparece en su menú)
 - ℹ️ Solo ve **sus propias órdenes** (Dashboard de ventas, Órdenes, buscador). La base de datos tampoco le deja ver ni asignar órdenes de otro vendedor
 - ✅ Recibe el aviso automático cuando una de sus órdenes termina producción
+- 🎨 **Aprobación del diseño**: en el detalle de la orden recibe el boceto que sube Diseño, se lo manda al cliente (WhatsApp/correo con enlace de 7 días, o la hoja de aprobación impresa para firma) y registra su respuesta: quién aprobó, cuándo y por qué medio, o los cambios que pidió. Sin esa aprobación Diseño no puede terminar el producto (el admin primario sí puede saltarlo)
+- 🏷️ Consulta las **listas de precios** (`/catalogos/precios`, `sql/listas_precios.sql`): al capturar órdenes, cotizaciones y ventas rápidas se aplican solos el mayoreo y los precios especiales del cliente (los define el admin primario)
+- 💰 **Cobranza** (`/cobranza`, `sql/cobranza.sql`): antigüedad de sus saldos (al corriente, 1–30, 31–60 y +60 días vencido), abonos, mensajes de cobro por WhatsApp/correo y estado de cuenta en PDF. Cada día a las 8:00 recibe un aviso cuando un saldo suyo entra a 1, 31 o 61 días vencido (a +60 días también se avisa al admin primario)
+- 🎯 Ve en su Dashboard el **avance de su meta del mes** y la **comisión** ganada sobre lo cobrado (`sql/metas_comisiones.sql`); no ve la de los demás
 - ❌ Sin acceso a talleres, seguimiento, reportes, usuarios ni vacaciones
 
 **Flujo típico:** login → revisar inventario → crear orden → dar seguimiento al estado → informar al cliente.
@@ -85,7 +90,7 @@ Cada rol operativo ve únicamente su **Dashboard de taller** (cola FIFO, pendien
 
 | Rol | Clave | Módulo | Tareas principales |
 |-----|-------|--------|--------------------|
-| Diseñador | `disenador` | `/talleres/diseno` | Revisar especificaciones y avanzar el diseño (los botones Aprobar/Rechazar aún no guardan nada) |
+| Diseñador | `disenador` | `/talleres/diseno` | Revisar especificaciones, subir los bocetos (versiones) y avanzar el diseño. No puede completar Diseño hasta que el vendedor registre la aprobación del cliente (`sql/aprobacion_disenos.sql`) |
 | Sublimador | `sublimador` | `/talleres/sublimacion` | Procesar órdenes listas para sublimar y marcarlas completadas |
 | Cortador | `cortador` | `/talleres/corte` | Confirmar cortes y cantidad de piezas |
 | Costurera | `costurera` | `/talleres/costura` | Registrar avances, marcar piezas terminadas |
@@ -108,15 +113,21 @@ Cuando marca un trabajo como terminado, los usuarios del **siguiente taller** de
 | Inventario Materiales (`/inventario/materiales`) | ✅ | 👁️ | 👁️ | ❌ |
 | Inventario Productos (`/inventario/productos`) | ✅ | 👁️ | 👁️ | ❌ |
 | Órdenes de Producción (`/ordenes`) | ✅ | 👁️ | ✅ las suyas | ❌ |
+| Cotizaciones (`/cotizaciones`) | ✅ | 👁️ todas · ✅ las suyas | ✅ las suyas | ❌ |
+| Listas de precios (`/catalogos/precios`) | ✅ | 👁️ | 👁️ | ❌ |
+| Cobranza (`/cobranza`) | ✅ | 👁️ toda la cartera · abona a las suyas | ✅ las suyas | ❌ |
 | Talleres (`/talleres/*`) | ✅ | 👁️ | ❌ | ✅ solo el suyo |
 | Seguimiento Global (`/seguimiento`) | ✅ | 👁️ | ❌ | ❌ |
 | Proveedores (`/proveedores`) | ✅ | 👁️ | ❌ | ❌ |
 | Reportes (`/reportes`) | ✅ | 👁️ | ❌ | ❌ |
+| Metas y Comisiones (`/comisiones`) | ✅ | 👁️ | ❌ ² | ❌ |
 | Gestión de Usuarios (`/usuarios`) | ✅ | ❌ ¹ | ❌ | ❌ |
 | Permisos Vacacionales (`/vacaciones`) | ✅ | ❌ | ❌ | ❌ |
 | Activo Fijo (`/activo-fijo`) | ✅ | ❌ | ❌ | ❌ |
 
 **Leyenda:** ✅ ver, crear, editar y eliminar · 👁️ solo lectura · ❌ sin acceso (oculto en el menú)
+
+² El vendedor ve su propia meta y comisión en su Dashboard.
 
 ¹ `permissions.ts` le da lectura (aparece en el menú), pero `GestionUsuarios.tsx` bloquea la página a todo rol distinto de `admin_primario`.
 
@@ -131,7 +142,12 @@ Resumen; el detalle tabla por tabla está en [Políticas.txt](Pol%C3%ADticas.txt
 | Datos | Admin Primario | Admin Secundario | Vendedor | Rol de taller |
 |-------|:-:|:-:|:-:|:-:|
 | Órdenes, detalles, personalizaciones, producción | CRUD | Lectura | CRUD de las suyas | Lectura de las de su taller; editar avance de su taller |
+| Cotizaciones y sus partidas | Todo | Lectura de todas; crear y editar las suyas | Las suyas (se guardan solo con `guardar_cotizacion`) | — |
 | Pagos e historial de órdenes | CRUD | Lectura | De sus órdenes | — |
+| Cartera por cobrar (`cartera_por_cobrar`) y recordatorios | Toda; puede correr los recordatorios | Toda (lectura) | Solo sus órdenes | — |
+| Bocetos y aprobación del diseño (`propuestas_diseno`, bucket `disenos`) | Todo; puede completar Diseño sin aprobación | Lectura | Los de sus órdenes; envía y registra la respuesta del cliente | Diseñador: sube versiones de las órdenes de su taller; los demás talleres ven el diseño de sus órdenes |
+| Mayoreo y precios por cliente | CRUD | Lectura | Lectura | — |
+| Metas de vendedores y % de comisión | CRUD | Lectura | Lectura de las suyas (`desempeno_vendedores` solo le da su fila) | — |
 | Clientes | CRUD | Lectura | Leer, crear y editar | Los de sus órdenes |
 | Productos y variantes | CRUD | Lectura | Lectura | Los de sus órdenes |
 | Materiales, movimientos y proveedores | CRUD | Lectura | Lectura | — |

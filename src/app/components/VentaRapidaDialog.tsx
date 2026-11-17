@@ -19,6 +19,8 @@ import { describirVariante, type MetodoPago, type Producto } from "../data/mockD
 import { hoyISO } from "../lib/fechas";
 import { calcularImportes } from "../lib/impuestos";
 import { usePoliticasVenta } from "../lib/politicasVenta";
+import { piezasMayoreo, precioSugerido, useListasPrecios } from "../lib/listasPrecios";
+import { formatMonto } from "../lib/pagos";
 import DesgloseImportes from "./DesgloseImportes";
 import PanelPoliticasVenta from "./PanelPoliticasVenta";
 import {
@@ -52,6 +54,7 @@ type ItemCarrito = {
   manga: string;
   talla: string;
   color: string;
+  /** Precio de lista de la variante (antes de mayoreo / precio especial del cliente). */
   precio: number;
   /** Stock de la variante al momento de agregarla; límite máximo de `cantidad`. */
   stockDisponible: number;
@@ -84,9 +87,20 @@ export default function VentaRapidaDialog({
   const [descuento, setDescuento] = useState(0);
   const [guardando, setGuardando] = useState(false);
 
+  // Mayoreo y precios especiales por cliente: el precio de cada renglón se calcula a
+  // partir del de lista (las piezas del mismo producto suman para el mayoreo).
+  const listas = useListasPrecios(isOpen);
+  const precioDe = (item: ItemCarrito) =>
+    precioSugerido(listas, {
+      cliente: formData.cliente,
+      productoId: item.productoId,
+      precioBase: item.precio,
+      cantidad: piezasMayoreo(item, carrito),
+    });
+
   // Importes del carrito: precios antes de IVA; se cobra subtotal − descuento + IVA 16 %.
   const importesCarrito = calcularImportes(
-    carrito.map((item) => ({ cantidad: item.cantidad, precioUnitario: item.precio })),
+    carrito.map((item) => ({ cantidad: item.cantidad, precioUnitario: precioDe(item).precio })),
     descuento
   );
   // A crédito no se cobra en el momento: todo el total queda como saldo del cliente.
@@ -221,7 +235,7 @@ export default function VentaRapidaDialog({
         talla: item.talla,
         color: item.color,
         cantidad: item.cantidad,
-        precioUnitario: item.precio,
+        precioUnitario: precioDe(item).precio,
         tipoProduccion: "directa" as const,
         talleres: [],
         progreso: {},
@@ -405,7 +419,9 @@ export default function VentaRapidaDialog({
                 <CardTitle className="text-lg">Carrito ({carrito.length})</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {carrito.map((item) => (
+                {carrito.map((item) => {
+                  const calc = precioDe(item);
+                  return (
                   <div
                     key={item.varianteId}
                     className="flex items-center justify-between p-3 bg-secondary rounded-lg"
@@ -416,9 +432,10 @@ export default function VentaRapidaDialog({
                         {describirVariante(item)}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        ${item.precio} x {item.cantidad} = $
-                        {(item.precio * item.cantidad).toLocaleString()}
+                        {calc.regla && <span className="line-through mr-1">{formatMonto(item.precio)}</span>}
+                        {formatMonto(calc.precio)} x {item.cantidad} = {formatMonto(calc.precio * item.cantidad)}
                       </p>
+                      {calc.regla && <p className="text-xs text-status-completed">✓ {calc.regla}</p>}
                     </div>
                     <div className="flex items-center gap-2">
                       <button
@@ -446,7 +463,8 @@ export default function VentaRapidaDialog({
                       </button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
 
                 <div className="pt-4 border-t border-border space-y-3">
                   <div className="flex flex-wrap items-center gap-3">
