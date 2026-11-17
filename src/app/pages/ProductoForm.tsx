@@ -5,17 +5,17 @@
  *  - /productos/nuevo        → modo creación (formulario vacío).
  *  - /productos/editar/:id   → modo edición (precarga los datos del producto con ese id).
  *
- * Campos: nombre, tipo de prenda, categoría, precio, stock inicial, tallas y colores
- * (seleccionados de listas predefinidas). La columna derecha incluye la imagen de
+ * Campos: nombre, tipo de prenda, categoría, precio, stock inicial, descripción
+ * (composición, qué incluye, notas) y variantes: cortes, mangas, tallas y colores. La columna derecha incluye la imagen de
  * referencia (clic o arrastrar y soltar) y un resumen en vivo.
  *
  * Al guardar (lib/productos.ts → guardarProducto):
- *  - Alta: crea el producto y una variante por cada talla × color con el stock inicial.
+ *  - Alta: crea una variante por cada corte × manga × talla × color con el stock inicial.
  *  - Edición: actualiza datos, agrega/quita variantes y, si cambió, el precio.
  *  - La imagen se sube al bucket `productos` de Supabase Storage.
  * Solo el administrador primario puede crear o editar (permisos y RLS).
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/Card";
@@ -24,9 +24,11 @@ import { useErpData } from "../context/ErpDataContext";
 import { useAuth } from "../context/AuthContext";
 import { hasPermission } from "../utils/permissions";
 import ImagenProductoInput from "../components/ImagenProductoInput";
+import { CORTES, MANGAS, TIPOS_PRENDA } from "../data/mockData";
 import {
   cargarCategorias,
   cargarFiscalProducto,
+  combinacionesDeseadas,
   guardarProducto,
   type DatosFiscalesProducto,
 } from "../lib/productos";
@@ -59,8 +61,13 @@ export default function ProductoForm() {
     categoria: productoExistente?.categoria || "",
     precio: productoExistente?.precio || 0,
     stock: productoExistente?.stock || 0,
+    cortes: productoExistente?.cortes || [],
+    mangas: productoExistente?.mangas || [],
     tallas: productoExistente?.tallas || [],
     colores: productoExistente?.colores || [],
+    composicion: productoExistente?.composicion || "",
+    incluye: productoExistente?.incluye || "",
+    notas: productoExistente?.notas || "",
   });
 
   // Si se entra directo a /productos/editar/:id, los productos llegan después del
@@ -74,8 +81,13 @@ export default function ProductoForm() {
       categoria: productoExistente.categoria === "Sin categoría" ? "" : productoExistente.categoria,
       precio: productoExistente.precio,
       stock: productoExistente.stock,
+      cortes: productoExistente.cortes,
+      mangas: productoExistente.mangas,
       tallas: productoExistente.tallas,
       colores: productoExistente.colores,
+      composicion: productoExistente.composicion ?? "",
+      incluye: productoExistente.incluye ?? "",
+      notas: productoExistente.notas ?? "",
     });
     setCargadoId(productoExistente.id);
   }, [productoExistente, cargadoId]);
@@ -114,55 +126,21 @@ export default function ProductoForm() {
     cargarCategorias().then(setCategorias).catch(() => setCategorias([]));
   }, []);
 
-  // Valor seleccionado en los desplegables de talla/color antes de pulsar "Agregar".
-  const [nuevaTalla, setNuevaTalla] = useState("");
-  const [nuevoColor, setNuevoColor] = useState("");
+  // Sugerencias de tallas y colores: las que ya se usan en el catálogo (se puede escribir otra).
+  const tallasCatalogo = useMemo(
+    () => [...new Set(mockProductos.flatMap((p) => p.tallas))].sort((a, b) => a.localeCompare(b, "es", { numeric: true })),
+    [mockProductos]
+  );
+  const coloresCatalogo = useMemo(
+    () => [...new Set(mockProductos.flatMap((p) => p.colores))].sort((a, b) => a.localeCompare(b, "es")),
+    [mockProductos]
+  );
 
-  // Listas de tallas y colores disponibles para seleccionar. Se filtran en el render para no mostrar los ya agregados.
-  const tallasDisponibles = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "28", "30", "32", "34", "36", "38", "40"];
-  const coloresDisponibles = [
-    "Azul Marino",
-    "Negro",
-    "Gris",
-    "Blanco",
-    "Khaki",
-    "Verde",
-    "Naranja",
-    "Amarillo",
-    "Rojo",
-  ];
-
-  // Añade la talla si no está vacía ni repetida y limpia el desplegable.
-  const agregarTalla = (talla: string) => {
-    if (talla && !formData.tallas.includes(talla)) {
-      setFormData({ ...formData, tallas: [...formData.tallas, talla] });
-    }
-    setNuevaTalla("");
-  };
-
-  // Elimina la talla del formulario y limpia el desplegable.
-  const eliminarTalla = (talla: string) => {
-    setFormData({
-      ...formData,
-      tallas: formData.tallas.filter((t) => t !== talla),
-    });
-  };
-
-  // Añade el color si no está vacío ni repetido y limpia el desplegable.
-  const agregarColor = (color: string) => {
-    if (color && !formData.colores.includes(color)) {
-      setFormData({ ...formData, colores: [...formData.colores, color] });
-    }
-    setNuevoColor("");
-  };
-
-  // Elimina el color del formulario y limpia el desplegable.
-  const eliminarColor = (color: string) => {
-    setFormData({
-      ...formData,
-      colores: formData.colores.filter((c) => c !== color),
-    });
-  };
+  // Variantes que quedarían al guardar (para el resumen).
+  const totalVariantes = useMemo(
+    () => combinacionesDeseadas(formData, productoExistente?.variantes).length,
+    [formData, productoExistente]
+  );
 
   // Guarda en Supabase (producto, variantes e imagen) y vuelve al inventario.
   const handleSubmit = async (e: React.FormEvent) => {
@@ -196,8 +174,13 @@ export default function ProductoForm() {
           categoria: formData.categoria,
           precio,
           stockInicial,
+          cortes: formData.cortes,
+          mangas: formData.mangas,
           tallas: formData.tallas,
           colores: formData.colores,
+          composicion: formData.composicion,
+          incluye: formData.incluye,
+          notas: formData.notas,
           fiscal: {
             codigo: fiscal.codigo?.trim() || null,
             clave_prod_serv: fiscal.clave_prod_serv || null,
@@ -217,7 +200,7 @@ export default function ProductoForm() {
       toast.success(isEditing ? "Producto actualizado" : `Producto "${formData.nombre.trim()}" creado`);
       if (resultado.variantesConservadas > 0) {
         toast.warning(
-          `${resultado.variantesConservadas} combinación(es) de talla/color no se eliminaron porque tienen stock o ya se usaron en órdenes`
+          `${resultado.variantesConservadas} variante(s) no se eliminaron porque tienen stock o ya se usaron en órdenes`
         );
       }
       if (resultado.errorImagen) {
@@ -322,12 +305,11 @@ export default function ProductoForm() {
                       className="w-full px-4 py-2 bg-input-background border border-border rounded-lg focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                       required
                     >
-                      {/* Opciones de tipo de producto: camisa, pantalón, overol, chaleco */}
-                      <option value="camisa">Camisa</option>
-                      <option value="pantalon">Pantalón</option>
-                      <option value="overol">Overol</option>
-                      <option value="chaleco">Chaleco</option>
-                      <option value="otro">Otro (no prenda)</option>
+                      {TIPOS_PRENDA.map((t) => (
+                        <option key={t.valor} value={t.valor}>
+                          {t.etiqueta}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   
@@ -492,144 +474,78 @@ export default function ProductoForm() {
               </CardContent>
             </Card>
 
-            {/* Variantes: tallas y colores como etiquetas que se pueden quitar con la X.
-                Los desplegables ocultan las opciones ya agregadas. */}
+            {/* Ficha técnica del producto */}
             <Card>
-              {/* Encabezado de la tarjeta con el título "Variantes" */}
+              <CardHeader>
+                <CardTitle>Descripción</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {(
+                  [
+                    ["composicion", "Composición de la tela", "Ej: 4.20 oz · Oxford · 60% Algodón 40% Poliéster"],
+                    ["incluye", "Qué incluye", "Ej: Bordado tamaño bolsillo"],
+                    ["notas", "Notas", "Decorado sugerido, características, aclaraciones…"],
+                  ] as const
+                ).map(([campo, etiqueta, ejemplo]) => (
+                  <div key={campo}>
+                    <label className="block text-sm font-medium text-foreground mb-2">{etiqueta}</label>
+                    <textarea
+                      value={formData[campo]}
+                      onChange={(e) => setFormData({ ...formData, [campo]: e.target.value })}
+                      rows={campo === "notas" ? 3 : 2}
+                      className="w-full px-4 py-2 bg-input-background border border-border rounded-lg focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      placeholder={ejemplo}
+                    />
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            {/* Variantes: corte × manga × talla × color. Una lista vacía = no aplica. */}
+            <Card>
               <CardHeader>
                 <CardTitle>Variantes</CardTitle>
               </CardHeader>
-              {/* Contenido de la tarjeta con los campos de tallas y colores */}
               <CardContent className="space-y-6">
-                {/* Sección de tallas disponibles con un select y un botón para agregar */}
-                <div>
-                  {/* Etiqueta para la sección de tallas disponibles */}
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Tallas Disponibles
-                  </label>
-                  {/* Contenedor flex para el select de tallas y el botón de agregar */}
-                  <div className="flex gap-2 mb-3">
-                    {/* Select controlado por el estado nuevaTalla, con opciones filtradas para no mostrar las ya agregadas */}
-                    <select
-                      value={nuevaTalla}
-                      onChange={(e) => setNuevaTalla(e.target.value)}
-                      className="flex-1 px-4 py-2 bg-input-background border border-border rounded-lg focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    >
-                      {/* Opción por defecto para indicar que se debe seleccionar una talla */}
-                      <option value="">Seleccionar talla</option>
-                      {/* Mapea las tallas disponibles que aún no están en formData.tallas a opciones del select */}
-                      {tallasDisponibles
-                        .filter((t) => !formData.tallas.includes(t))
-                        .map((talla) => (
-                          // Mapea cada talla disponible a una opción del select, usando la talla como key y value */}
-                          <option key={talla} value={talla}>
-                            {talla}
-                          </option>
-                        ))}
-                    </select>
-                    {/* Botón para agregar la talla seleccionada al formulario */}
-                    <button
-                      type="button"
-                      onClick={() => agregarTalla(nuevaTalla)}
-                      className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-                    >
-                      Agregar
-                    </button>
-                  </div>
-                  {/* Contenedor para mostrar las tallas agregadas como etiquetas con botón de eliminar */}
-                  <div className="flex flex-wrap gap-2">
-                    {/* Mapea las tallas agregadas en formData.tallas a etiquetas con botón de eliminar */}
-                    {formData.tallas.map((talla) => (
-                      // Etiqueta que muestra la talla y un botón para eliminarla, usando la talla como key */}
-                      <span
-                        key={talla}
-                        className="inline-flex items-center gap-2 px-3 py-1 bg-secondary text-foreground rounded-lg"
-                      >
-                        {talla}
-                        {/* Botón para eliminar la talla del formulario, con icono X */}
-                        <button
-                          type="button"
-                          onClick={() => eliminarTalla(talla)}
-                          className="text-muted-foreground hover:text-foreground"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </span>
-                    ))}
-                    {/* Mensaje que se muestra si no hay tallas agregadas, con texto atenuado */}
-                    {formData.tallas.length === 0 && (
-                      <p className="text-sm text-muted-foreground">
-                        No hay tallas agregadas
-                      </p>
-                    )}
-                  </div>
-                </div>
-                {/* Sección de colores disponibles con un select y un botón para agregar */}
-                <div>
-                  {/* Etiqueta para la sección de colores disponibles */}
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Colores Disponibles
-                  </label>
-                  {/* Contenedor flex para el select de colores y el botón de agregar */}
-                  <div className="flex gap-2 mb-3">
-                    {/* Select controlado por el estado nuevoColor, con opciones filtradas para no mostrar los ya agregados */}
-                    <select
-                      value={nuevoColor}
-                      onChange={(e) => setNuevoColor(e.target.value)}
-                      className="flex-1 px-4 py-2 bg-input-background border border-border rounded-lg focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    >
-                      {/* Opción por defecto para indicar que se debe seleccionar un color */}
-                      <option value="">Seleccionar color</option>
-                      {/* Mapea los colores disponibles que aún no están en formData.colores a opciones del select */}
-                      {coloresDisponibles
-                        .filter((c) => !formData.colores.includes(c))
-                        .map((color) => (
-                          <option key={color} value={color}>
-                            {color}
-                          </option>
-                        ))}
-                    </select>
-                    {/* Botón para agregar el color seleccionado al formulario */}
-                    <button
-                      type="button"
-                      onClick={() => agregarColor(nuevoColor)}
-                      className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-                    >
-                      Agregar
-                    </button>
-                  </div>
-                  {/* Contenedor para mostrar los colores agregados como etiquetas con botón de eliminar */}
-                  <div className="flex flex-wrap gap-2">
-                    {/* Mapea los colores agregados en formData.colores a etiquetas con botón de eliminar */}
-                    {formData.colores.map((color) => (
-                      // Etiqueta que muestra el color y un botón para eliminarlo, usando el color como key */}
-                      <span
-                        key={color}
-                        className="inline-flex items-center gap-2 px-3 py-1 bg-secondary text-foreground rounded-lg"
-                      >
-                        {color}
-                        {/* Botón para eliminar el color del formulario, con icono X */}
-                        <button
-                          type="button"
-                          onClick={() => eliminarColor(color)}
-                          className="text-muted-foreground hover:text-foreground"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </span>
-                    ))}
-                    {/* Mensaje que se muestra si no hay colores agregados, con texto atenuado */}
-                    {formData.colores.length === 0 && (
-                      <p className="text-sm text-muted-foreground">
-                        No hay colores agregados
-                      </p>
-                    )}
-                  </div>
-                </div>
+                <ListaValores
+                  etiqueta="Cortes"
+                  valores={formData.cortes}
+                  opciones={[...CORTES]}
+                  vacio="Sin corte (no aplica)"
+                  onChange={(cortes) => setFormData({ ...formData, cortes })}
+                />
+                <ListaValores
+                  etiqueta="Mangas"
+                  valores={formData.mangas}
+                  opciones={[...MANGAS]}
+                  vacio="Sin manga (no aplica: pantalón, chaleco, accesorio…)"
+                  onChange={(mangas) => setFormData({ ...formData, mangas })}
+                />
+                <ListaValores
+                  etiqueta="Tallas"
+                  valores={formData.tallas}
+                  opciones={tallasCatalogo}
+                  libre
+                  vacio="No hay tallas agregadas"
+                  onChange={(tallas) => setFormData({ ...formData, tallas })}
+                />
+                <ListaValores
+                  etiqueta="Colores"
+                  valores={formData.colores}
+                  opciones={coloresCatalogo}
+                  libre
+                  vacio="No hay colores agregados"
+                  onChange={(colores) => setFormData({ ...formData, colores })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {isEditing
+                    ? "Un valor nuevo se combina con las variantes que ya existen (p. ej. un color nuevo se crea en cada corte, manga y talla actuales). Al quitar un valor se eliminan sus variantes, salvo las que tengan stock o se hayan usado en órdenes."
+                    : "Se crea una variante por cada combinación de corte, manga, talla y color."}
+                </p>
               </CardContent>
             </Card>
           </div>
-          
+
           {/* Columna derecha: zona de imagen y resumen del producto */}
           <div className="space-y-6">
             {/* Imagen de referencia: clic o arrastrar; se sube a Supabase al guardar */}
@@ -665,6 +581,14 @@ export default function ProductoForm() {
               {/* Contenido de la tarjeta con un resumen en vivo de las tallas, colores, precio y stock */}
               <CardContent className="space-y-3">
                 {/* Cada línea del resumen muestra un campo y su valor correspondiente */}
+                <div className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">Cortes:</span>
+                  <span className="font-medium text-right">{formData.cortes.join(", ") || "—"}</span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">Mangas:</span>
+                  <span className="font-medium text-right">{formData.mangas.join(", ") || "—"}</span>
+                </div>
                 <div className="flex justify-between">
                   {/* Muestra el número de tallas agregadas al producto */}
                   <span className="text-muted-foreground">Tallas:</span>
@@ -676,9 +600,13 @@ export default function ProductoForm() {
                   <span className="font-medium">{formData.colores.length}</span>
                 </div>
                 <div className="flex justify-between">
+                  <span className="text-muted-foreground">Variantes:</span>
+                  <span className="font-medium">{totalVariantes}</span>
+                </div>
+                <div className="flex justify-between">
                   {/* Muestra el precio del producto formateado a dos decimales */}
                   <span className="text-muted-foreground">Precio:</span>
-                  <span className="font-medium">${formData.precio.toFixed(2)}</span>
+                  <span className="font-medium">${(Number(formData.precio) || 0).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
                   {/* Muestra el stock del producto seguido de "uds" */}
@@ -710,6 +638,96 @@ export default function ProductoForm() {
         </div>
         </fieldset>
       </form>
+    </div>
+  );
+}
+
+/** Lista de valores de una dimensión (corte, manga, talla o color) como etiquetas con X. */
+function ListaValores({
+  etiqueta,
+  valores,
+  opciones,
+  libre = false,
+  vacio,
+  onChange,
+}: {
+  etiqueta: string;
+  valores: string[];
+  opciones: string[];
+  /** true: se puede escribir un valor que no esté en las opciones. */
+  libre?: boolean;
+  vacio: string;
+  onChange: (valores: string[]) => void;
+}) {
+  const [nuevo, setNuevo] = useState("");
+  const idLista = `opciones-${etiqueta.toLowerCase()}`;
+  const disponibles = opciones.filter((o) => !valores.includes(o));
+  const agregar = () => {
+    const v = nuevo.trim();
+    if (v && !valores.includes(v) && (libre || opciones.includes(v))) onChange([...valores, v]);
+    setNuevo("");
+  };
+  const clase =
+    "flex-1 min-w-0 px-4 py-2 bg-input-background border border-border rounded-lg focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
+  return (
+    <div>
+      <label className="block text-sm font-medium text-foreground mb-2">{etiqueta}</label>
+      <div className="flex gap-2 mb-3">
+        {libre ? (
+          <>
+            <input
+              value={nuevo}
+              onChange={(e) => setNuevo(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  agregar();
+                }
+              }}
+              list={idLista}
+              className={clase}
+              placeholder="Escribir o elegir de la lista"
+            />
+            <datalist id={idLista}>
+              {disponibles.map((o) => (
+                <option key={o} value={o} />
+              ))}
+            </datalist>
+          </>
+        ) : (
+          <select value={nuevo} onChange={(e) => setNuevo(e.target.value)} className={clase}>
+            <option value="">Seleccionar</option>
+            {disponibles.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+        )}
+        <button
+          type="button"
+          onClick={agregar}
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+        >
+          Agregar
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {valores.map((v) => (
+          <span key={v} className="inline-flex items-center gap-2 px-3 py-1 bg-secondary text-foreground rounded-lg">
+            {v}
+            <button
+              type="button"
+              onClick={() => onChange(valores.filter((x) => x !== v))}
+              className="text-muted-foreground hover:text-foreground"
+              aria-label={`Quitar ${v}`}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </span>
+        ))}
+        {valores.length === 0 && <p className="text-sm text-muted-foreground">{vacio}</p>}
+      </div>
     </div>
   );
 }

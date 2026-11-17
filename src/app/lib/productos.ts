@@ -3,15 +3,18 @@
  *
  * Modelo en Supabase:
  *  - productos: nombre, tipo_prenda, categoria_id, imagen_url.
- *  - variantes_producto: una fila por combinación talla × color, con stock y precio.
+ *  - productos.composicion / incluye / notas: ficha técnica del catálogo.
+ *  - variantes_producto: una fila por combinación corte × manga × talla × color, con stock,
+ *    precio y la clave del modelo del proveedor (ver sql/variantes_corte_manga.sql).
  *  - Imagen: bucket público `productos` (ver sql/storage_productos.sql), ruta
  *    <id del producto>/<marca de tiempo>.<ext>.
  *
  * Reglas al editar:
- *  - Las combinaciones nuevas de talla/color se crean con stock 0.
+ *  - Un valor nuevo (corte, manga, talla o color) se cruza con las combinaciones que ya
+ *    existen en las demás dimensiones; las variantes nuevas se crean con stock 0.
  *  - Las combinaciones quitadas se eliminan solo si no tienen stock y no están en
  *    ninguna orden ni movimiento; si no, se conservan y se informa cuántas quedaron.
- *  - Si cambió el precio, se aplica a todas las variantes.
+ *  - Si cambió el precio, se aplica a las variantes con el precio anterior o sin precio.
  */
 import { supabase } from "./supabase";
 import type { Producto, VarianteProducto } from "../data/mockData";
@@ -77,14 +80,56 @@ export async function cargarCategorias(): Promise<string[]> {
   return (data ?? []).map((c) => c.nombre);
 }
 
-type Combo = { talla: string | null; color: string | null };
-const claveCombo = (c: Combo) => `${c.talla ?? ""}|${c.color ?? ""}`;
+type Combo = { corte: string | null; manga: string | null; talla: string | null; color: string | null };
+const DIMENSIONES = ["corte", "manga", "talla", "color"] as const;
+type Dimension = (typeof DIMENSIONES)[number];
+const claveCombo = (c: { [K in Dimension]?: string | null }) =>
+  DIMENSIONES.map((d) => c[d] || "").join("|");
 
-/** Combinaciones talla × color; si falta una de las listas se usa solo la otra. */
-function combinaciones(tallas: string[], colores: string[]): Combo[] {
-  const ts = tallas.length ? tallas : [null];
-  const cs = colores.length ? colores : [null];
-  return ts.flatMap((talla) => cs.map((color) => ({ talla, color })));
+/** Lista de valores de una dimensión; vacía = «no aplica» (un único valor null). */
+const valoresDe = (lista: string[]): (string | null)[] => (lista.length ? lista : [null]);
+
+/** Producto cartesiano corte × manga × talla × color. */
+function combinaciones(listas: Record<Dimension, string[]>): Combo[] {
+  let res: Combo[] = [{ corte: null, manga: null, talla: null, color: null }];
+  for (const d of DIMENSIONES) {
+    res = res.flatMap((c) => valoresDe(listas[d]).map((v) => ({ ...c, [d]: v })));
+  }
+  return res;
+}
+
+/**
+ * Combinaciones deseadas al editar. Los productos del catálogo no son un producto
+ * cartesiano completo (p. ej. Dama y Caballero con distinto rango de tallas), así que:
+ *  - se conservan las variantes cuyos valores siguen en las listas;
+ *  - cada valor nuevo se cruza solo con las combinaciones que ya existen en las demás
+ *    dimensiones (agregar «Gris» crea Gris en cada corte/manga/talla que ya había);
+ *  - si no queda ninguna variante que conservar, se usa el producto cartesiano.
+ */
+function combinacionesEdicion(actuales: VarianteProducto[], listas: Record<Dimension, string[]>): Combo[] {
+  const permitido = (d: Dimension, v: string | null) => valoresDe(listas[d]).includes(v || null);
+  let base: Combo[] = actuales
+    .map((v) => ({ corte: v.corte || null, manga: v.manga || null, talla: v.talla || null, color: v.color || null }))
+    .filter((c) => DIMENSIONES.every((d) => permitido(d, c[d])));
+  if (!base.length) return combinaciones(listas);
+  for (const d of DIMENSIONES) {
+    const existentes = new Set(base.map((c) => c[d]));
+    const nuevos = valoresDe(listas[d]).filter((v) => !existentes.has(v));
+    if (!nuevos.length) continue;
+    const plantillas = new Map(base.map((c) => [claveCombo({ ...c, [d]: null }), c]));
+    base = base.concat([...plantillas.values()].flatMap((c) => nuevos.map((v) => ({ ...c, [d]: v }))));
+  }
+  const unicas = new Map(base.map((c) => [claveCombo(c), c]));
+  return [...unicas.values()];
+}
+
+/** Combinaciones que quedarán al guardar (alta: cartesiano; edición: ver combinacionesEdicion). */
+export function combinacionesDeseadas(
+  listas: { cortes: string[]; mangas: string[]; tallas: string[]; colores: string[] },
+  existentes?: VarianteProducto[]
+): Combo[] {
+  const l = { corte: listas.cortes, manga: listas.mangas, talla: listas.tallas, color: listas.colores };
+  return existentes?.length ? combinacionesEdicion(existentes, l) : combinaciones(l);
 }
 
 export type DatosProducto = {
@@ -94,8 +139,14 @@ export type DatosProducto = {
   precio: number;
   /** Solo en alta: stock inicial de cada variante. */
   stockInicial: number;
+  cortes: string[];
+  mangas: string[];
   tallas: string[];
   colores: string[];
+  /** Ficha técnica (texto libre; vacío = sin dato). */
+  composicion: string;
+  incluye: string;
+  notas: string;
   /** Datos para facturar (CFDI 4.0); si se omiten, no se modifican. */
   fiscal?: DatosFiscalesProducto;
 };
@@ -142,12 +193,15 @@ export async function guardarProducto(
     nombre: datos.nombre.trim(),
     tipo_prenda: datos.tipo,
     categoria_id: await categoriaId(datos.categoria),
+    composicion: datos.composicion.trim() || null,
+    incluye: datos.incluye.trim() || null,
+    notas: datos.notas.trim() || null,
     ...(datos.fiscal ?? {}),
   };
 
   let productoId: string;
   let variantesConservadas = 0;
-  const deseadas = combinaciones(datos.tallas, datos.colores);
+  const deseadas = combinacionesDeseadas(datos, existente?.variantes);
 
   if (!existente) {
     // --- Alta: producto y una variante por combinación, todas con el stock inicial.
@@ -157,8 +211,7 @@ export async function guardarProducto(
     const { error: errorVariantes } = await supabase.from("variantes_producto").insert(
       deseadas.map((c) => ({
         producto_id: productoId,
-        talla: c.talla,
-        color: c.color,
+        ...c,
         stock: datos.stockInicial,
         precio: datos.precio,
       }))
@@ -181,7 +234,7 @@ export async function guardarProducto(
     const nuevas = deseadas.filter((c) => !clavesActuales.has(claveCombo(c)));
     if (nuevas.length) {
       const { error: errorNuevas } = await supabase.from("variantes_producto").insert(
-        nuevas.map((c) => ({ producto_id: productoId, talla: c.talla, color: c.color, stock: 0, precio: datos.precio }))
+        nuevas.map((c) => ({ producto_id: productoId, ...c, stock: 0, precio: datos.precio }))
       );
       if (errorNuevas) throw errorNuevas;
     }
@@ -198,10 +251,13 @@ export async function guardarProducto(
     }
 
     if (datos.precio !== existente.precio) {
-      const { error: errorPrecio } = await supabase
-        .from("variantes_producto")
-        .update({ precio: datos.precio })
-        .eq("producto_id", productoId);
+      // Solo las variantes con el precio de referencia anterior (o sin precio): las tallas
+      // con sobreprecio (2XG +10 %…) conservan el suyo.
+      let consulta = supabase.from("variantes_producto").update({ precio: datos.precio }).eq("producto_id", productoId);
+      consulta = existente.precio
+        ? consulta.or(`precio.eq.${existente.precio},precio.is.null`)
+        : consulta.or("precio.is.null,precio.eq.0");
+      const { error: errorPrecio } = await consulta;
       if (errorPrecio) throw errorPrecio;
     }
   }

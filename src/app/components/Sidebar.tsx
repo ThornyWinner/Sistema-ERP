@@ -36,6 +36,7 @@ import {
   Settings,
   Contact,
   Landmark,
+  Building2,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
@@ -76,6 +77,7 @@ export default function Sidebar() {
       configuracion: accessibleRoutes.find(r => r.route === '/facturacion/configuracion'),
     },
     clientes: accessibleRoutes.find(r => r.route === '/catalogos/clientes'),
+    activoFijo: accessibleRoutes.find(r => r.route === '/activo-fijo'),
     seguimiento: accessibleRoutes.find(r => r.route === '/seguimiento'),
     proveedores: accessibleRoutes.find(r => r.route === '/proveedores'),
     reportes: accessibleRoutes.find(r => r.route === '/reportes'),
@@ -107,6 +109,7 @@ export default function Sidebar() {
     Receipt,
     Settings,
     Contact,
+    Building2,
   };
 
   // Abre o cierra una sección desplegable (añade o quita su nombre de la lista).
@@ -394,6 +397,9 @@ export default function Sidebar() {
 
         {/* Catálogo de clientes */}
         {menuStructure.clientes && renderMenuItem(menuStructure.clientes)}
+
+        {/* Activo fijo (admin primario) */}
+        {menuStructure.activoFijo && renderMenuItem(menuStructure.activoFijo)}
 
         {/* Seguimiento */}
         {menuStructure.seguimiento && renderMenuItem(menuStructure.seguimiento)}

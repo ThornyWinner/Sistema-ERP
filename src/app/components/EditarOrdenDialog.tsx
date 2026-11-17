@@ -22,10 +22,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Lock, Pencil, Plus, Trash2 } from "lucide-react";
-import type { Orden, ProductoOrden, Taller } from "../data/mockData";
+import { describirVariante, type Orden, type ProductoOrden, type Taller } from "../data/mockData";
 import { useErpData, type CambiosOrden, type PartidaEditada } from "../context/ErpDataContext";
 import { formatMonto, redondearCentavos, totalPagado } from "../lib/pagos";
 import { calcularImportes } from "../lib/impuestos";
+import { usePoliticasVenta } from "../lib/politicasVenta";
+import PanelPoliticasVenta from "./PanelPoliticasVenta";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -256,13 +258,35 @@ export default function EditarOrdenDialog({ orden, open, onClose }: EditarOrdenD
   const errorTotal = total < pagado ? `El total no puede quedar por debajo de lo ya pagado (${formatMonto(pagado)}).` : null;
   const erroresPartidas = partidas.map(revisarPartida);
 
+  // Políticas de venta, con las mismas condiciones que la BD al editar:
+  //  - el tope de descuento solo se revisa si el descuento SUBE;
+  //  - el crédito solo si el saldo pendiente de la orden crece.
+  const descuentoOriginal = orden.descuento ?? 0;
+  const saldoNuevo = Math.max(redondearCentavos(total - Math.max(orden.anticipo || 0, pagado)), 0);
+  const saldoAnterior = Math.max(redondearCentavos(orden.total - Math.max(orden.anticipo || 0, pagado)), 0);
+  const politicas = usePoliticasVenta({
+    cliente: orden.cliente,
+    metodoPago: orden.metodoPago,
+    saldoNuevo,
+    descuento: descuentoNum > descuentoOriginal + 0.005 ? descuentoNum : 0,
+    subtotal,
+    excluirOrden: orden.id,
+    activo: open,
+    revisarCredito: saldoNuevo > saldoAnterior + 0.005,
+  });
+
   const cambios = useMemo(
     () => construirCambios(fechaEntrega, notas, telefono, email, descuento, partidas),
     [fechaEntrega, notas, telefono, email, descuento, partidas]
   );
   const hayCambios = JSON.stringify(cambios) !== estadoInicial;
   const valido =
-    partidas.length > 0 && !erroresPartidas.some(Boolean) && !errorDescuento && !errorTotal && motivo.trim().length >= 3;
+    partidas.length > 0 &&
+    !erroresPartidas.some(Boolean) &&
+    !errorDescuento &&
+    !errorTotal &&
+    !politicas.bloqueo &&
+    motivo.trim().length >= 3;
 
   const guardar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -385,6 +409,11 @@ export default function EditarOrdenDialog({ orden, open, onClose }: EditarOrdenD
                 {errorDescuento ?? errorTotal}
               </p>
             )}
+            <p className="text-xs text-muted-foreground">
+              Descuento máximo {politicas.descuentoMax} % del subtotal
+              {politicas.exento ? " para vendedores." : "."}
+            </p>
+            <PanelPoliticasVenta politicas={politicas} cliente={orden.cliente} metodoPago={orden.metodoPago} />
           </section>
 
           {/* Motivo */}
@@ -465,7 +494,7 @@ function PartidaEditor({ numero, partida: p, error, disponible, productos, puede
           <div>
             <p className="font-medium">
               {numero}. {o.nombre}
-              {(o.talla || o.color) && <span className="text-muted-foreground"> ({[o.talla, o.color].filter(Boolean).join(" / ")})</span>}
+              {(o.corte || o.manga || o.talla || o.color) && <span className="text-muted-foreground"> ({describirVariante(o)})</span>}
             </p>
             <p className="text-sm text-muted-foreground">
               {o.cantidad} × {formatMonto(o.precioUnitario)} = {formatMonto(o.cantidad * o.precioUnitario)}
@@ -546,7 +575,7 @@ function PartidaEditor({ numero, partida: p, error, disponible, productos, puede
             <option value="">Sin variante (a la medida)</option>
             {producto?.variantes.map((v) => (
               <option key={v.id} value={v.id}>
-                {v.talla} / {v.color} — {v.stock} en stock — {formatMonto(v.precio)}
+                {describirVariante(v)} — {v.stock} en stock — {formatMonto(v.precio)}
               </option>
             ))}
           </select>

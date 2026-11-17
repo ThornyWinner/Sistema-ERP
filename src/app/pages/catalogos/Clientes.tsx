@@ -18,6 +18,7 @@ import StatCard from "../../components/StatCard";
 import { Button } from "../../components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
 import ClienteDialog, { type ClienteCatalogo } from "../../components/catalogos/ClienteDialog";
+import PoliticasVentaCard from "../../components/catalogos/PoliticasVentaCard";
 import { REGIMENES_FISCALES, RFC_REGEX, describirSat } from "../../lib/sat";
 import { descargarArchivo, escribirCsv } from "../../lib/facturacion";
 
@@ -96,6 +97,8 @@ export default function Clientes() {
           </Button>
         </div>
       </div>
+
+      {user?.rol === "admin_primario" && <PoliticasVentaCard />}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard title="Clientes" value={clientes.length} icon={Users} />

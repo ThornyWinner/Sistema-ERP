@@ -24,24 +24,64 @@ export interface Material {
 }
 
 /** Combinación concreta de talla + color de un producto, con su propio stock y precio. */
+/** Cortes y mangas posibles de una variante (checks chk_variante_corte / chk_variante_manga). */
+export const CORTES = ["Caballero", "Dama", "Unisex", "Juvenil", "Niño", "Bebé"] as const;
+export const MANGAS = ["Corta", "Larga", "3/4", "Sin mangas"] as const;
+
+/** Variante = corte × manga × talla × color. Corte y manga vacíos ("") = no aplica. */
 export interface VarianteProducto {
   id: string;
+  corte: string;
+  manga: string;
   talla: string;
   color: string;
   stock: number;
   precio: number;
   sku: string | null;
+  /** Clave del modelo en el catálogo del proveedor (HELI_DCP, C0300…). */
+  modelo?: string;
 }
+
+/** «Dama · Manga larga · M · Blanco»: descripción corta de una variante. */
+export function describirVariante(v: { corte?: string | null; manga?: string | null; talla?: string | null; color?: string | null }): string {
+  const manga = v.manga ? (v.manga === "Sin mangas" ? "Sin mangas" : `Manga ${v.manga.toLowerCase()}`) : "";
+  return [v.corte, manga, v.talla && `Talla ${v.talla}`, v.color].filter(Boolean).join(" · ") || "Única";
+}
+
+/**
+ * Tipos de prenda (productos.tipo_prenda). "otro": artículos que no son prenda (EPP,
+ * servicios, promocionales…), p. ej. los del catálogo de CONTPAQi.
+ */
+export const TIPOS_PRENDA = [
+  { valor: "camisa", etiqueta: "Camisa / blusa", plural: "Camisas y blusas" },
+  { valor: "playera", etiqueta: "Playera / polo", plural: "Playeras y polos" },
+  { valor: "pantalon", etiqueta: "Pantalón / falda", plural: "Pantalones y faldas" },
+  { valor: "overol", etiqueta: "Overol", plural: "Overoles" },
+  { valor: "chaleco", etiqueta: "Chaleco", plural: "Chalecos" },
+  { valor: "sudadera", etiqueta: "Sudadera", plural: "Sudaderas" },
+  { valor: "chamarra", etiqueta: "Chamarra / softshell", plural: "Chamarras y softshell" },
+  { valor: "uniforme", etiqueta: "Uniforme / conjunto", plural: "Uniformes y conjuntos" },
+  { valor: "bata", etiqueta: "Bata", plural: "Batas" },
+  { valor: "accesorio", etiqueta: "Accesorio", plural: "Accesorios" },
+  { valor: "otro", etiqueta: "Otro (no prenda)", plural: "Otros artículos" },
+] as const;
+export type TipoPrenda = (typeof TIPOS_PRENDA)[number]["valor"];
+export const etiquetaTipoPrenda = (tipo: string) => TIPOS_PRENDA.find((t) => t.valor === tipo)?.etiqueta ?? tipo;
 
 /** Producto terminado del catálogo (prenda). */
 export interface Producto {
   id: string;
   nombre: string;
-  /** "otro": artículos que no son prenda (EPP, servicios, promocionales…), p. ej. los del catálogo de CONTPAQi. */
-  tipo: "camisa" | "pantalon" | "overol" | "chaleco" | "otro";
-  /** Tallas y colores disponibles (derivados de las variantes). */
+  tipo: TipoPrenda;
+  /** Cortes, mangas, tallas y colores disponibles (derivados de las variantes). */
+  cortes: string[];
+  mangas: string[];
   tallas: string[];
   colores: string[];
+  /** Ficha técnica: composición de la tela, qué incluye y notas. */
+  composicion?: string;
+  incluye?: string;
+  notas?: string;
   /** Stock total = suma del stock de todas las variantes. */
   stock: number;
   /** Precio de referencia (el de la primera variante). */
@@ -83,6 +123,9 @@ export interface ProductoOrden {
   nombre: string;
   tipoPrenda: string;
   marca?: string;
+  /** Corte y manga de la variante (solo lectura; vienen del catálogo). */
+  corte?: string;
+  manga?: string;
   talla: string;
   color: string;
   cantidad: number;

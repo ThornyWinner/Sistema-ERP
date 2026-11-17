@@ -10,9 +10,9 @@
  * materiales y la cantidad que falta para llegar al mínimo, listo para enviarse por
  * correo o WhatsApp.
  */
-import { toast } from "sonner";
 import { Phone, Mail, MessageCircle, Copy, User, AlertTriangle } from "lucide-react";
 import type { Material, Proveedor } from "../../data/mockData";
+import { copiarTexto as copiar, telefonoWhatsApp } from "../../lib/contacto";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog";
 
@@ -21,24 +21,6 @@ interface ContactarProveedorDialogProps {
   /** Materiales cuyo proveedor principal es este proveedor. */
   materiales: Material[];
   onClose: () => void;
-}
-
-/**
- * Convierte un teléfono a formato internacional para wa.me (solo dígitos).
- * Un número mexicano de 10 dígitos se completa con la lada de país 52.
- */
-function telefonoWhatsApp(telefono: string): string {
-  const digitos = telefono.replace(/\D/g, "");
-  return digitos.length === 10 ? `52${digitos}` : digitos;
-}
-
-async function copiar(texto: string, etiqueta: string) {
-  try {
-    await navigator.clipboard.writeText(texto);
-    toast.success(`${etiqueta} copiado`);
-  } catch {
-    toast.error(`No se pudo copiar el ${etiqueta.toLowerCase()}`);
-  }
 }
 
 // Cantidad con hasta 2 decimales, sin ceros sobrantes (12.5, no 12.50).

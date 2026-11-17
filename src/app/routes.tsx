@@ -10,35 +10,22 @@
  * Nota: ProtectedRoute solo verifica que exista sesión; los permisos por rol
  * se aplican en el menú y dentro de las páginas (ver utils/permissions.ts).
  */
+import type { ComponentType } from "react";
 import { createBrowserRouter } from "react-router";
 import RootLayout from "./layouts/RootLayout";
 import Dashboard from "./pages/Dashboard";
-import InventarioMateriales from "./pages/InventarioMateriales";
-import InventarioProductos from "./pages/InventarioProductos";
-import ProductoForm from "./pages/ProductoForm";
-import MaterialForm from "./pages/MaterialForm";
-import ProveedorForm from "./pages/ProveedorForm";
-import Ordenes from "./pages/Ordenes";
-import OrdenDetalle from "./pages/OrdenDetalle";
-import TallerDiseno from "./pages/talleres/TallerDiseno";
-import TallerSublimacion from "./pages/talleres/TallerSublimacion";
-import TallerCorte from "./pages/talleres/TallerCorte";
-import TallerCostura from "./pages/talleres/TallerCostura";
-import TallerBordado from "./pages/talleres/TallerBordado";
-import Seguimiento from "./pages/Seguimiento";
-import Proveedores from "./pages/Proveedores";
-import Reportes from "./pages/Reportes";
 import Login from "./pages/Login";
-import GestionUsuarios from "./pages/GestionUsuarios";
-import Vacaciones from "./pages/Vacaciones";
-import Asistencia from "./pages/Asistencia";
-import Checar from "./pages/Checar";
-import Facturas from "./pages/facturacion/Facturas";
-import FacturaForm from "./pages/facturacion/FacturaForm";
-import ComplementosPago from "./pages/facturacion/ComplementosPago";
-import ConfiguracionFiscal from "./pages/facturacion/ConfiguracionFiscal";
-import Clientes from "./pages/catalogos/Clientes";
 import ProtectedRoute from "./components/ProtectedRoute";
+
+/**
+ * Carga diferida de páginas: cada página se descarga en su propio archivo JS
+ * solo cuando el usuario entra a esa ruta, en lugar de ir todo en el bundle
+ * inicial. Login, Dashboard y el layout se cargan de inmediato porque son lo
+ * primero que se ve.
+ */
+function pagina(cargar: () => Promise<{ default: ComponentType }>) {
+  return async () => ({ Component: (await cargar()).default });
+}
 
 export const router = createBrowserRouter([
   // Ruta pública: formulario de acceso.
@@ -50,11 +37,16 @@ export const router = createBrowserRouter([
   // pero va sin menú lateral para verse completo en pantallas pequeñas.
   {
     path: "/checar",
-    Component: () => (
-      <ProtectedRoute>
-        <Checar />
-      </ProtectedRoute>
-    ),
+    lazy: async () => {
+      const { default: Checar } = await import("./pages/Checar");
+      return {
+        Component: () => (
+          <ProtectedRoute>
+            <Checar />
+          </ProtectedRoute>
+        ),
+      };
+    },
   },
   // Ruta raíz protegida: si no hay sesión, ProtectedRoute redirige a /login.
   {
@@ -69,38 +61,40 @@ export const router = createBrowserRouter([
       // "/" → panel principal con indicadores.
       { index: true, Component: Dashboard },
       // Inventario de materia prima y de productos terminados.
-      { path: "inventario/materiales", Component: InventarioMateriales },
-      { path: "inventario/productos", Component: InventarioProductos },
+      { path: "inventario/materiales", lazy: pagina(() => import("./pages/InventarioMateriales")) },
+      { path: "inventario/productos", lazy: pagina(() => import("./pages/InventarioProductos")) },
       // Alta de materia prima.
-      { path: "materiales/nuevo", Component: MaterialForm },
+      { path: "materiales/nuevo", lazy: pagina(() => import("./pages/MaterialForm")) },
       // El mismo formulario sirve para crear y para editar (según exista :id).
-      { path: "productos/nuevo", Component: ProductoForm },
-      { path: "productos/editar/:id", Component: ProductoForm },
+      { path: "productos/nuevo", lazy: pagina(() => import("./pages/ProductoForm")) },
+      { path: "productos/editar/:id", lazy: pagina(() => import("./pages/ProductoForm")) },
       // Órdenes: listado y detalle de una orden concreta.
-      { path: "ordenes", Component: Ordenes },
-      { path: "ordenes/:id", Component: OrdenDetalle },
+      { path: "ordenes", lazy: pagina(() => import("./pages/Ordenes")) },
+      { path: "ordenes/:id", lazy: pagina(() => import("./pages/OrdenDetalle")) },
       // Tableros de cada taller del flujo de producción.
-      { path: "talleres/diseno", Component: TallerDiseno },
-      { path: "talleres/sublimacion", Component: TallerSublimacion },
-      { path: "talleres/corte", Component: TallerCorte },
-      { path: "talleres/costura", Component: TallerCostura },
-      { path: "talleres/bordado", Component: TallerBordado },
+      { path: "talleres/diseno", lazy: pagina(() => import("./pages/talleres/TallerDiseno")) },
+      { path: "talleres/sublimacion", lazy: pagina(() => import("./pages/talleres/TallerSublimacion")) },
+      { path: "talleres/corte", lazy: pagina(() => import("./pages/talleres/TallerCorte")) },
+      { path: "talleres/costura", lazy: pagina(() => import("./pages/talleres/TallerCostura")) },
+      { path: "talleres/bordado", lazy: pagina(() => import("./pages/talleres/TallerBordado")) },
       // Secciones de seguimiento y administración.
-      { path: "seguimiento", Component: Seguimiento },
-      { path: "proveedores", Component: Proveedores },
-      { path: "proveedores/nuevo", Component: ProveedorForm },
-      { path: "reportes", Component: Reportes },
-      { path: "usuarios", Component: GestionUsuarios },
+      { path: "seguimiento", lazy: pagina(() => import("./pages/Seguimiento")) },
+      { path: "proveedores", lazy: pagina(() => import("./pages/Proveedores")) },
+      { path: "proveedores/nuevo", lazy: pagina(() => import("./pages/ProveedorForm")) },
+      { path: "reportes", lazy: pagina(() => import("./pages/Reportes")) },
+      { path: "usuarios", lazy: pagina(() => import("./pages/GestionUsuarios")) },
       // Control de vacaciones del personal (Ley Federal del Trabajo).
-      { path: "vacaciones", Component: Vacaciones },
-      { path: "asistencia", Component: Asistencia },
+      { path: "vacaciones", lazy: pagina(() => import("./pages/Vacaciones")) },
+      { path: "asistencia", lazy: pagina(() => import("./pages/Asistencia")) },
       // Facturación CFDI 4.0 (reemplazo de CONTPAQi Vende) y catálogo de clientes.
-      { path: "facturacion/facturas", Component: Facturas },
-      { path: "facturacion/facturas/nueva", Component: FacturaForm },
-      { path: "facturacion/facturas/:id", Component: FacturaForm },
-      { path: "facturacion/complementos", Component: ComplementosPago },
-      { path: "facturacion/configuracion", Component: ConfiguracionFiscal },
-      { path: "catalogos/clientes", Component: Clientes },
+      { path: "facturacion/facturas", lazy: pagina(() => import("./pages/facturacion/Facturas")) },
+      { path: "facturacion/facturas/nueva", lazy: pagina(() => import("./pages/facturacion/FacturaForm")) },
+      { path: "facturacion/facturas/:id", lazy: pagina(() => import("./pages/facturacion/FacturaForm")) },
+      { path: "facturacion/complementos", lazy: pagina(() => import("./pages/facturacion/ComplementosPago")) },
+      { path: "facturacion/configuracion", lazy: pagina(() => import("./pages/facturacion/ConfiguracionFiscal")) },
+      { path: "catalogos/clientes", lazy: pagina(() => import("./pages/catalogos/Clientes")) },
+      // Activo fijo y su depreciación (solo administrador primario).
+      { path: "activo-fijo", lazy: pagina(() => import("./pages/ActivoFijo")) },
     ],
   },
 ]);

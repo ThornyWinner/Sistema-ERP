@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader } from "../components/Card";
 import { useErpData } from "../context/ErpDataContext";
 import { Search, Plus, Edit, Image as ImageIcon } from "lucide-react";
 import { Link } from "react-router";
+import { TIPOS_PRENDA, etiquetaTipoPrenda } from "../data/mockData";
 
 export default function InventarioProductos() {
   // Productos reales de Supabase (alias mockProductos del prototipo).
@@ -79,13 +80,12 @@ export default function InventarioProductos() {
               onChange={(e) => setFilterTipo(e.target.value)}
               className="px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             >
-              {/* Opciones del filtro: todos, camisa, pantalón, overol, chaleco */}
               <option value="all">Todos los tipos</option>
-              <option value="camisa">Camisas</option>
-              <option value="pantalon">Pantalones</option>
-              <option value="overol">Overoles</option>
-              <option value="chaleco">Chalecos</option>
-              <option value="otro">Otros</option>
+              {TIPOS_PRENDA.map((t) => (
+                <option key={t.valor} value={t.valor}>
+                  {t.plural}
+                </option>
+              ))}
             </select>
           </div>
         </CardHeader>
@@ -151,16 +151,31 @@ export default function InventarioProductos() {
                             <ImageIcon className="w-4 h-4 text-muted-foreground" />
                           </div>
                         )}
-                        <span className="font-medium text-foreground">
-                          {producto.nombre}
-                        </span>
+                        <div className="min-w-0">
+                          <span className="font-medium text-foreground">
+                            {producto.nombre}
+                          </span>
+                          {/* Cortes y mangas disponibles (p. ej. «Caballero, Dama · Manga corta, larga») */}
+                          {(producto.cortes.length > 0 || producto.mangas.length > 0) && (
+                            <p className="text-xs text-muted-foreground">
+                              {[
+                                producto.cortes.join(", "),
+                                producto.mangas.length
+                                  ? `Manga ${producto.mangas.map((m) => m.toLowerCase()).join(", ")}`
+                                  : "",
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </td>
                     {/* Columna de tipo de prenda con fondo primario tenue y texto primario */}
                     <td className="px-6 py-4">
                       {/* Tipo de prenda en un span con estilo de etiqueta */}
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary capitalize">
-                        {producto.tipo}
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary whitespace-nowrap">
+                        {etiquetaTipoPrenda(producto.tipo)}
                       </span>
                     </td>
                     {/* Columna de tallas: muestra hasta 3 tallas y un contador "+N" con las restantes */}
@@ -257,7 +272,8 @@ export default function InventarioProductos() {
       {/* Resumen por tipo de prenda: número de productos y stock acumulado */}
       <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-6">
         {/* Mapea cada tipo de prenda a una tarjeta con el número de productos y el stock total */}
-        {["camisa", "pantalon", "overol", "chaleco", "otro"].map((tipo) => {
+        {/* Solo los tipos que tienen productos */}
+        {TIPOS_PRENDA.map((t) => t.valor).filter((tipo) => mockProductos.some((p) => p.tipo === tipo)).map((tipo) => {
           // Filtra los productos por tipo y calcula el número de productos y el stock total
           const count = mockProductos.filter((p) => p.tipo === tipo).length;
           // Calcula el stock total sumando el stock de cada producto del tipo
@@ -271,7 +287,7 @@ export default function InventarioProductos() {
               <CardContent className="p-6">
                 {/* Tipo de prenda en un párrafo con texto pequeño, color de texto atenuado y capitalizado */}
                 <p className="text-sm text-muted-foreground mb-1">
-                  {({ camisa: "Camisas", pantalon: "Pantalones", overol: "Overoles", chaleco: "Chalecos", otro: "Otros artículos" } as Record<string, string>)[tipo]}
+                  {TIPOS_PRENDA.find((t) => t.valor === tipo)?.plural}
                 </p>
                 {/* Número de productos del tipo de prenda en un párrafo con texto grande y negrita */}
                 <p className="text-3xl font-semibold">{count}</p>

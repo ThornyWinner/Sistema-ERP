@@ -10,7 +10,7 @@ El diseño original está en [Figma](https://www.figma.com/design/9W6JSc1CNpVPER
 | --- | --- |
 | `/` | Dashboard según el rol: general (admins), de ventas (vendedor) o de taller |
 | `/inventario/materiales`, `/materiales/nuevo` | Inventario de materia prima (telas, hilos, accesorios) y alta de materiales |
-| `/inventario/productos`, `/productos/nuevo`, `/productos/editar/:id` | Catálogo de productos, variantes talla × color e imagen de referencia |
+| `/inventario/productos`, `/productos/nuevo`, `/productos/editar/:id` | Catálogo de productos (un modelo cada uno, con composición, qué incluye y notas), variantes corte × manga × talla × color e imagen de referencia |
 | `/ordenes`, `/ordenes/:id` | Órdenes en cola FIFO, venta rápida, nueva orden multiproducto y detalle |
 | `/talleres/{diseno,sublimacion,corte,costura,bordado}` | Tablero Kanban de cada taller |
 | `/seguimiento` | Seguimiento global de la producción y cuellos de botella |
@@ -18,6 +18,7 @@ El diseño original está en [Figma](https://www.figma.com/design/9W6JSc1CNpVPER
 | `/reportes` | Reportes (en su mayoría con datos de ejemplo; ver abajo) |
 | `/usuarios` | Gestión de usuarios y roles |
 | `/vacaciones` | Permisos Vacacionales: vacaciones, incidencias, expediente y finiquitos (LFT) |
+| `/activo-fijo` | Activo fijo: maquinaria, mobiliario, equipo y vehículos con depreciación (LISR), mantenimientos y bajas |
 
 En la barra superior hay además un **buscador global** (Ctrl+K) y una **campana de notificaciones** entre usuarios, que también recibe avisos automáticos cuando un taller termina su etapa.
 
@@ -99,8 +100,12 @@ Cambios aplicados sobre el esquema original, en el orden en que se crearon:
 | `eliminar_usuario.sql` | RPC que elimina el perfil y la cuenta de Auth de un usuario (solo admin primario) |
 | `username_unico_alta.sql` | El trigger de alta asigna un username provisional único (evita que falle el registro) |
 | `seed_notificaciones.sql` | Datos de prueba para la campana de notificaciones (opcional) |
+| `variantes_corte_manga.sql` | Columnas `corte`, `manga` y `modelo` en `variantes_producto` y `composicion`, `incluye` y `notas` en `productos` |
+| `catalogo_productos.sql` | Catálogo real: 181 productos (uno por modelo) y 10,981 variantes corte × manga × talla × color, con su ficha técnica; 98 productos sin precio, pendientes de confirmar. Se genera con `python -X utf8 sql/generar_catalogo_productos.py "<ruta del Excel>"` a partir de `Catalogo_Productos_Uniformes.xlsx` (requiere `variantes_corte_manga.sql`). Idempotente |
+| `activo_fijo.sql` | Activo fijo: categorías con tasas de depreciación (LISR), activos y mantenimientos; solo admin primario |
+| `seed_activo_fijo_prueba.sql` | Activos de prueba marcados `DATO DE PRUEBA` (opcional; aplicar después de `activo_fijo.sql`) |
 
-Tablas principales: `usuarios`, `roles`, `clientes`, `proveedores`, `materiales`, `productos`, `variantes_producto`, `ordenes`, `orden_detalles`, `personalizaciones`, `produccion_taller`, `talleres`, `pagos`, `notificaciones` y, para el módulo laboral, `empleados`, `vacaciones`, `incidencias`, `documentos` y `finiquitos`.
+Tablas principales: `usuarios`, `roles`, `clientes`, `proveedores`, `materiales`, `productos`, `variantes_producto`, `ordenes`, `orden_detalles`, `personalizaciones`, `produccion_taller`, `talleres`, `pagos`, `notificaciones` y, para el módulo laboral, `empleados`, `vacaciones`, `incidencias`, `documentos` y `finiquitos`; para el activo fijo, `activo_categorias`, `activos` y `activo_mantenimientos`.
 
 ### Usuarios
 

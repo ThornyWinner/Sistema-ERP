@@ -130,6 +130,13 @@ const getRoutePermissions = (role: UserRole): RoutePermission[] => {
       permission: noPermission,
     },
     {
+      // Activo fijo (maquinaria, mobiliario, equipo, vehículos) y su depreciación: admin primario.
+      route: '/activo-fijo',
+      label: 'Activo Fijo',
+      icon: 'Building2',
+      permission: noPermission,
+    },
+    {
       route: '/proveedores',
       label: 'Proveedores',
       icon: 'Truck',
@@ -185,11 +192,11 @@ const permisosPorRol = (role: UserRole, routes: RoutePermission[]): RoutePermiss
 
     // Administrador secundario: ve todos los módulos en solo lectura, excepto:
     //  - Órdenes: crea órdenes y edita/abona solo las que registró él.
-    //  - Permisos Vacacionales y Asistencia (datos del personal): sin acceso, exclusivos
-    //    del primario.
+    //  - Permisos Vacacionales, Asistencia (datos del personal) y Activo Fijo: sin acceso,
+    //    exclusivos del primario.
     case 'admin_secundario':
       return routes.map(r => {
-        if (r.route === '/vacaciones' || r.route === '/asistencia') return r;
+        if (r.route === '/vacaciones' || r.route === '/asistencia' || r.route === '/activo-fijo') return r;
         if (r.route === '/ordenes') return { ...r, permission: ordenesPropiasPermission };
         if (r.route === '/catalogos/clientes') return { ...r, permission: clientesPermission };
         return { ...r, permission: readOnlyPermission };

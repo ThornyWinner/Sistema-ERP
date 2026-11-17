@@ -23,6 +23,9 @@ import { useAuth } from "../context/AuthContext";
 import RegistrarAbonoDialog from "../components/RegistrarAbonoDialog";
 import DesgloseImportes from "../components/DesgloseImportes";
 import EditarOrdenDialog from "../components/EditarOrdenDialog";
+import ContactarClienteDialog from "../components/ContactarClienteDialog";
+import { imprimirNotaOrden, progresoOrden } from "../lib/notaOrden";
+import { enlaceWhatsApp } from "../lib/contacto";
 import { Button } from "../components/ui/button";
 import { METODO_PAGO_LABEL, formatMonto, redondearCentavos, saldoPendiente, totalPagado } from "../lib/pagos";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/Card";
@@ -55,6 +58,8 @@ import {
   Plus,
   Pencil,
   ReceiptText,
+  Printer,
+  MessageCircle,
 } from "lucide-react";
 
 export default function OrdenDetalle() {
@@ -68,6 +73,8 @@ export default function OrdenDetalle() {
   const [abonoAbierto, setAbonoAbierto] = useState(false);
   // Diálogo para editar la orden cuando el cliente pide cambios.
   const [edicionAbierta, setEdicionAbierta] = useState(false);
+  // Diálogo para mandar al cliente un mensaje (WhatsApp/correo) sobre su orden.
+  const [contactoAbierto, setContactoAbierto] = useState(false);
 
   // Id inexistente (o datos aún cargando): mensaje y botón para volver al listado.
   if (!orden) {
@@ -107,35 +114,8 @@ export default function OrdenDetalle() {
   // Días que faltan para la fecha de entrega (0 = hoy, negativo = vencida, null = sin fecha).
   const diasRestantes = calcularDiasRestantes(orden.fechaEntrega);
 
-  /**
-   * Porcentaje de avance de la orden = pasos de taller completados / pasos totales.
-   * Si la orden no tiene productos (formato antiguo) usa sus campos talleres/progreso.
-   */
-  const getProgresoTotal = () => {
-    // Formato antiguo: la orden no tiene productos, solo talleres y progreso a nivel de orden.
-    if (!orden.productos || orden.productos.length === 0) {
-      const talleresActivos = (orden as any).talleres || [];
-      if (talleresActivos.length === 0) return 100;
-      const completados = talleresActivos.filter(
-        (t: any) => (orden as any).progreso[t] === "completed"
-      ).length;
-      return Math.round((completados / talleresActivos.length) * 100);
-    }
-
-    // Formato actual: la orden tiene productos, cada uno con sus talleres y progreso.
-    const todosLosTalleres = orden.productos.flatMap((p) => p.talleres);
-    // Evita división por cero si no hay talleres en ningún producto.
-    if (todosLosTalleres.length === 0) return 100;
-    // Contar cuántos talleres están completados en todos los productos.
-    const talleresCompletados = orden.productos.reduce((acc, producto) => {
-      // Contar cuántos talleres de este producto están completados.
-      const completados = producto.talleres.filter(
-        (t) => producto.progreso[t] === "completed"
-      ).length;
-      return acc + completados;
-    }, 0);
-    return Math.round((talleresCompletados / todosLosTalleres.length) * 100);
-  };
+  /** Porcentaje de avance de la orden (pasos de taller completados / pasos totales). */
+  const getProgresoTotal = () => progresoOrden(orden);
 
   // --- Funciones auxiliares de presentación (texto, color e icono según valores) ---
   // Etiqueta del tipo de venta (directa, fabricación, comercialización o mixta).
@@ -236,7 +216,7 @@ export default function OrdenDetalle() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-4">
         <button
           onClick={() => navigate("/ordenes")}
           className="p-2 hover:bg-secondary rounded-lg transition-colors"
@@ -261,6 +241,15 @@ export default function OrdenDetalle() {
             Detalles de la orden de producción
           </p>
         </div>
+        {/* Para el cliente: nota de venta imprimible/PDF y mensaje por WhatsApp o correo */}
+        <Button variant="outline" onClick={() => imprimirNotaOrden(orden)}>
+          <Printer className="w-4 h-4" />
+          Nota / PDF
+        </Button>
+        <Button variant="outline" onClick={() => setContactoAbierto(true)}>
+          <MessageCircle className="w-4 h-4" />
+          Contactar cliente
+        </Button>
         {puedeEditar && (
           <Button variant="outline" onClick={() => setEdicionAbierta(true)}>
             <Pencil className="w-4 h-4" />
@@ -304,7 +293,7 @@ export default function OrdenDetalle() {
                       {/* Cantidad, talla y color del producto. Se filtran los valores nulos o vacíos y se unen con " • ". */}
                       <p className="text-sm text-muted-foreground">
                         {/* Talla y color solo si el producto está ligado a una variante */}
-                        {[`${producto.cantidad} unidades`, producto.talla, producto.color]
+                        {[`${producto.cantidad} unidades`, producto.corte, producto.manga && `Manga ${producto.manga.toLowerCase()}`, producto.talla, producto.color]
                           .filter(Boolean)
                           .join(" • ")}
                       </p>
@@ -472,12 +461,24 @@ export default function OrdenDetalle() {
                 <p className="text-sm text-muted-foreground">Teléfono de Contacto</p>
                 {/* Si el teléfono está registrado, muestra un enlace "tel:"; si no, muestra "No registrado". */}
                 {orden.clienteTelefono ? (
-                  <a
-                    href={`tel:${orden.clienteTelefono.replace(/[^\d+]/g, "")}`}
-                    className="font-medium text-primary hover:underline"
-                  >
-                    {orden.clienteTelefono}
-                  </a>
+                  <div className="flex items-center gap-3">
+                    <a
+                      href={`tel:${orden.clienteTelefono.replace(/[^\d+]/g, "")}`}
+                      className="font-medium text-primary hover:underline"
+                    >
+                      {orden.clienteTelefono}
+                    </a>
+                    <a
+                      href={enlaceWhatsApp(orden.clienteTelefono)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary"
+                      aria-label="Abrir chat de WhatsApp con el cliente"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      WhatsApp
+                    </a>
+                  </div>
                 ) : (
                   <p className="text-muted-foreground">No registrado</p>
                 )}
@@ -860,6 +861,7 @@ export default function OrdenDetalle() {
       )}
 
       <RegistrarAbonoDialog orden={orden} open={abonoAbierto} onClose={() => setAbonoAbierto(false)} />
+      <ContactarClienteDialog orden={orden} open={contactoAbierto} onClose={() => setContactoAbierto(false)} />
       {puedeEditar && (
         <EditarOrdenDialog orden={orden} open={edicionAbierta} onClose={() => setEdicionAbierta(false)} />
       )}

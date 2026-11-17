@@ -3,18 +3,24 @@
  *
  * Permite vender productos que ya están en existencia sin pasar por los talleres:
  *  1. Se captura el cliente y el método de pago.
- *  2. Se eligen variantes (talla + color) con stock disponible y se agregan al carrito.
+ *  2. Se eligen variantes (corte, manga, talla y color) con stock disponible y se agregan al carrito.
  *  3. Se ajustan cantidades (nunca por encima del stock de la variante).
  *  4. Al completar, se genera una orden de tipo "directa", ya entregada ("completed")
- *     y liquidada, con un único pago por el total. La orden se entrega al padre
- *     mediante `onSubmit`, que es quien la guarda.
+ *     y liquidada, con un único pago por el total (a crédito: sin pago, con todo el
+ *     total como saldo). La orden se entrega al padre mediante `onSubmit`, que es
+ *     quien la guarda.
+ *
+ * Se aplican el tope de descuento y el límite de crédito del cliente (politicasVenta.ts).
  */
 import { useState } from "react";
+import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
-import type { MetodoPago, Producto } from "../data/mockData";
+import { describirVariante, type MetodoPago, type Producto } from "../data/mockData";
 import { hoyISO } from "../lib/fechas";
 import { calcularImportes } from "../lib/impuestos";
+import { usePoliticasVenta } from "../lib/politicasVenta";
 import DesgloseImportes from "./DesgloseImportes";
+import PanelPoliticasVenta from "./PanelPoliticasVenta";
 import {
   X,
   User,
@@ -31,7 +37,7 @@ interface VentaRapidaDialogProps {
   isOpen: boolean;
   onClose: () => void;
   /** Recibe la orden construida (sin id ni folio, que asigna la base de datos). */
-  onSubmit: (orden: any) => void;
+  onSubmit: (orden: any) => Promise<boolean> | void;
   /** Catálogo de productos con sus variantes y stock. */
   productos: Producto[];
 }
@@ -42,6 +48,8 @@ type ItemCarrito = {
   varianteId: string;
   nombre: string;
   tipo: string;
+  corte: string;
+  manga: string;
   talla: string;
   color: string;
   precio: number;
@@ -72,6 +80,27 @@ export default function VentaRapidaDialog({
   });
 
   const [carrito, setCarrito] = useState<ItemCarrito[]>([]);
+  /** Descuento en pesos sobre el subtotal (antes de IVA). */
+  const [descuento, setDescuento] = useState(0);
+  const [guardando, setGuardando] = useState(false);
+
+  // Importes del carrito: precios antes de IVA; se cobra subtotal − descuento + IVA 16 %.
+  const importesCarrito = calcularImportes(
+    carrito.map((item) => ({ cantidad: item.cantidad, precioUnitario: item.precio })),
+    descuento
+  );
+  // A crédito no se cobra en el momento: todo el total queda como saldo del cliente.
+  const aCredito = formData.metodoPago === "credito";
+
+  // Límite de crédito del cliente y tope de descuento (sql/politicas_venta.sql).
+  const politicas = usePoliticasVenta({
+    cliente: formData.cliente,
+    metodoPago: formData.metodoPago,
+    saldoNuevo: aCredito ? importesCarrito.total : 0,
+    descuento,
+    subtotal: importesCarrito.subtotal,
+    activo: isOpen,
+  });
 
   // Cerrado: no se renderiza nada (los hooks ya se declararon arriba, como exige React).
   if (!isOpen) return null;
@@ -97,6 +126,8 @@ export default function VentaRapidaDialog({
           varianteId: variante.id,
           nombre: producto.nombre,
           tipo: producto.tipo,
+          corte: variante.corte,
+          manga: variante.manga,
           talla: variante.talla,
           color: variante.color,
           precio: variante.precio || producto.precio,
@@ -130,25 +161,27 @@ export default function VentaRapidaDialog({
     );
   };
 
-  // Importes del carrito: precios antes de IVA; se cobra subtotal + IVA 16 %.
-  const calcularImportesCarrito = () =>
-    calcularImportes(carrito.map((item) => ({ cantidad: item.cantidad, precioUnitario: item.precio })));
-  const calcularTotal = () => calcularImportesCarrito().total;
-
   /**
    * Construye la orden de venta directa a partir del carrito y la envía al padre.
    * Fecha de creación y de entrega = hoy, porque el producto se entrega en el acto.
+   * De contado queda liquidada con un pago por el total; a crédito, sin pagos y con
+   * todo el total como saldo pendiente.
    */
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     // Evita que el formulario recargue la página.
     e.preventDefault();
+    if (guardando) return;
 
     if (carrito.length === 0) {
       alert("Debe agregar al menos un producto");
       return;
     }
+    if (politicas.bloqueo) {
+      toast.error("No se puede completar la venta", { description: politicas.bloqueo });
+      return;
+    }
 
-    const total = calcularTotal();
+    const total = importesCarrito.total;
     // Fecha actual en formato "AAAA-MM-DD" (hora local).
     const hoy = hoyISO();
 
@@ -163,17 +196,22 @@ export default function VentaRapidaDialog({
       tipoVenta: "directa" as const,
       estado: "completed" as const,
       metodoPago: formData.metodoPago,
-      estadoPago: "liquidado" as const,
+      estadoPago: aCredito ? ("pendiente" as const) : ("liquidado" as const),
+      subtotal: importesCarrito.subtotal,
+      descuento: importesCarrito.descuento,
+      iva: importesCarrito.iva,
       total,
       anticipo: 0,
-      // Un solo pago por el total: la venta queda liquidada al momento.
-      pagos: [
-        {
-          monto: total,
-          fecha: hoy,
-          metodo: formData.metodoPago,
-        },
-      ],
+      // De contado, un solo pago por el total: la venta queda liquidada al momento.
+      pagos: aCredito
+        ? []
+        : [
+            {
+              monto: total,
+              fecha: hoy,
+              metodo: formData.metodoPago,
+            },
+          ],
       // Cada renglón del carrito se convierte en un ProductoOrden sin talleres.
       // productoId/varianteId permiten identificar exactamente la variante vendida.
       productos: carrito.map((item) => ({
@@ -192,10 +230,18 @@ export default function VentaRapidaDialog({
       })),
     };
 
-    // Entrega la orden, vacía el carrito y cierra el diálogo.
-    onSubmit(nuevaOrden);
-    setCarrito([]);
-    onClose();
+    // Entrega la orden; si se guardó, vacía el carrito y cierra el diálogo. Si la BD la
+    // rechaza (p. ej. por las políticas de venta), el carrito se conserva.
+    setGuardando(true);
+    try {
+      const ok = await onSubmit(nuevaOrden);
+      if (ok === false) return;
+      setCarrito([]);
+      setDescuento(0);
+      onClose();
+    } finally {
+      setGuardando(false);
+    }
   };
 
   // Lista plana de todas las variantes con stock > 0 (de todos los productos).
@@ -299,8 +345,18 @@ export default function VentaRapidaDialog({
                     <option value="cheque">🧾 Cheque</option>
                     <option value="credito">📄 Crédito</option>
                   </select>
+                  {aCredito && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      No se cobra ahora: el total queda como saldo pendiente del cliente.
+                    </p>
+                  )}
                 </div>
               </div>
+              <PanelPoliticasVenta
+                politicas={politicas}
+                cliente={formData.cliente}
+                metodoPago={formData.metodoPago}
+              />
             </CardContent>
           </Card>
 
@@ -322,7 +378,7 @@ export default function VentaRapidaDialog({
                       <div className="flex-1">
                         <p className="font-medium">{producto.nombre}</p>
                         <p className="text-xs text-muted-foreground">
-                          {variante.talla} • {variante.color}
+                          {describirVariante(variante)}
                         </p>
                         <p className="text-sm text-muted-foreground">
                           Stock: {variante.stock} • ${variante.precio || producto.precio}
@@ -357,7 +413,7 @@ export default function VentaRapidaDialog({
                     <div className="flex-1">
                       <p className="font-medium">{item.nombre}</p>
                       <p className="text-xs text-muted-foreground">
-                        {item.talla} • {item.color}
+                        {describirVariante(item)}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         ${item.precio} x {item.cantidad} = $
@@ -392,8 +448,28 @@ export default function VentaRapidaDialog({
                   </div>
                 ))}
 
-                <div className="pt-4 border-t border-border">
-                  <DesgloseImportes importes={calcularImportesCarrito()} className="text-base" />
+                <div className="pt-4 border-t border-border space-y-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label htmlFor="vr-descuento" className="text-sm font-medium">
+                      Descuento ($, antes de IVA)
+                    </label>
+                    <input
+                      id="vr-descuento"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={descuento}
+                      aria-invalid={!!politicas.avisoDescuento}
+                      onChange={(e) => setDescuento(parseFloat(e.target.value) || 0)}
+                      className={`w-32 px-3 py-1.5 bg-secondary rounded-lg border focus:outline-none focus:ring-2 ${
+                        politicas.avisoDescuento && !politicas.exento
+                          ? "border-red-500 focus:ring-red-500/20"
+                          : "border-transparent focus:border-primary focus:ring-primary/20"
+                      }`}
+                    />
+                    <span className="text-xs text-muted-foreground">Máximo {politicas.descuentoMax} % del subtotal</span>
+                  </div>
+                  <DesgloseImportes importes={importesCarrito} className="text-base" />
                 </div>
               </CardContent>
             </Card>
@@ -410,10 +486,10 @@ export default function VentaRapidaDialog({
             </button>
             <button
               type="submit"
-              disabled={carrito.length === 0}
+              disabled={carrito.length === 0 || guardando || !!politicas.bloqueo}
               className="px-6 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Completar Venta
+              {guardando ? "Guardando…" : "Completar Venta"}
             </button>
           </div>
         </form>

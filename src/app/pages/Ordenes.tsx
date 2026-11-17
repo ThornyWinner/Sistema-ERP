@@ -130,17 +130,21 @@ export default function Ordenes() {
   };
 
   // Guarda la orden recibida de cualquiera de los dos diálogos y notifica el resultado
-  // (en caso de éxito muestra el folio asignado por la base de datos).
-  const handleNuevaOrden = async (nuevaOrden: Orden) => {
+  // (en caso de éxito muestra el folio asignado por la base de datos). Devuelve si se
+  // guardó, para que el diálogo siga abierto con lo capturado cuando falla.
+  const handleNuevaOrden = async (nuevaOrden: Orden): Promise<boolean> => {
     try {
       const folio = await crearOrden(nuevaOrden);
       toast.success("Orden creada exitosamente", {
         description: `${folio} - ${nuevaOrden.cliente}`,
       });
+      return true;
     } catch (err) {
       toast.error("No se pudo crear la orden", {
-        description: err instanceof Error ? err.message : "Error desconocido",
+        description: (err as { message?: string })?.message || "Error desconocido",
+        duration: 10000,
       });
+      return false;
     }
   };
 

@@ -17,6 +17,9 @@ export default defineConfig({
           if (id.includes('@radix-ui')) return 'radix'
           if (/recharts|d3-|victory/.test(id)) return 'charts'
           if (id.includes('lucide-react')) return 'icons'
+          if (id.includes('@supabase')) return 'supabase'
+          if (/node_modules[\\/](react-router|@remix-run)[\\/]/.test(id)) return 'router'
+          if (/node_modules[\\/](qrcode|dijkstrajs|pngjs)[\\/]/.test(id)) return 'qrcode'
 
           return 'vendor'
         },

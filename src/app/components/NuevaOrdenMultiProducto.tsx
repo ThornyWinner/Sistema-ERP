@@ -17,12 +17,14 @@
  */
 import { useState } from "react";
 import { toast } from "sonner";
-import type { Taller, TipoVenta, MetodoPago, Producto, VarianteProducto } from "../data/mockData";
+import { TIPOS_PRENDA, describirVariante, type Taller, type TipoVenta, type MetodoPago, type Producto, type VarianteProducto } from "../data/mockData";
 import { useErpData } from "../context/ErpDataContext";
 import { useAuth } from "../context/AuthContext";
 import { hoyISO } from "../lib/fechas";
 import { calcularImportes } from "../lib/impuestos";
 import DesgloseImportes from "./DesgloseImportes";
+import PanelPoliticasVenta from "./PanelPoliticasVenta";
+import { usePoliticasVenta } from "../lib/politicasVenta";
 import {
   X,
   User,
@@ -41,6 +43,7 @@ import {
   Mail,
   Search,
   Boxes,
+  Percent,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./Card";
 
@@ -48,7 +51,7 @@ interface NuevaOrdenMultiProductoProps {
   isOpen: boolean;
   onClose: () => void;
   /** Recibe la orden construida (el folio definitivo lo asigna la base de datos). */
-  onSubmit: (orden: any) => void;
+  onSubmit: (orden: any) => Promise<boolean> | void;
 }
 
 // Talleres en el orden real del flujo de producción.
@@ -79,6 +82,9 @@ type ProductoCaptura = {
   nombre: string;
   tipoPrenda: string;
   marca: string;
+  /** Corte y manga de la variante de stock elegida (solo informativos). */
+  corte?: string;
+  manga?: string;
   talla: string;
   color: string;
   cantidad: number;
@@ -128,6 +134,8 @@ export default function NuevaOrdenMultiProducto({
     tipoVenta: "fabricacion" as TipoVenta,
     metodoPago: "transferencia" as MetodoPago,
     anticipo: 0,
+    /** Descuento en pesos sobre el subtotal (antes de IVA). */
+    descuento: 0,
     notas: "",
   });
 
@@ -138,6 +146,26 @@ export default function NuevaOrdenMultiProducto({
   const [productosExpandidos, setProductosExpandidos] = useState<Set<number>>(
     new Set([0])
   );
+  // Mientras se guarda, el botón queda deshabilitado (evita órdenes duplicadas).
+  const [guardando, setGuardando] = useState(false);
+
+  // Importes de la orden: los precios son antes de IVA, así que el total a cobrar es
+  // subtotal − descuento + IVA 16 % (mismo cálculo que la BD y que la factura).
+  const importesOrden = calcularImportes(
+    productos.map((p) => ({ cantidad: p.cantidad, precioUnitario: p.precioUnitario })),
+    formData.descuento
+  );
+  const totalOrden = importesOrden.total;
+
+  // Límite de crédito del cliente y tope de descuento (sql/politicas_venta.sql).
+  const politicas = usePoliticasVenta({
+    cliente: formData.cliente,
+    metodoPago: formData.metodoPago,
+    saldoNuevo: Math.max(totalOrden - formData.anticipo, 0),
+    descuento: formData.descuento,
+    subtotal: importesOrden.subtotal,
+    activo: isOpen,
+  });
 
   if (!isOpen) return null;
 
@@ -225,6 +253,8 @@ export default function NuevaOrdenMultiProducto({
       varianteId: variante.id,
       nombre: producto.nombre,
       tipoPrenda: producto.tipo,
+      corte: variante.corte || undefined,
+      manga: variante.manga || undefined,
       talla: variante.talla,
       color: variante.color,
       precioUnitario: variante.precio || producto.precio,
@@ -254,12 +284,6 @@ export default function NuevaOrdenMultiProducto({
     setProductosExpandidos(nuevosExpandidos);
   };
 
-  // Importes de la orden: los precios son antes de IVA, así que el total a cobrar es
-  // subtotal + IVA 16 % (mismo cálculo que la BD y que la factura).
-  const calcularImportesOrden = () =>
-    calcularImportes(productos.map((p) => ({ cantidad: p.cantidad, precioUnitario: p.precioUnitario })));
-  const calcularTotal = () => calcularImportesOrden().total;
-  const totalOrden = calcularTotal();
   // Un anticipo mayor al total dejaría el saldo pendiente en negativo.
   const anticipoExcedido = formData.anticipo > totalOrden;
 
@@ -270,11 +294,18 @@ export default function NuevaOrdenMultiProducto({
    *  - Si hay anticipo se registra como primer pago (con concepto y porcentaje).
    *  - Cada producto arranca con progreso "pending" en todos sus talleres.
    */
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (guardando) return;
 
-    const total = calcularTotal();
+    const total = totalOrden;
     const anticipo = formData.anticipo;
+
+    // Límite de crédito y tope de descuento (la BD vuelve a validarlos al guardar).
+    if (politicas.bloqueo) {
+      toast.error("No se puede crear la orden", { description: politicas.bloqueo });
+      return;
+    }
 
     // El anticipo no puede superar el total: si el cliente entrega más dinero, solo se
     // registra el total y el excedente se le devuelve como cambio.
@@ -320,6 +351,9 @@ export default function NuevaOrdenMultiProducto({
           : anticipo > 0
           ? "anticipo"
           : "pendiente",
+      subtotal: importesOrden.subtotal,
+      descuento: importesOrden.descuento,
+      iva: importesOrden.iva,
       total,
       anticipo,
       pagos:
@@ -375,8 +409,15 @@ export default function NuevaOrdenMultiProducto({
       notas: formData.notas || undefined,
     };
 
-    onSubmit(nuevaOrden);
-    onClose();
+    // Si la BD rechaza la orden (p. ej. por las políticas de venta), el formulario
+    // queda abierto con lo capturado para corregirlo.
+    setGuardando(true);
+    try {
+      const ok = await onSubmit(nuevaOrden);
+      if (ok !== false) onClose();
+    } finally {
+      setGuardando(false);
+    }
   };
 
   // Colores de la etiqueta del tipo de venta mostrada en el encabezado.
@@ -513,6 +554,7 @@ export default function NuevaOrdenMultiProducto({
                     <option value="efectivo">💵 Efectivo</option>
                     <option value="transferencia">🏦 Transferencia</option>
                     <option value="tarjeta">💳 Tarjeta</option>
+                    <option value="credito">📄 Crédito</option>
                   </select>
                 </div>
                 <div>
@@ -553,7 +595,39 @@ export default function NuevaOrdenMultiProducto({
                     </p>
                   )}
                 </div>
+                <div>
+                  <label htmlFor="no-descuento" className="block text-sm font-medium mb-2">
+                    <Percent className="w-4 h-4 inline mr-2" />
+                    Descuento ($, antes de IVA)
+                  </label>
+                  <input
+                    id="no-descuento"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.descuento}
+                    aria-invalid={!!politicas.avisoDescuento}
+                    onChange={(e) =>
+                      setFormData({ ...formData, descuento: parseFloat(e.target.value) || 0 })
+                    }
+                    className={`w-full px-4 py-2 bg-secondary rounded-lg border focus:outline-none focus:ring-2 ${
+                      politicas.avisoDescuento && !politicas.exento
+                        ? "border-red-500 focus:ring-red-500/20"
+                        : "border-transparent focus:border-primary focus:ring-primary/20"
+                    }`}
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {politicas.exento
+                      ? `Tope para vendedores: ${politicas.descuentoMax} % del subtotal.`
+                      : `Máximo ${politicas.descuentoMax} % del subtotal.`}
+                  </p>
+                </div>
               </div>
+              <PanelPoliticasVenta
+                politicas={politicas}
+                cliente={formData.cliente}
+                metodoPago={formData.metodoPago}
+              />
             </CardContent>
           </Card>
 
@@ -693,7 +767,7 @@ export default function NuevaOrdenMultiProducto({
                             disponibleVariante={(varianteId) => disponibleVariante(varianteId, index)}
                             onElegir={(p, v) => elegirVariante(index, p, v)}
                             onCambiar={() =>
-                              actualizarCampos(index, { productoId: undefined, varianteId: undefined })
+                              actualizarCampos(index, { productoId: undefined, varianteId: undefined, corte: undefined, manga: undefined })
                             }
                           />
                         ) : (
@@ -710,12 +784,11 @@ export default function NuevaOrdenMultiProducto({
                               }
                               className="w-full px-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                             >
-                              <option value="camisa">Camisa</option>
-                              <option value="pantalon">Pantalón</option>
-                              <option value="overol">Overol</option>
-                              <option value="chaleco">Chaleco</option>
-                              <option value="playera">Playera</option>
-                              <option value="otro">Otro</option>
+                              {TIPOS_PRENDA.map((t) => (
+                                <option key={t.valor} value={t.valor}>
+                                  {t.etiqueta}
+                                </option>
+                              ))}
                             </select>
                           </div>
                           <div>
@@ -977,7 +1050,7 @@ export default function NuevaOrdenMultiProducto({
               {/* Total general de la orden: subtotal + IVA (precios antes de IVA) */}
               <div className="p-4 bg-secondary rounded-lg border-2 border-primary">
                 <p className="text-lg font-semibold mb-2">Total de la Orden</p>
-                <DesgloseImportes importes={calcularImportesOrden()} className="text-base" />
+                <DesgloseImportes importes={importesOrden} className="text-base" />
               </div>
 
               {/* Desglose de anticipo y saldo pendiente (solo si hay anticipo) */}
@@ -1035,10 +1108,10 @@ export default function NuevaOrdenMultiProducto({
             </button>
             <button
               type="submit"
-              disabled={anticipoExcedido}
+              disabled={anticipoExcedido || guardando || !!politicas.bloqueo}
               className="px-6 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Crear Orden
+              {guardando ? "Guardando…" : "Crear Orden"}
             </button>
           </div>
         </form>
@@ -1076,7 +1149,7 @@ function SelectorStock({
           <div className="min-w-0">
             <p className="font-medium truncate">{seleccion.nombre}</p>
             <p className="text-sm text-muted-foreground">
-              Talla {seleccion.talla} • {seleccion.color} • {disponible} disponible(s)
+              {describirVariante(seleccion)} • {disponible} disponible(s)
             </p>
           </div>
         </div>
@@ -1104,7 +1177,7 @@ function SelectorStock({
     .filter(
       ({ producto, variante }) =>
         !texto ||
-        [producto.nombre, variante.talla, variante.color, variante.sku ?? ""]
+        [producto.nombre, variante.corte, variante.manga, variante.talla, variante.color, variante.modelo ?? "", variante.sku ?? ""]
           .join(" ")
           .toLowerCase()
           .includes(texto)
@@ -1118,7 +1191,7 @@ function SelectorStock({
           type="search"
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar en stock por nombre, talla, color o SKU…"
+          placeholder="Buscar en stock por nombre, corte, manga, talla, color o SKU…"
           className="w-full pl-9 pr-4 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
       </div>
@@ -1138,7 +1211,7 @@ function SelectorStock({
               <div className="min-w-0">
                 <p className="font-medium truncate">{producto.nombre}</p>
                 <p className="text-xs text-muted-foreground">
-                  Talla {variante.talla} • {variante.color}
+                  {describirVariante(variante)}
                 </p>
               </div>
               <div className="text-right shrink-0">

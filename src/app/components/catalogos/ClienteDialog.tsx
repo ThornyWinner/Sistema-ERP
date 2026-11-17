@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
+import { useAuth } from "../../context/AuthContext";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -101,6 +102,9 @@ export default function ClienteDialog({
 }) {
   const [f, setF] = useState<Form>(VACIO);
   const [guardando, setGuardando] = useState(false);
+  // Límite y días de crédito: solo el admin primario (la BD lo exige, sql/politicas_venta.sql).
+  const { user } = useAuth();
+  const puedeAsignarCredito = user?.rol === "admin_primario";
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -241,13 +245,35 @@ export default function ClienteDialog({
                 <SelectSat value={f.uso_cfdi} onChange={set("uso_cfdi")} opciones={USOS_CFDI} />
               </div>
               <div className="space-y-1.5">
-                <Label>Días de crédito</Label>
-                <Input type="number" min="0" step="1" {...input("dias_credito")} />
+                <Label htmlFor="cli-dias">Días de crédito</Label>
+                <Input
+                  id="cli-dias"
+                  type="number"
+                  min="0"
+                  step="1"
+                  disabled={!puedeAsignarCredito}
+                  aria-describedby={puedeAsignarCredito ? undefined : "cli-credito-nota"}
+                  {...input("dias_credito")}
+                />
               </div>
               <div className="space-y-1.5">
-                <Label>Límite de crédito (MXN)</Label>
-                <Input type="number" min="0" step="0.01" {...input("limite_credito")} />
+                <Label htmlFor="cli-limite">Límite de crédito (MXN)</Label>
+                <Input
+                  id="cli-limite"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  disabled={!puedeAsignarCredito}
+                  aria-describedby={puedeAsignarCredito ? undefined : "cli-credito-nota"}
+                  {...input("limite_credito")}
+                />
               </div>
+              {!puedeAsignarCredito && (
+                <p id="cli-credito-nota" className="sm:col-span-2 -mt-2 text-xs text-muted-foreground">
+                  El límite y los días de crédito los asigna el administrador principal. Sin límite, el cliente no
+                  puede comprar a crédito.
+                </p>
+              )}
               <div className="sm:col-span-2 space-y-1.5">
                 <Label>Notas</Label>
                 <Input {...input("notas")} />

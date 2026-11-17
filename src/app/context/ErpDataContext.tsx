@@ -175,7 +175,8 @@ const estadoGeneral = (nombre?: string | null, ordenVisualizacion?: number | nul
 const SELECT_MATERIALES =
   'id,nombre,tipo,unidad,stock_actual,stock_minimo,precio_unitario,proveedor_id,proveedores(nombre)';
 const SELECT_PRODUCTOS =
-  'id,nombre,tipo_prenda,imagen_url,categorias_producto(nombre),variantes_producto(id,talla,color,stock,precio,sku)';
+  'id,nombre,tipo_prenda,imagen_url,composicion,incluye,notas,categorias_producto(nombre),' +
+  'variantes_producto(id,corte,manga,modelo,talla,color,stock,precio,sku)';
 const SELECT_PROVEEDORES =
   'id,nombre,contacto,telefono,email,calificacion,materiales(nombre)';
 // Consulta de órdenes con todo su árbol de datos:
@@ -188,7 +189,7 @@ const SELECT_ORDENES =
   'usuarios!ordenes_vendedor_id_fkey(id,nombre),clientes(razon_social,telefono,email),' +
   'estados_orden(nombre,orden_visualizacion),estados_pago(nombre),metodos_pago(nombre),tipos_venta(nombre),' +
   'orden_detalles(id,producto_id,variante_id,cantidad,precio_unitario,tipo_produccion,notas,' +
-  'productos(nombre,tipo_prenda),variantes_producto(talla,color),' +
+  'productos(nombre,tipo_prenda),variantes_producto(corte,manga,talla,color),' +
   'produccion_taller(estado,talleres(nombre)),' +
   'personalizaciones(lugar_bordado,logo_url,notas,personalizacion_hilos(color_hilo)))';
 const SELECT_PAGOS = 'id,orden_id,fecha,monto,metodo_pago,referencia,metodos_pago(nombre)';
@@ -267,6 +268,9 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
       productos: (productosResult.data ?? []).map((p: any) => {
         const variantes = (p.variantes_producto ?? []).map((v: any) => ({
           id: v.id,
+          corte: v.corte ?? '',
+          manga: v.manga ?? '',
+          modelo: v.modelo ?? undefined,
           talla: v.talla ?? '',
           color: v.color ?? '',
           stock: Number(v.stock ?? 0),
@@ -281,12 +285,17 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
           id: p.id,
           nombre: p.nombre,
           tipo: p.tipo_prenda,
+          cortes: [...new Set<string>(variantes.map((v: any) => v.corte).filter(Boolean))],
+          mangas: [...new Set<string>(variantes.map((v: any) => v.manga).filter(Boolean))],
           tallas: [...new Set<string>(variantes.map((v: any) => v.talla).filter(Boolean))],
           colores: [...new Set<string>(variantes.map((v: any) => v.color).filter(Boolean))],
           stock: variantes.reduce((s: number, v: any) => s + v.stock, 0),
           precio: variantes[0]?.precio ?? 0,
           categoria: p.categorias_producto?.nombre ?? 'Sin categoría',
           imagen: p.imagen_url ?? undefined,
+          composicion: p.composicion ?? undefined,
+          incluye: p.incluye ?? undefined,
+          notas: p.notas ?? undefined,
           variantes,
         };
       }),
@@ -345,6 +354,8 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
               id: d.id,
               nombre: d.productos?.nombre ?? 'Producto',
               tipoPrenda: d.productos?.tipo_prenda ?? '',
+              corte: d.variantes_producto?.corte ?? undefined,
+              manga: d.variantes_producto?.manga ?? undefined,
               talla: d.variantes_producto?.talla ?? '',
               color: d.variantes_producto?.color ?? '',
               cantidad: d.cantidad,
@@ -416,10 +427,15 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
         const contacto: Record<string, string> = {};
         if (orden.clienteTelefono) contacto.telefono = orden.clienteTelefono;
         if (orden.clienteEmail) contacto.email = orden.clienteEmail;
+        // Sin distinguir mayúsculas (el catálogo guarda la razón social en MAYÚSCULAS);
+        // igual que estado_credito_cliente, para que crédito y orden usen el mismo cliente.
+        const razonSocial = orden.cliente.trim();
         const { data: clienteExistente } = await supabase
           .from('clientes')
           .select('id')
-          .eq('razon_social', orden.cliente)
+          .ilike('razon_social', razonSocial.replace(/[\\%_]/g, (c) => `\\${c}`))
+          .order('created_at')
+          .limit(1)
           .maybeSingle();
         if (clienteExistente) {
           clienteId = clienteExistente.id;
@@ -433,7 +449,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
         } else {
           const { data: clienteNuevo, error: clienteError } = await supabase
             .from('clientes')
-            .insert({ razon_social: orden.cliente, ...contacto })
+            .insert({ razon_social: razonSocial, ...contacto })
             .select('id')
             .single();
           if (clienteError) throw clienteError;
@@ -545,6 +561,17 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
           }));
           if (rows.length) await supabase.from('produccion_taller').insert(rows);
         }
+      }
+
+      // El descuento se aplica ya con todas las partidas: así el tope de descuento
+      // (sql/politicas_venta.sql) se valida contra el subtotal real, y la BD recalcula
+      // IVA y total. Va antes de los pagos para que el anticipo no supere el total.
+      if (orden.descuento && orden.descuento > 0) {
+        const { error: descuentoError } = await supabase
+          .from('ordenes')
+          .update({ descuento: orden.descuento })
+          .eq('id', ordenRow.id);
+        if (descuentoError) throw descuentoError;
       }
 
       // Se registra un pago por cada entrada en orden.pagos (cubre tanto el

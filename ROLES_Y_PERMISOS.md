@@ -20,7 +20,7 @@ La autenticación y los usuarios viven en **Supabase**:
 | Rol | Clave (`roles.nombre`) | Módulos visibles |
 |-----|------------------------|------------------|
 | Administrador Primario | `admin_primario` | Todos (control total) |
-| Administrador Secundario | `admin_secundario` | Todos en solo lectura, excepto Gestión de Usuarios y Permisos Vacacionales |
+| Administrador Secundario | `admin_secundario` | Todos en solo lectura, excepto Gestión de Usuarios, Permisos Vacacionales y Activo Fijo |
 | Vendedor | `vendedor` | Dashboard, Órdenes, Inventario (lectura) |
 | Diseñador | `disenador` | Dashboard, Taller de Diseño |
 | Sublimador | `sublimador` | Dashboard, Taller de Sublimación |
@@ -39,6 +39,7 @@ Todos los roles tienen además el **buscador global** (solo busca en los módulo
 - ✅ Control total de órdenes, pagos y producción
 - ✅ Todos los talleres, Seguimiento Global y Reportes
 - ✅ **Permisos Vacacionales** (exclusivo): empleados, vacaciones, incidencias, expediente laboral y finiquitos, incluidos los salarios
+- ✅ **Activo Fijo** (exclusivo): maquinaria, mobiliario, equipo y vehículos, con depreciación, mantenimientos y bajas
 - ✅ Recibe el aviso automático cuando una orden termina producción
 - ⚠️ No puede eliminarse a sí mismo desde Gestión de Usuarios
 
@@ -50,6 +51,7 @@ Todos los roles tienen además el **buscador global** (solo busca en los módulo
 - ❌ No puede crear, editar ni eliminar registros (la base de datos también lo rechaza)
 - ❌ **Gestión de Usuarios**: el menú se la muestra como "Solo lectura", pero la página le muestra "Acceso Restringido" (solo el administrador primario la usa)
 - ❌ **Permisos Vacacionales**: no aparece en su menú; contiene salarios y datos personales del personal
+- ❌ **Activo Fijo**: no aparece en su menú (exclusivo del administrador primario)
 - ✅ Puede enviar y recibir notificaciones
 
 **Indicadores visuales:**
@@ -64,7 +66,12 @@ Todos los roles tienen además el **buscador global** (solo busca en los módulo
 **Acceso:** Dashboard y Órdenes (control total); Inventario de materiales y productos (solo lectura).
 
 - ✅ Crear órdenes multiproducto y ventas rápidas de mostrador
-- ✅ Dar de alta y actualizar clientes al capturar una orden
+- ✅ Dar de alta y actualizar clientes al capturar una orden (sin cambiar su límite ni sus días de crédito: eso lo asigna el admin primario)
+- ⚖️ **Políticas de venta** (`sql/politicas_venta.sql`, también aplican al admin secundario):
+  - Descuento máximo del 10 % del subtotal (el admin primario lo cambia en Catálogo de Clientes).
+  - Método "Crédito" solo para clientes con límite de crédito asignado.
+  - Lo que debe el cliente (todas sus órdenes, de cualquier vendedor) + el saldo de la nueva orden no puede pasar su límite, ni puede dejarse saldo nuevo si tiene saldos vencidos.
+  - Si se excede, la orden no se guarda: el admin primario es quien autoriza capturándola él.
 - 👁️ Consultar inventario y proveedores (en la base de datos; el módulo de Proveedores no aparece en su menú)
 - ℹ️ Solo ve **sus propias órdenes** (Dashboard de ventas, Órdenes, buscador). La base de datos tampoco le deja ver ni asignar órdenes de otro vendedor
 - ✅ Recibe el aviso automático cuando una de sus órdenes termina producción
@@ -107,6 +114,7 @@ Cuando marca un trabajo como terminado, los usuarios del **siguiente taller** de
 | Reportes (`/reportes`) | ✅ | 👁️ | ❌ | ❌ |
 | Gestión de Usuarios (`/usuarios`) | ✅ | ❌ ¹ | ❌ | ❌ |
 | Permisos Vacacionales (`/vacaciones`) | ✅ | ❌ | ❌ | ❌ |
+| Activo Fijo (`/activo-fijo`) | ✅ | ❌ | ❌ | ❌ |
 
 **Leyenda:** ✅ ver, crear, editar y eliminar · 👁️ solo lectura · ❌ sin acceso (oculto en el menú)
 
@@ -129,6 +137,7 @@ Resumen; el detalle tabla por tabla está en [Políticas.txt](Pol%C3%ADticas.txt
 | Materiales, movimientos y proveedores | CRUD | Lectura | Lectura | — |
 | Usuarios | CRUD | Lectura | Solo su perfil | Solo su perfil |
 | Empleados, vacaciones, incidencias, documentos, finiquitos | CRUD | — | — | — |
+| Activo fijo (categorías, activos, mantenimientos) | CRUD | — | — | — |
 | Notificaciones | Las propias (recibidas y enviadas) | Igual | Igual | Igual |
 | Catálogos (roles, talleres, tallas, colores, estados…) | CRUD | Lectura | Lectura | Lectura |
 
