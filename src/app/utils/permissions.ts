@@ -68,10 +68,39 @@ const getRoutePermissions = (role: UserRole): RoutePermission[] => {
       permission: noPermission,
     },
     {
+      // Avance de producción del lado del vendedor: en qué taller va cada orden.
+      route: '/avance',
+      label: 'Avance de pedidos',
+      icon: 'Factory',
+      permission: noPermission,
+    },
+    {
+      // Devoluciones y cambios de talla (se registran desde la orden; aquí, el registro).
+      route: '/devoluciones',
+      label: 'Devoluciones',
+      icon: 'Undo2',
+      permission: noPermission,
+    },
+    {
       // Cotizaciones a clientes; se convierten en orden cuando el cliente acepta.
       route: '/cotizaciones',
       label: 'Cotizaciones',
       icon: 'Calculator',
+      permission: noPermission,
+    },
+    {
+      // Enlace para que el cliente capture las tallas de su personal; arma la orden.
+      route: '/tallas',
+      label: 'Tallas del cliente',
+      icon: 'Ruler',
+      permission: noPermission,
+    },
+    {
+      // Excepciones a las políticas de venta (descuento / crédito): el vendedor las pide
+      // y el admin primario las aprueba.
+      route: '/autorizaciones',
+      label: 'Autorizaciones',
+      icon: 'ShieldCheck',
       permission: noPermission,
     },
     {
@@ -125,6 +154,13 @@ const getRoutePermissions = (role: UserRole): RoutePermission[] => {
       permission: noPermission,
     },
     {
+      // Facturas que pidieron los vendedores desde la orden: el primario las emite.
+      route: '/facturacion/solicitudes',
+      label: 'Solicitudes de factura',
+      icon: 'ReceiptText',
+      permission: noPermission,
+    },
+    {
       route: '/facturacion/complementos',
       label: 'Complementos de Pago',
       icon: 'Receipt',
@@ -141,6 +177,13 @@ const getRoutePermissions = (role: UserRole): RoutePermission[] => {
       route: '/catalogos/clientes',
       label: 'Clientes',
       icon: 'Contact',
+      permission: noPermission,
+    },
+    {
+      // Historial de compras por cliente, inactivos por recontactar y seguimiento (CRM ligero).
+      route: '/clientes/historial',
+      label: 'Historial de clientes',
+      icon: 'History',
       permission: noPermission,
     },
     {
@@ -228,14 +271,23 @@ const permisosPorRol = (role: UserRole, routes: RoutePermission[]): RoutePermiss
       return routes.map(r => {
         if (r.route === '/vacaciones' || r.route === '/asistencia' || r.route === '/activo-fijo') return r;
         if (r.route === '/ordenes' || r.route === '/cotizaciones') return { ...r, permission: ordenesPropiasPermission };
-        if (r.route === '/catalogos/clientes') return { ...r, permission: clientesPermission };
+        if (r.route === '/catalogos/clientes' || r.route === '/clientes/historial') return { ...r, permission: clientesPermission };
+        if (r.route === '/devoluciones') return { ...r, permission: ordenesPropiasPermission };
+        // Tallas y autorizaciones: las suyas (pide autorizaciones; no las aprueba).
+        if (r.route === '/tallas' || r.route === '/autorizaciones') return { ...r, permission: ordenesPropiasPermission };
         return { ...r, permission: readOnlyPermission };
       });
 
-    // Vendedor: control total del Dashboard, Órdenes, Cotizaciones y Cobranza (las suyas); inventarios en solo lectura.
+    // Vendedor: control total del Dashboard, Órdenes, Cotizaciones, Cobranza, Avance de pedidos,
+    // Devoluciones, Historial de clientes, Tallas del cliente y Autorizaciones (lo suyo);
+    // inventarios en solo lectura.
     case 'vendedor':
       return routes.map(r => {
-        if (r.route === '/' || r.route === '/ordenes' || r.route === '/cotizaciones' || r.route === '/cobranza') {
+        if (
+          r.route === '/' || r.route === '/ordenes' || r.route === '/cotizaciones' || r.route === '/cobranza' ||
+          r.route === '/avance' || r.route === '/devoluciones' || r.route === '/clientes/historial' ||
+          r.route === '/tallas' || r.route === '/autorizaciones'
+        ) {
           return { ...r, permission: fullPermission };
         }
         if (r.route.startsWith('/inventario')) {

@@ -5,7 +5,9 @@
  * datos del proveedor y columna derecha con una vista previa de su tarjeta y los
  * botones de acción.
  *
- * Campos: nombre (empresa), persona de contacto, teléfono, email y calificación (0 a 5).
+ * Campos: nombre (empresa), persona de contacto, teléfono, email y calificación (0 a 5),
+ * y opcionalmente la cuenta a la que se le transfiere (CLABE, tarjeta o cuenta; ver
+ * lib/proveedoresCuentas.ts). Más cuentas se agregan desde la tarjeta del proveedor.
  * Los "insumos que suministra" no se capturan aquí: salen de los materiales que tienen
  * asignado a este proveedor (se eligen al dar de alta un material).
  *
@@ -17,12 +19,21 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router";
 import { toast } from "sonner";
-import { ArrowLeft, Save, Lock, Star, Phone, Mail } from "lucide-react";
+import { ArrowLeft, Save, Lock, Star, Phone, Mail, Landmark } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/Card";
 import { useErpData } from "../context/ErpDataContext";
 import { useAuth } from "../context/AuthContext";
 import { hasPermission } from "../utils/permissions";
 import { supabase } from "../lib/supabase";
+import { CamposCuenta } from "../components/proveedores/CuentasProveedorDialog";
+import {
+  cuentaVacia,
+  guardarCuentaProveedor,
+  numeroOculto,
+  soloDigitos,
+  validarNumeroCuenta,
+  TIPO_CUENTA,
+} from "../lib/proveedoresCuentas";
 
 const claseCampo =
   "w-full px-4 py-2 bg-input-background border border-border rounded-lg focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
@@ -45,6 +56,10 @@ export default function ProveedorForm() {
   // Estrella bajo el cursor, para previsualizar la calificación antes de hacer clic.
   const [hoverEstrella, setHoverEstrella] = useState(0);
   const [guardando, setGuardando] = useState(false);
+  // Cuenta para transferencias (opcional: se guarda solo si se escribe el número).
+  const [cuenta, setCuenta] = useState(() => ({ ...cuentaVacia(), principal: true }));
+  const [intentado, setIntentado] = useState(false);
+  const conCuenta = soloDigitos(cuenta.numero).length > 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,20 +76,42 @@ export default function ProveedorForm() {
       return;
     }
 
+    setIntentado(true);
+    const errorCuenta = conCuenta ? validarNumeroCuenta(cuenta.tipo, cuenta.numero) : null;
+    if (errorCuenta) {
+      toast.error(errorCuenta);
+      return;
+    }
+
     setGuardando(true);
-    const { error } = await supabase.from("proveedores").insert({
-      nombre,
-      contacto: formData.contacto.trim() || null,
-      telefono: formData.telefono.trim() || null,
-      email: formData.email.trim() || null,
-      calificacion: formData.calificacion || null,
-    });
-    setGuardando(false);
+    const { data: nuevo, error } = await supabase
+      .from("proveedores")
+      .insert({
+        nombre,
+        contacto: formData.contacto.trim() || null,
+        telefono: formData.telefono.trim() || null,
+        email: formData.email.trim() || null,
+        calificacion: formData.calificacion || null,
+      })
+      .select("id")
+      .single();
 
     if (error) {
+      setGuardando(false);
       toast.error(`No se pudo guardar el proveedor: ${error.message}`);
       return;
     }
+
+    if (conCuenta) {
+      try {
+        await guardarCuentaProveedor(nuevo.id, { ...cuenta, titular: cuenta.titular?.trim() || nombre, principal: true });
+      } catch (e) {
+        toast.error("El proveedor se guardó, pero no su cuenta", {
+          description: `${(e as Error).message}. Agrégala desde "Cuentas" en su tarjeta.`,
+        });
+      }
+    }
+    setGuardando(false);
 
     toast.success(`Proveedor "${nombre}" agregado`);
     await refresh();
@@ -215,6 +252,21 @@ export default function ProveedorForm() {
                   </div>
                 </CardContent>
               </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Landmark className="w-5 h-5" />
+                    Cuenta para transferencias
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Opcional. A dónde se le paga cuando surte insumos; solo la ven los administradores.
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <CamposCuenta valor={cuenta} onChange={setCuenta} mostrarErrores={intentado && conCuenta} />
+                </CardContent>
+              </Card>
             </div>
 
             {/* Columna derecha: vista previa de la tarjeta y acciones */}
@@ -249,6 +301,15 @@ export default function ProveedorForm() {
                       <Mail className="w-4 h-4 flex-shrink-0" />
                       <span>{formData.email || "—"}</span>
                     </div>
+                    {conCuenta && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Landmark className="w-4 h-4 flex-shrink-0" />
+                        <span>
+                          {TIPO_CUENTA[cuenta.tipo]}
+                          {cuenta.banco ? ` ${cuenta.banco}` : ""} <span className="font-mono">{numeroOculto(cuenta.numero)}</span>
+                        </span>
+                      </div>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground pt-3 border-t border-border">
                     Los insumos se asignan al dar de alta cada material en el inventario.

@@ -94,7 +94,9 @@ interface PartidaForm {
 let contadorClaves = 0;
 const nuevaClave = () => `nueva-${++contadorClaves}`;
 
-const estaBloqueada = (p: ProductoOrden) => Object.values(p.progreso).some((e) => e && e !== "pending");
+// En producción, o con piezas devueltas (sql/devoluciones.sql): ya no se modifica.
+const estaBloqueada = (p: ProductoOrden) =>
+  Object.values(p.progreso).some((e) => e && e !== "pending") || (p.cantidadDevuelta ?? 0) > 0;
 
 function partidaDesdeOrden(p: ProductoOrden): PartidaForm {
   const pers = p.personalizacion;
@@ -105,7 +107,7 @@ function partidaDesdeOrden(p: ProductoOrden): PartidaForm {
     bloqueada: estaBloqueada(p),
     productoId: p.productoId ?? "",
     varianteId: p.varianteId ?? "",
-    cantidad: String(p.cantidad),
+    cantidad: String(p.cantidadPedida ?? p.cantidad),
     precio: String(p.precioUnitario),
     tipo: p.tipoProduccion,
     talleres: [...p.talleres],
@@ -127,7 +129,8 @@ function aPartidaEditada(p: PartidaForm): PartidaEditada {
       id: o.id,
       producto_id: o.productoId ?? null,
       variante_id: o.varianteId ?? null,
-      cantidad: o.cantidad,
+      // La cantidad pedida originalmente (la BD lleva aparte las devueltas).
+      cantidad: o.cantidadPedida ?? o.cantidad,
       precio_unitario: o.precioUnitario,
       tipo_produccion: o.tipoProduccion,
       notas: o.notas ?? null,

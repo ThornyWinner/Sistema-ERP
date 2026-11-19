@@ -43,11 +43,20 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
-import { UserPlus, Pencil, Trash2, Shield, AlertTriangle } from 'lucide-react';
+import { UserPlus, Pencil, Trash2, Shield, AlertTriangle, Search } from 'lucide-react';
+import { useBusquedaUrl } from '../hooks/useBusquedaUrl';
 import { toast } from 'sonner';
 
 export default function GestionUsuarios() {
   const { user: currentUser, users, refreshUsers, addUser, updateUser, deleteUser } = useAuth();
+  // Buscador de la tabla (también llega desde el buscador global con ?q=).
+  const [busqueda, setBusqueda] = useBusquedaUrl();
+  const qUsuarios = busqueda.trim().toLowerCase();
+  const usuariosVisibles = qUsuarios
+    ? users.filter((u) =>
+        [u.nombre, u.username, u.email, roleLabels[u.rol]].some((v) => v?.toLowerCase().includes(qUsuarios))
+      )
+    : users;
   // true mientras se guarda (deshabilita el botón de enviar).
   const [saving, setSaving] = useState(false);
   // Visibilidad del diálogo de alta/edición.
@@ -305,6 +314,18 @@ export default function GestionUsuarios() {
         </Dialog>
       </div>
 
+      {/* Buscador (también llega desde el buscador global con ?q=) */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+        <Input
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          placeholder="Buscar por nombre, usuario, correo o rol..."
+          className="pl-9"
+          aria-label="Buscar usuarios"
+        />
+      </div>
+
       {/* Tabla de usuarios */}
       <div className="bg-card rounded-lg border border-border">
         <Table>
@@ -319,7 +340,14 @@ export default function GestionUsuarios() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {users.map((user) => (
+            {usuariosVisibles.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                  {busqueda.trim() ? `Ningún usuario coincide con "${busqueda.trim()}"` : 'No hay usuarios'}
+                </TableCell>
+              </TableRow>
+            )}
+            {usuariosVisibles.map((user) => (
               <TableRow key={user.id}>
                 <TableCell>
                   <div>

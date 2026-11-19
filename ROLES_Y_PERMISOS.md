@@ -41,6 +41,10 @@ Todos los roles tienen además el **buscador global** (solo busca en los módulo
 - ✅ **Permisos Vacacionales** (exclusivo): empleados, vacaciones, incidencias, expediente laboral y finiquitos, incluidos los salarios
 - ✅ **Activo Fijo** (exclusivo): maquinaria, mobiliario, equipo y vehículos, con depreciación, mantenimientos y bajas
 - ✅ Recibe el aviso automático cuando una orden termina producción
+- 🛡️ **Autorizaciones** (`/autorizaciones`, `sql/autorizaciones_venta.sql`): aprueba o rechaza (con motivo) las órdenes que el tope de descuento o el crédito del cliente bloquearon. Al aprobar puede ajustar el descuento y el saldo autorizados y la vigencia (7 días por omisión); el vendedor recibe el aviso
+- 🏦 **Cuentas de proveedores** (`sql/proveedores_cuentas.sql`): registra a qué CLABE, tarjeta o cuenta se le transfiere a cada proveedor (al darlo de alta o desde "Cuentas" en su tarjeta), marca la principal y copia los datos para la banca en línea. La CLABE se valida con su dígito verificador y la tarjeta con Luhn
+- 🔁 Recibe los avisos de recompra y de seguimiento de los clientes cuyo vendedor ya no está activo (`sql/recordatorios_recompra.sql`)
+- 🧾 **Solicitudes de factura** (`/facturacion/solicitudes`, `sql/solicitudes_factura.sql`): atiende las facturas que piden los vendedores. "Preparar factura" abre la factura nueva con la orden y los datos fiscales que capturó el vendedor; al guardar el borrador la solicitud pasa a "En preparación" y al timbrarse a "Facturada" (se avisa al vendedor). También puede marcarla emitida fuera del sistema (con el folio) o rechazarla con el motivo
 - ⚠️ No puede eliminarse a sí mismo desde Gestión de Usuarios
 
 ### 2. Administrador Secundario (`admin_secundario`)
@@ -53,6 +57,8 @@ Todos los roles tienen además el **buscador global** (solo busca en los módulo
 - ❌ **Permisos Vacacionales**: no aparece en su menú; contiene salarios y datos personales del personal
 - ❌ **Activo Fijo**: no aparece en su menú (exclusivo del administrador primario)
 - ✅ Puede enviar y recibir notificaciones
+- 🏦 Consulta (sin editar) las cuentas bancarias de los proveedores
+- 🛡️ Sujeto a las políticas de venta igual que el vendedor: puede pedir autorizaciones y crear listas de tallas para sus órdenes
 
 **Indicadores visuales:**
 - Insignia "Solo lectura" en cada módulo del sidebar, con tooltip explicativo
@@ -72,13 +78,20 @@ Todos los roles tienen además el **buscador global** (solo busca en los módulo
   - Descuento máximo del 10 % del subtotal (el admin primario lo cambia en Catálogo de Clientes).
   - Método "Crédito" solo para clientes con límite de crédito asignado.
   - Lo que debe el cliente (todas sus órdenes, de cualquier vendedor) + el saldo de la nueva orden no puede pasar su límite, ni puede dejarse saldo nuevo si tiene saldos vencidos.
-  - Si se excede, la orden no se guarda: el admin primario es quien autoriza capturándola él.
+  - Si se excede, la orden no se guarda, pero puede **Solicitar autorización** desde el mismo formulario (`/autorizaciones`, `sql/autorizaciones_venta.sql`): la captura se guarda y le llega al admin primario. Cuando la aprueba, el vendedor la crea desde Autorizaciones con un clic (o volviéndola a capturar); la autorización sirve para una sola orden de ese cliente y vence en los días que fije el admin.
 - 👁️ Consultar inventario y proveedores (en la base de datos; el módulo de Proveedores no aparece en su menú)
 - ℹ️ Solo ve **sus propias órdenes** (Dashboard de ventas, Órdenes, buscador). La base de datos tampoco le deja ver ni asignar órdenes de otro vendedor
 - ✅ Recibe el aviso automático cuando una de sus órdenes termina producción
 - 🎨 **Aprobación del diseño**: en el detalle de la orden recibe el boceto que sube Diseño, se lo manda al cliente (WhatsApp/correo con enlace de 7 días, o la hoja de aprobación impresa para firma) y registra su respuesta: quién aprobó, cuándo y por qué medio, o los cambios que pidió. Sin esa aprobación Diseño no puede terminar el producto (el admin primario sí puede saltarlo)
 - 🏷️ Consulta las **listas de precios** (`/catalogos/precios`, `sql/listas_precios.sql`): al capturar órdenes, cotizaciones y ventas rápidas se aplican solos el mayoreo y los precios especiales del cliente (los define el admin primario)
 - 💰 **Cobranza** (`/cobranza`, `sql/cobranza.sql`): antigüedad de sus saldos (al corriente, 1–30, 31–60 y +60 días vencido), abonos, mensajes de cobro por WhatsApp/correo y estado de cuenta en PDF. Cada día a las 8:00 recibe un aviso cuando un saldo suyo entra a 1, 31 o 61 días vencido (a +60 días también se avisa al admin primario)
+- 🏭 **Avance de pedidos** (`/avance`, `sql/avance_produccion.sql`): tablero con todas sus órdenes por etapa (sin iniciar, en cada taller, lista para entrega), con lo atrasado y un mensaje de avance para el cliente. El estado de la orden sigue solo al avance de los talleres; cuando todo está terminado la marca como **entregada** desde el tablero o el detalle de la orden
+- 📇 **Historial de clientes** (`/clientes/historial`, `sql/historial_clientes.sql`): qué ha comprado cada cliente, tallas y colores que suele pedir, última compra, frecuencia, clientes inactivos por recontactar y bitácora de seguimiento (llamadas, WhatsApp, próximo contacto). Desde el historial o la orden puede **repetir un pedido**. Solo ve sus clientes y sus órdenes
+- 📏 **Tallas del cliente** (`/tallas`, `sql/listas_tallas.sql`): arma una lista con las prendas, colores y tallas disponibles y manda el enlace (`/captura-tallas/…`) al contacto del cliente; cada empleado elige su talla desde el celular sin cuenta. Ve el concentrado por prenda y talla, corrige o captura a mano, y con "Crear orden" se arma la orden con una partida por talla (la lista queda ligada y cerrada)
+- 🔗 **Seguimiento para el cliente** (`sql/seguimiento_publico.sql`): cada orden tiene un enlace público (`/pedido/…`, botón "Enlace de seguimiento" en el detalle) donde el cliente ve en qué etapa va cada producto, la fecha estimada y lo pagado, sin llamar. El enlace va solo en los mensajes de resumen y avance
+- 🔁 **Recordatorios de recompra** (`sql/recordatorios_recompra.sql`): cada día a las 8:05 le llega un aviso cuando a un cliente suyo le faltan 14 días para su próxima compra estimada (última compra + frecuencia promedio, si compra cada 21 días o más) y cuando llega la fecha de "próximo contacto" que anotó en la bitácora. En el Historial de clientes ve la próxima compra estimada
+- ↩️ **Devoluciones y cambios de talla** (`/devoluciones`, `sql/devoluciones.sql`): desde el detalle de la orden registra piezas terminadas que regresa el cliente (con reingreso al inventario si están en buen estado) y lo que se lleva a cambio del inventario; el total se recalcula y, si ya había pagado de más, se registra el reembolso (pago negativo que también descuenta su comisión)
+- 🧾 **Solicitar factura**: en el detalle de la orden marca "el cliente requiere factura" con sus datos fiscales; el admin primario la emite y le llega el aviso cuando queda facturada o si se rechaza
 - 🎯 Ve en su Dashboard el **avance de su meta del mes** y la **comisión** ganada sobre lo cobrado (`sql/metas_comisiones.sql`); no ve la de los demás
 - ❌ Sin acceso a talleres, seguimiento, reportes, usuarios ni vacaciones
 
@@ -116,9 +129,15 @@ Cuando marca un trabajo como terminado, los usuarios del **siguiente taller** de
 | Cotizaciones (`/cotizaciones`) | ✅ | 👁️ todas · ✅ las suyas | ✅ las suyas | ❌ |
 | Listas de precios (`/catalogos/precios`) | ✅ | 👁️ | 👁️ | ❌ |
 | Cobranza (`/cobranza`) | ✅ | 👁️ toda la cartera · abona a las suyas | ✅ las suyas | ❌ |
+| Avance de pedidos (`/avance`) | ✅ | 👁️ | ✅ las suyas | ❌ |
+| Devoluciones (`/devoluciones`) | ✅ | 👁️ todas · ✅ en sus órdenes | ✅ las suyas | ❌ |
+| Historial de clientes (`/clientes/historial`) | ✅ | ✅ (registra seguimiento) | ✅ sus clientes | ❌ |
+| Tallas del cliente (`/tallas`) | ✅ | 👁️ todas · ✅ las suyas | ✅ las suyas | ❌ |
+| Autorizaciones (`/autorizaciones`) | ✅ aprueba | 👁️ todas · pide las suyas | ✅ pide las suyas | ❌ |
+| Solicitudes de factura (`/facturacion/solicitudes`) | ✅ | 👁️ | ❌ ³ | ❌ |
 | Talleres (`/talleres/*`) | ✅ | 👁️ | ❌ | ✅ solo el suyo |
 | Seguimiento Global (`/seguimiento`) | ✅ | 👁️ | ❌ | ❌ |
-| Proveedores (`/proveedores`) | ✅ | 👁️ | ❌ | ❌ |
+| Proveedores (`/proveedores`) | ✅ (y sus cuentas bancarias) | 👁️ (y sus cuentas) | ❌ | ❌ |
 | Reportes (`/reportes`) | ✅ | 👁️ | ❌ | ❌ |
 | Metas y Comisiones (`/comisiones`) | ✅ | 👁️ | ❌ ² | ❌ |
 | Gestión de Usuarios (`/usuarios`) | ✅ | ❌ ¹ | ❌ | ❌ |
@@ -128,6 +147,8 @@ Cuando marca un trabajo como terminado, los usuarios del **siguiente taller** de
 **Leyenda:** ✅ ver, crear, editar y eliminar · 👁️ solo lectura · ❌ sin acceso (oculto en el menú)
 
 ² El vendedor ve su propia meta y comisión en su Dashboard.
+
+³ El vendedor pide la factura y ve en qué va desde el detalle de la orden.
 
 ¹ `permissions.ts` le da lectura (aparece en el menú), pero `GestionUsuarios.tsx` bloquea la página a todo rol distinto de `admin_primario`.
 
@@ -147,6 +168,13 @@ Resumen; el detalle tabla por tabla está en [Políticas.txt](Pol%C3%ADticas.txt
 | Cartera por cobrar (`cartera_por_cobrar`) y recordatorios | Toda; puede correr los recordatorios | Toda (lectura) | Solo sus órdenes | — |
 | Bocetos y aprobación del diseño (`propuestas_diseno`, bucket `disenos`) | Todo; puede completar Diseño sin aprobación | Lectura | Los de sus órdenes; envía y registra la respuesta del cliente | Diseñador: sube versiones de las órdenes de su taller; los demás talleres ven el diseño de sus órdenes |
 | Mayoreo y precios por cliente | CRUD | Lectura | Lectura | — |
+| Devoluciones y reembolsos (`devoluciones`, `devolucion_partidas`) | Todo (solo con `registrar_devolucion`) | Lectura; registra en sus órdenes | Las de sus órdenes (solo con `registrar_devolucion`) | — |
+| Seguimiento de clientes (`contactos_cliente`, `resumen_clientes`) | Todo | Todo; registra a su nombre | Lo que él registró; resumen de sus clientes y órdenes | — |
+| Solicitudes de factura | Todo; las atiende | Lectura | Las de sus órdenes (pide y cancela con funciones) | — |
+| Autorizaciones de venta (`autorizaciones_venta`) | Lectura; aprueba / rechaza con `resolver_autorizacion_venta` | Lectura; pide las suyas | Las suyas (pide y retira con funciones) | — |
+| Listas de tallas y respuestas | Todo | Lectura de todas; CRUD de las suyas | CRUD de las suyas | — |
+| Cuentas bancarias de proveedores (`proveedores_cuentas`) | CRUD | Lectura | — | — |
+| Recordatorios enviados (`recompra_avisos`) | Lectura; puede correrlos con `enviar_recordatorios_recompra` | — | — | — |
 | Metas de vendedores y % de comisión | CRUD | Lectura | Lectura de las suyas (`desempeno_vendedores` solo le da su fila) | — |
 | Clientes | CRUD | Lectura | Leer, crear y editar | Los de sus órdenes |
 | Productos y variantes | CRUD | Lectura | Lectura | Los de sus órdenes |
@@ -158,7 +186,7 @@ Resumen; el detalle tabla por tabla está en [Políticas.txt](Pol%C3%ADticas.txt
 | Catálogos (roles, talleres, tallas, colores, estados…) | CRUD | Lectura | Lectura | Lectura |
 
 Reglas generales:
-- Un usuario **inactivo o sin perfil** no ve nada; el rol `anon` (sin sesión) no tiene permisos.
+- Un usuario **inactivo o sin perfil** no ve nada; el rol `anon` (sin sesión) no tiene permisos sobre las tablas. Solo puede ejecutar tres funciones de los enlaces para el cliente, que piden un token aleatorio y entregan datos limitados: `seguimiento_orden` (avance de una orden, sin teléfonos, correos ni notas), `lista_tallas_publica` y `registrar_tallas_publica` (solo listas abiertas y antes de su fecha límite; tallas validadas; hasta 1,000 personas por lista).
 - Nadie puede cambiarse su propio rol.
 - Las funciones auxiliares (`current_user_role`, `puede_ver_orden`, etc.) viven en el esquema `private`, que la API no expone.
 - Los triggers (folio, historial, estado de pago, salida de inventario, avisos de producción) son `SECURITY DEFINER`: funcionan aunque el usuario no tenga permiso directo sobre esas tablas.

@@ -1,26 +1,58 @@
 /**
  * BuscadorGlobal.tsx — Buscador de la barra superior (Header).
  *
- * Busca a la vez en órdenes, productos, materiales y proveedores (datos ya cargados
- * en ErpDataContext) y muestra los resultados agrupados en un desplegable.
+ * Busca a la vez en todos los módulos que el rol puede ver (mismo criterio que el menú
+ * lateral) y muestra los resultados agrupados en un desplegable:
  *
- *  - Solo busca en los módulos que el rol del usuario puede ver (mismo criterio que
- *    el menú lateral). El vendedor solo ve sus propias órdenes.
- *  - Al elegir una orden se abre su detalle; al elegir un producto, material o
- *    proveedor se abre su listado con el buscador de esa página ya filtrado (?q=).
- *  - "Ver todos" de cada grupo lleva al listado filtrado con el texto escrito.
- *  - Teclado: ↑/↓ para moverse, Enter para abrir, Esc para cerrar.
- *    Ctrl+K (⌘K en Mac) enfoca el buscador desde cualquier pantalla.
+ *  - Secciones del menú ("Ir a"): escribir "devol" lleva a Devoluciones.
+ *  - En memoria (ErpDataContext), al instante: órdenes, productos, materiales y
+ *    proveedores. El vendedor solo ve sus propias órdenes.
+ *  - En la base (lib/busquedaGlobal.ts), 250 ms después de dejar de escribir y desde 2
+ *    letras: cotizaciones, clientes, devoluciones, listas de tallas, autorizaciones,
+ *    facturas, complementos de pago, solicitudes de factura, listas de precios (por
+ *    cliente, producto o notas), activo fijo, empleados y usuarios. El RLS de
+ *    cada tabla decide qué filas ve cada quien. Devoluciones, autorizaciones y
+ *    solicitudes también se encuentran por el folio o el cliente de su orden.
+ *
+ * Al elegir un resultado se abre su detalle cuando existe (orden, factura, lista de
+ * tallas, ficha del cliente, empleado en Permisos vacacionales); si no, su listado con el buscador de esa página ya
+ * filtrado (?q=). "Ver todos" de cada grupo lleva al listado filtrado con el texto.
+ * Teclado: ↑/↓ para moverse, Enter para abrir, Esc para cerrar. Ctrl+K (⌘K en Mac)
+ * enfoca el buscador desde cualquier pantalla.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { Search, ClipboardList, ShoppingBag, Package, Truck, X } from "lucide-react";
+import {
+  Building2,
+  Calculator,
+  ClipboardList,
+  Contact,
+  CornerDownRight,
+  FileText,
+  Loader2,
+  Package,
+  Receipt,
+  ReceiptText,
+  Ruler,
+  IdCard,
+  Search,
+  ShieldCheck,
+  ShoppingBag,
+  Tags,
+  Truck,
+  Undo2,
+  Users,
+  X,
+} from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useErpData } from "../context/ErpDataContext";
 import { getAccessibleRoutes } from "../utils/permissions";
+import { buscarEnModulos, limpiarTermino, type GrupoRemoto } from "../lib/busquedaGlobal";
 
 // Máximo de resultados que se muestran por grupo.
 const MAX_POR_GRUPO = 5;
+// Espera tras la última tecla antes de consultar la base.
+const ESPERA_MS = 250;
 
 type Resultado = {
   key: string;
@@ -34,11 +66,33 @@ type Grupo = {
   id: string;
   etiqueta: string;
   icono: typeof Search;
-  /** Listado del módulo, al que se añade ?q= en "Ver todos". */
-  ruta: string;
+  /** Listado del módulo para "Ver todos" (null si la página no tiene buscador). */
+  ruta: string | null;
   total: number;
   resultados: Resultado[];
 };
+
+/** Etiqueta, icono y orden de cada grupo; "ruta" solo si la página acepta ?q=. */
+const META: Record<string, Omit<Grupo, "id" | "total" | "resultados">> = {
+  secciones: { etiqueta: "Ir a", icono: CornerDownRight, ruta: null },
+  ordenes: { etiqueta: "Órdenes", icono: ClipboardList, ruta: "/ordenes" },
+  cotizaciones: { etiqueta: "Cotizaciones", icono: Calculator, ruta: "/cotizaciones" },
+  clientes: { etiqueta: "Clientes", icono: Contact, ruta: "/catalogos/clientes" },
+  devoluciones: { etiqueta: "Devoluciones y cambios", icono: Undo2, ruta: "/devoluciones" },
+  tallas: { etiqueta: "Listas de tallas", icono: Ruler, ruta: "/tallas" },
+  autorizaciones: { etiqueta: "Autorizaciones", icono: ShieldCheck, ruta: null },
+  facturas: { etiqueta: "Facturas", icono: FileText, ruta: "/facturacion/facturas" },
+  complementos: { etiqueta: "Complementos de pago", icono: Receipt, ruta: "/facturacion/complementos" },
+  solicitudes: { etiqueta: "Solicitudes de factura", icono: ReceiptText, ruta: null },
+  productos: { etiqueta: "Productos", icono: ShoppingBag, ruta: "/inventario/productos" },
+  materiales: { etiqueta: "Materiales", icono: Package, ruta: "/inventario/materiales" },
+  proveedores: { etiqueta: "Proveedores", icono: Truck, ruta: "/proveedores" },
+  precios: { etiqueta: "Listas de precios", icono: Tags, ruta: "/catalogos/precios" },
+  activos: { etiqueta: "Activo fijo", icono: Building2, ruta: "/activo-fijo" },
+  empleados: { etiqueta: "Empleados", icono: IdCard, ruta: null },
+  usuarios: { etiqueta: "Usuarios", icono: Users, ruta: "/usuarios" },
+};
+const ORDEN = Object.keys(META);
 
 /** Minúsculas y sin acentos, para que "pantalon" encuentre "Pantalón". */
 const normalizar = (texto: string) =>
@@ -55,6 +109,9 @@ export default function BuscadorGlobal() {
   const [abierto, setAbierto] = useState(false);
   // Índice del resultado resaltado con el teclado (sobre la lista plana).
   const [activo, setActivo] = useState(0);
+  // Resultados de la base, con el texto que los produjo (para no mostrar los de otro).
+  const [remotos, setRemotos] = useState<{ q: string; grupos: GrupoRemoto[] }>({ q: "", grupos: [] });
+  const [buscando, setBuscando] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const contenedorRef = useRef<HTMLDivElement>(null);
 
@@ -80,99 +137,150 @@ export default function BuscadorGlobal() {
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, []);
 
-  const grupos = useMemo<Grupo[]>(() => {
-    const q = normalizar(termino.trim());
-    if (!q || !user) return [];
+  const rutasAccesibles = useMemo(() => (user ? getAccessibleRoutes(user.rol) : []), [user]);
+  const rutas = useMemo(() => new Set(rutasAccesibles.map((r) => r.route)), [rutasAccesibles]);
 
-    const rutas = new Set(getAccessibleRoutes(user.rol).map((r) => r.route));
-    const coincide = (...campos: (string | undefined)[]) =>
+  const ordenesVisibles = useMemo(
+    () => (user?.rol === "vendedor" ? ordenes.filter((o) => o.vendedorId === user.id) : ordenes),
+    [ordenes, user]
+  );
+
+  // Grupos que se resuelven en memoria.
+  const { locales, ordenIds, productoIds } = useMemo(() => {
+    const q = normalizar(termino.trim());
+    if (!q || !user) return { locales: [] as Grupo[], ordenIds: [] as string[], productoIds: [] as string[] };
+
+    const coincide = (...campos: (string | undefined | null)[]) =>
       campos.some((c) => c && normalizar(c).includes(q));
     const lista: Grupo[] = [];
+    const agregar = (id: string, encontrados: Resultado[]) =>
+      lista.push({ id, ...META[id], total: encontrados.length, resultados: encontrados.slice(0, MAX_POR_GRUPO) });
 
+    agregar(
+      "secciones",
+      rutasAccesibles
+        .filter((r) => r.route !== "/" && coincide(r.label))
+        .map((r) => ({ key: `seccion-${r.route}`, titulo: r.label, detalle: r.route, destino: r.route }))
+    );
+
+    // Órdenes: también sirven para encontrar devoluciones, autorizaciones y solicitudes.
+    const ordenesEncontradas = ordenesVisibles.filter((o) =>
+      coincide(o.numero, o.cliente, o.vendedor, o.clienteTelefono, o.clienteEmail)
+    );
     if (rutas.has("/ordenes")) {
-      const visibles =
-        user.rol === "vendedor" ? ordenes.filter((o) => o.vendedorId === user.id) : ordenes;
-      const encontrados = visibles.filter((o) =>
-        coincide(o.numero, o.cliente, o.vendedor, o.clienteTelefono, o.clienteEmail)
-      );
-      lista.push({
-        id: "ordenes",
-        etiqueta: "Órdenes",
-        icono: ClipboardList,
-        ruta: "/ordenes",
-        total: encontrados.length,
-        resultados: encontrados.slice(0, MAX_POR_GRUPO).map((o) => ({
+      agregar(
+        "ordenes",
+        ordenesEncontradas.map((o) => ({
           key: `orden-${o.id}`,
           titulo: o.numero,
           detalle: `${o.cliente} · entrega ${o.fechaEntrega || "sin fecha"}`,
           destino: `/ordenes/${o.id}`,
-        })),
-      });
+        }))
+      );
     }
 
+    // Productos: también sirven para encontrar los precios especiales de ese producto.
+    const productosEncontrados = productos.filter((p) =>
+      coincide(p.nombre, p.categoria, p.tipo, ...p.variantes.map((v) => v.sku))
+    );
     if (rutas.has("/inventario/productos")) {
-      const encontrados = productos.filter((p) =>
-        coincide(p.nombre, p.categoria, p.tipo, ...p.variantes.map((v) => v.sku ?? undefined))
+      agregar(
+        "productos",
+        productosEncontrados
+          .map((p) => ({
+            key: `producto-${p.id}`,
+            titulo: p.nombre,
+            detalle: `${p.categoria} · ${p.stock} uds`,
+            destino: conQ("/inventario/productos", p.nombre),
+          }))
       );
-      lista.push({
-        id: "productos",
-        etiqueta: "Productos",
-        icono: ShoppingBag,
-        ruta: "/inventario/productos",
-        total: encontrados.length,
-        resultados: encontrados.slice(0, MAX_POR_GRUPO).map((p) => ({
-          key: `producto-${p.id}`,
-          titulo: p.nombre,
-          detalle: `${p.categoria} · ${p.stock} uds`,
-          destino: conQ("/inventario/productos", p.nombre),
-        })),
-      });
     }
 
     if (rutas.has("/inventario/materiales")) {
-      const encontrados = materiales.filter((m) => coincide(m.nombre, m.tipo, m.proveedor));
-      lista.push({
-        id: "materiales",
-        etiqueta: "Materiales",
-        icono: Package,
-        ruta: "/inventario/materiales",
-        total: encontrados.length,
-        resultados: encontrados.slice(0, MAX_POR_GRUPO).map((m) => ({
-          key: `material-${m.id}`,
-          titulo: m.nombre,
-          detalle: `${m.tipo} · ${m.stock} ${m.unidad}${m.stock < m.stockMinimo ? " · stock bajo" : ""}`,
-          destino: conQ("/inventario/materiales", m.nombre),
-        })),
-      });
+      agregar(
+        "materiales",
+        materiales
+          .filter((m) => coincide(m.nombre, m.tipo, m.proveedor))
+          .map((m) => ({
+            key: `material-${m.id}`,
+            titulo: m.nombre,
+            detalle: `${m.tipo} · ${m.stock} ${m.unidad}${m.stock < m.stockMinimo ? " · stock bajo" : ""}`,
+            destino: conQ("/inventario/materiales", m.nombre),
+          }))
+      );
     }
 
     if (rutas.has("/proveedores")) {
-      const encontrados = proveedores.filter((p) =>
-        coincide(p.nombre, p.contacto, p.email, p.telefono, ...p.insumos)
+      agregar(
+        "proveedores",
+        proveedores
+          .filter((p) => coincide(p.nombre, p.contacto, p.email, p.telefono, ...p.insumos))
+          .map((p) => ({
+            key: `proveedor-${p.id}`,
+            titulo: p.nombre,
+            detalle: p.contacto || p.email || "Sin contacto",
+            destino: conQ("/proveedores", p.nombre),
+          }))
       );
-      lista.push({
-        id: "proveedores",
-        etiqueta: "Proveedores",
-        icono: Truck,
-        ruta: "/proveedores",
-        total: encontrados.length,
-        resultados: encontrados.slice(0, MAX_POR_GRUPO).map((p) => ({
-          key: `proveedor-${p.id}`,
-          titulo: p.nombre,
-          detalle: p.contacto || p.email || "Sin contacto",
-          destino: conQ("/proveedores", p.nombre),
-        })),
-      });
     }
 
-    return lista.filter((g) => g.total > 0);
-  }, [termino, user, ordenes, productos, materiales, proveedores]);
+    return {
+      locales: lista,
+      ordenIds: ordenesEncontradas.map((o) => o.id),
+      productoIds: productosEncontrados.map((p) => p.id),
+    };
+  }, [termino, user, rutas, rutasAccesibles, ordenesVisibles, productos, materiales, proveedores]);
+
+  // Grupos que se consultan en la base (con espera y descartando respuestas viejas).
+  const qRemota = limpiarTermino(termino);
+  const ordenIdsClave = ordenIds.slice(0, 40).join(",");
+  const productoIdsClave = productoIds.slice(0, 40).join(",");
+  useEffect(() => {
+    if (qRemota.length < 2 || !user) {
+      setRemotos({ q: "", grupos: [] });
+      setBuscando(false);
+      return;
+    }
+    let vigente = true;
+    setBuscando(true);
+    const t = window.setTimeout(() => {
+      buscarEnModulos({
+        termino: qRemota,
+        rutas,
+        ordenIds: ordenIdsClave ? ordenIdsClave.split(",") : [],
+        productoIds: productoIdsClave ? productoIdsClave.split(",") : [],
+        max: MAX_POR_GRUPO,
+      })
+        .then((grupos) => {
+          if (vigente) setRemotos({ q: qRemota, grupos });
+        })
+        .finally(() => {
+          if (vigente) setBuscando(false);
+        });
+    }, ESPERA_MS);
+    return () => {
+      vigente = false;
+      window.clearTimeout(t);
+    };
+  }, [qRemota, rutas, ordenIdsClave, productoIdsClave, user]);
+
+  const grupos = useMemo<Grupo[]>(() => {
+    const deBase: Grupo[] =
+      remotos.q === qRemota ? remotos.grupos.map((g) => ({ ...g, ...META[g.id] })) : [];
+    return [...locales, ...deBase]
+      .filter((g) => g.total > 0)
+      .sort((a, b) => ORDEN.indexOf(a.id) - ORDEN.indexOf(b.id));
+  }, [locales, remotos, qRemota]);
 
   // Lista plana para la navegación con teclado.
   const planos = useMemo(() => grupos.flatMap((g) => g.resultados), [grupos]);
 
-  // Al cambiar el texto, el resaltado vuelve al primer resultado.
+  // Al cambiar el texto, el resaltado vuelve al primer resultado; si llegan resultados de
+  // la base y el índice queda fuera de la lista, también.
   useEffect(() => setActivo(0), [termino]);
+  useEffect(() => {
+    setActivo((i) => (i < planos.length ? i : 0));
+  }, [planos.length]);
 
   const ir = (destino: string) => {
     navigate(destino);
@@ -198,7 +306,8 @@ export default function BuscadorGlobal() {
       setActivo((i) => (i - 1 + planos.length) % planos.length);
     } else if (e.key === "Enter") {
       e.preventDefault();
-      ir(planos[activo].destino);
+      const r = planos[activo];
+      if (r) ir(r.destino);
     }
   };
 
@@ -222,7 +331,7 @@ export default function BuscadorGlobal() {
         }}
         onFocus={() => setAbierto(true)}
         onKeyDown={onKeyDown}
-        placeholder="Buscar órdenes, productos, materiales..."
+        placeholder="Buscar órdenes, clientes, cotizaciones, facturas..."
         className="w-full pl-10 pr-16 py-2 bg-secondary rounded-lg border border-transparent focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
       />
       {termino ? (
@@ -247,25 +356,27 @@ export default function BuscadorGlobal() {
         <div
           id="buscador-global-resultados"
           role="listbox"
+          aria-busy={buscando}
           className="absolute left-0 right-0 top-full mt-2 z-50 bg-card border border-border rounded-lg shadow-lg max-h-[70vh] overflow-y-auto"
         >
           {grupos.length === 0 ? (
             <p className="px-4 py-6 text-sm text-center text-muted-foreground">
-              Sin resultados para "{termino.trim()}"
+              {buscando ? "Buscando…" : `Sin resultados para "${termino.trim()}"`}
             </p>
           ) : (
             grupos.map((grupo) => {
               const Icono = grupo.icono;
+              const ruta = grupo.ruta;
               return (
                 <div key={grupo.id} className="py-2 border-b border-border last:border-b-0">
                   <div className="flex items-center justify-between px-4 py-1">
                     <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       {grupo.etiqueta} ({grupo.total})
                     </span>
-                    {grupo.total > grupo.resultados.length && (
+                    {ruta && grupo.total > grupo.resultados.length && (
                       <button
                         type="button"
-                        onClick={() => ir(conQ(grupo.ruta, termino.trim()))}
+                        onClick={() => ir(conQ(ruta, termino.trim()))}
                         className="text-xs text-primary hover:underline"
                       >
                         Ver todos
@@ -303,6 +414,11 @@ export default function BuscadorGlobal() {
                 </div>
               );
             })
+          )}
+          {buscando && grupos.length > 0 && (
+            <p className="flex items-center gap-2 px-4 py-2 text-xs text-muted-foreground border-t border-border">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden /> Buscando en más módulos…
+            </p>
           )}
         </div>
       )}

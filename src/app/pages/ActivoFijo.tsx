@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Building2, Download, Landmark, Plus, Search, TrendingDown, Wallet } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { useBusquedaUrl } from "../hooks/useBusquedaUrl";
 import { hoyISO } from "../lib/fechas";
 import StatCard from "../components/StatCard";
 import { Card, CardContent } from "../components/Card";
@@ -44,7 +45,7 @@ export default function ActivoFijo() {
   const [sedes, setSedes] = useState<Opcion[]>([]);
   const [empleados, setEmpleados] = useState<Opcion[]>([]);
   const [proveedores, setProveedores] = useState<Opcion[]>([]);
-  const [busqueda, setBusqueda] = useState("");
+  const [busqueda, setBusqueda] = useBusquedaUrl();
   const [filtroCategoria, setFiltroCategoria] = useState("");
   const [filtroSede, setFiltroSede] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("vigentes");

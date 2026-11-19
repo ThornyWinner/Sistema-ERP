@@ -35,6 +35,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/Card";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
+import { useBusquedaUrl } from "../../hooks/useBusquedaUrl";
 import { Label } from "../../components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
 import {
@@ -65,6 +66,8 @@ export default function ListasPrecios() {
   const [eligiendoProducto, setEligiendoProducto] = useState(false);
   const [editandoPrecio, setEditandoPrecio] = useState<PrecioCliente | "nuevo" | null>(null);
   const [borrando, setBorrando] = useState<PrecioCliente | null>(null);
+  // Filtro de precios especiales (también llega desde el buscador global con ?q=).
+  const [busqueda, setBusqueda] = useBusquedaUrl();
 
   const cargar = useCallback(async () => {
     try {
@@ -108,6 +111,14 @@ export default function ListasPrecios() {
   };
 
   const hoy = hoyISO();
+  const qPrecios = busqueda.trim().toLowerCase();
+  const preciosVisibles = [...listas.preciosCliente]
+    .filter(
+      (p) =>
+        !qPrecios ||
+        [p.cliente, p.producto ?? "todos los productos", p.notas].some((v) => v?.toLowerCase().includes(qPrecios))
+    )
+    .sort((a, b) => a.cliente.localeCompare(b.cliente, "es") || (a.producto ?? "").localeCompare(b.producto ?? "", "es"));
 
   return (
     <div className="p-6 space-y-6">
@@ -227,7 +238,17 @@ export default function ListasPrecios() {
             </Button>
           )}
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          <div className="relative max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <Input
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar cliente, producto o nota..."
+              className="pl-9"
+              aria-label="Buscar precios especiales"
+            />
+          </div>
           <div className="overflow-x-auto rounded-lg border border-border">
             <Table>
               <TableHeader>
@@ -241,16 +262,18 @@ export default function ListasPrecios() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {listas.preciosCliente.length === 0 ? (
+                {preciosVisibles.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                      {cargando ? "Cargando…" : "Ningún cliente tiene precios especiales"}
+                      {cargando
+                        ? "Cargando…"
+                        : qPrecios
+                        ? `Ninguna condición coincide con "${busqueda.trim()}"`
+                        : "Ningún cliente tiene precios especiales"}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  [...listas.preciosCliente]
-                    .sort((a, b) => a.cliente.localeCompare(b.cliente, "es") || (a.producto ?? "").localeCompare(b.producto ?? "", "es"))
-                    .map((p) => {
+                  preciosVisibles.map((p) => {
                       const vencida = !!p.vigenteHasta && p.vigenteHasta < hoy;
                       return (
                         <TableRow key={p.id} className={vencida ? "opacity-60" : undefined}>

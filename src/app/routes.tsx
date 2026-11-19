@@ -4,6 +4,9 @@
  * Estructura:
  *  - "/login": página pública de inicio de sesión.
  *  - "/checar": reloj checador (QR de cada sede), con sesión pero sin menú lateral.
+ *  - "/pedido/:token" y "/captura-tallas/:token": páginas públicas para el cliente
+ *    (avance de su pedido y captura de tallas), SIN sesión; los datos salen de funciones
+ *    de la BD que solo entregan lo necesario.
  *  - "/":      ruta protegida (requiere sesión). Renderiza RootLayout (sidebar +
  *              header) y, dentro de su <Outlet />, la página hija que coincida.
  *
@@ -48,6 +51,9 @@ export const router = createBrowserRouter([
       };
     },
   },
+  // Públicas para el cliente (sin sesión ni menú).
+  { path: "/pedido/:token", lazy: pagina(() => import("./pages/publico/SeguimientoPedido")) },
+  { path: "/captura-tallas/:token", lazy: pagina(() => import("./pages/publico/CapturaTallas")) },
   // Ruta raíz protegida: si no hay sesión, ProtectedRoute redirige a /login.
   {
     path: "/",
@@ -71,6 +77,18 @@ export const router = createBrowserRouter([
       // Órdenes: listado y detalle de una orden concreta.
       { path: "ordenes", lazy: pagina(() => import("./pages/Ordenes")) },
       { path: "ordenes/:id", lazy: pagina(() => import("./pages/OrdenDetalle")) },
+      // Avance de producción del lado del vendedor (en qué taller va cada orden).
+      { path: "avance", lazy: pagina(() => import("./pages/AvancePedidos")) },
+      // Devoluciones y cambios de talla (se registran desde la orden).
+      { path: "devoluciones", lazy: pagina(() => import("./pages/Devoluciones")) },
+      // Historial de compras por cliente y seguimiento (CRM ligero).
+      { path: "clientes/historial", lazy: pagina(() => import("./pages/clientes/HistorialClientes")) },
+      { path: "clientes/historial/:id", lazy: pagina(() => import("./pages/clientes/HistorialCliente")) },
+      // Listas de tallas que llena el cliente desde un enlace (arman la orden).
+      { path: "tallas", lazy: pagina(() => import("./pages/tallas/ListasTallas")) },
+      { path: "tallas/:id", lazy: pagina(() => import("./pages/tallas/ListaTallasDetalle")) },
+      // Excepciones de descuento / crédito: el vendedor las pide, el admin primario aprueba.
+      { path: "autorizaciones", lazy: pagina(() => import("./pages/Autorizaciones")) },
       // Cotizaciones a clientes (se convierten en orden).
       { path: "cotizaciones", lazy: pagina(() => import("./pages/Cotizaciones")) },
       // Cobranza: antigüedad de saldos y recordatorios.
@@ -96,6 +114,7 @@ export const router = createBrowserRouter([
       { path: "facturacion/facturas", lazy: pagina(() => import("./pages/facturacion/Facturas")) },
       { path: "facturacion/facturas/nueva", lazy: pagina(() => import("./pages/facturacion/FacturaForm")) },
       { path: "facturacion/facturas/:id", lazy: pagina(() => import("./pages/facturacion/FacturaForm")) },
+      { path: "facturacion/solicitudes", lazy: pagina(() => import("./pages/facturacion/SolicitudesFactura")) },
       { path: "facturacion/complementos", lazy: pagina(() => import("./pages/facturacion/ComplementosPago")) },
       { path: "facturacion/configuracion", lazy: pagina(() => import("./pages/facturacion/ConfiguracionFiscal")) },
       { path: "catalogos/clientes", lazy: pagina(() => import("./pages/catalogos/Clientes")) },

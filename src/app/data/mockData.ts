@@ -128,7 +128,11 @@ export interface ProductoOrden {
   manga?: string;
   talla: string;
   color: string;
+  /** Piezas vigentes (las pedidas menos las devueltas; sql/devoluciones.sql). */
   cantidad: number;
+  /** Solo si hubo devoluciones: piezas pedidas originalmente y cuántas regresaron. */
+  cantidadPedida?: number;
+  cantidadDevuelta?: number;
   precioUnitario: number;
   /** Cómo se surte este producto (ver TipoVenta). */
   tipoProduccion: "directa" | "fabricacion" | "comercializacion";
@@ -136,16 +140,17 @@ export interface ProductoOrden {
   talleres: Taller[];
   /** Estado del producto en cada uno de sus talleres. */
   progreso: Partial<Record<Taller, TallerEstado>>;
+  /** Cuándo empezó y terminó cada taller (ISO), para saber desde cuándo va en él. */
+  fechasTaller?: Partial<Record<Taller, { inicio?: string; fin?: string }>>;
   /** Proveedor, cuando el producto es de comercialización. */
   proveedorId?: string;
   proveedorNombre?: string;
   personalizacion?: PersonalizacionProducto;
   notas?: string;
   /** Presentes cuando el renglón corresponde a un producto/variante ya
-   * existente en el catálogo (p. ej. Venta Rápida). Si se omiten, se
-   * intenta resolver por nombre+talla+color; si no hay coincidencia,
-   * el renglón se guarda como fabricación a la medida (sin referencia
-   * de inventario todavía). */
+   * existente en el catálogo. Solo la venta directa lleva variante (y
+   * descuenta stock); en fabricación / comercialización el producto se
+   * liga por nombre, sin variante. */
   productoId?: string;
   varianteId?: string;
 }
@@ -156,6 +161,8 @@ export interface Pago {
   monto: number;
   metodo: MetodoPago;
   referencia?: string;
+  /** Reembolso por una devolución: el monto viene en negativo. */
+  reembolso?: boolean;
 }
 
 /** Orden de venta/producción (tabla `ordenes`) con sus productos y pagos. */
@@ -168,6 +175,8 @@ export interface Orden {
   vendedorId: string;
   /** Razón social del cliente. */
   cliente: string;
+  /** Id del cliente en el catálogo (tabla `clientes`). */
+  clienteId?: string;
   /** Teléfono y correo de contacto del cliente (tabla `clientes`). */
   clienteTelefono?: string;
   clienteEmail?: string;

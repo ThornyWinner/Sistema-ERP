@@ -25,12 +25,12 @@ interface ContactarClienteDialogProps {
   plantillas: PlantillaMensaje[];
   /** Folio del documento, para el asunto del correo. */
   folio: string;
-  /** Imprime / guarda el documento en PDF. */
-  onGuardarPdf: () => void;
+  /** Imprime / guarda el documento en PDF (sin esto no se ofrece el PDF). */
+  onGuardarPdf?: () => void;
   /** Texto del botón de PDF (p. ej. "Guardar nota en PDF"). */
   textoPdf?: string;
   /** Se llama al abrir WhatsApp o el correo (p. ej. para marcar la cotización como enviada). */
-  onEnviado?: (tipo: string) => void;
+  onEnviado?: (tipo: string, canal: "whatsapp" | "correo") => void;
 }
 
 export default function ContactarClienteDialog({
@@ -128,7 +128,7 @@ export default function ContactarClienteDialog({
                   href={enlaceWhatsApp(telefono, texto)}
                   target="_blank"
                   rel="noreferrer"
-                  onClick={() => onEnviado?.(tipo)}
+                  onClick={() => onEnviado?.(tipo, "whatsapp")}
                 >
                   <MessageCircle className="w-4 h-4" />
                   Abrir WhatsApp
@@ -139,7 +139,7 @@ export default function ContactarClienteDialog({
               <Button asChild variant="outline">
                 <a
                   href={`mailto:${email}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(texto)}`}
-                  onClick={() => onEnviado?.(tipo)}
+                  onClick={() => onEnviado?.(tipo, "correo")}
                 >
                   <Mail className="w-4 h-4" />
                   Enviar por correo
@@ -150,15 +150,19 @@ export default function ContactarClienteDialog({
               <Copy className="w-4 h-4" />
               Copiar
             </Button>
-            <Button variant="ghost" onClick={onGuardarPdf}>
-              <FileDown className="w-4 h-4" />
-              {textoPdf}
-            </Button>
+            {onGuardarPdf && (
+              <Button variant="ghost" onClick={onGuardarPdf}>
+                <FileDown className="w-4 h-4" />
+                {textoPdf}
+              </Button>
+            )}
           </div>
-          <p className="text-xs text-muted-foreground">
-            Para mandar el PDF por WhatsApp o correo: guárdalo (en el diálogo de impresión elige
-            “Guardar como PDF”) y adjúntalo en el chat.
-          </p>
+          {onGuardarPdf && (
+            <p className="text-xs text-muted-foreground">
+              Para mandar el PDF por WhatsApp o correo: guárdalo (en el diálogo de impresión elige
+              “Guardar como PDF”) y adjúntalo en el chat.
+            </p>
+          )}
         </div>
       </DialogContent>
     </Dialog>

@@ -12,6 +12,11 @@
  *  - actualizarProgresoTaller: cambia el estado de producción de un producto en un taller.
  *  - registrarPago:            registra un abono (pago a plazos) de una orden.
  *  - editarOrden:              aplica los cambios que pidió el cliente (función editar_orden de la BD).
+ *  - marcarEntregada:          entrega al cliente una orden sin producción pendiente (marcar_orden_entregada).
+ *
+ * Cada partida guarda su descripción, talla y color (sql/historial_clientes.sql) y las piezas
+ * devueltas (sql/devoluciones.sql): `cantidad` es lo neto. Sin esos scripts se usa la consulta
+ * básica (SELECT_ORDENES_BASE).
  *
  * Las filas de la base de datos (snake_case, con joins anidados) se transforman a los
  * tipos de la UI definidos en data/mockData.ts, de modo que las páginas no dependen
@@ -65,6 +70,11 @@ type ErpData = {
    * pago. Deja el motivo en el historial y avisa al admin y a los talleres afectados.
    */
   editarOrden: (ordenId: string, cambios: CambiosOrden, motivo: string) => Promise<void>;
+  /**
+   * Marca la orden como entregada al cliente (sql/avance_produccion.sql). La BD exige
+   * que no tenga producción pendiente y que quien la entrega pueda editarla.
+   */
+  marcarEntregada: (ordenId: string, comentario?: string) => Promise<void>;
 };
 
 /** Partida tal como la recibe editar_orden (id null = partida nueva). */
@@ -184,14 +194,35 @@ const SELECT_PROVEEDORES =
 //    tiene varias relaciones con `usuarios`).
 //  - orden_detalles: cada producto de la orden, con su variante, su avance en cada
 //    taller (produccion_taller) y su personalización (bordado, logo, hilos).
+//  - Datos capturados de la partida (descripción, talla, color, marca) y piezas
+//    devueltas: sql/historial_clientes.sql y sql/devoluciones.sql.
 const SELECT_ORDENES =
-  'id,folio,fecha_creacion,fecha_entrega,subtotal,descuento,iva,total,anticipo,notas,' +
+  'id,folio,cliente_id,fecha_creacion,fecha_entrega,subtotal,descuento,iva,total,anticipo,notas,' +
+  'usuarios!ordenes_vendedor_id_fkey(id,nombre),clientes(razon_social,telefono,email),' +
+  'estados_orden(nombre,orden_visualizacion),estados_pago(nombre),metodos_pago(nombre),tipos_venta(nombre),' +
+  'orden_detalles(id,producto_id,variante_id,cantidad,cantidad_devuelta,precio_unitario,tipo_produccion,notas,' +
+  'descripcion,tipo_prenda,talla,color,marca,' +
+  'productos(nombre,tipo_prenda),variantes_producto(corte,manga,talla,color),' +
+  'produccion_taller(estado,fecha_inicio,fecha_fin,talleres(nombre)),' +
+  'personalizaciones(lugar_bordado,logo_url,notas,personalizacion_hilos(color_hilo)))';
+// Misma consulta sin las columnas nuevas, por si aún no se aplican esos scripts.
+const SELECT_ORDENES_BASE =
+  'id,folio,cliente_id,fecha_creacion,fecha_entrega,subtotal,descuento,iva,total,anticipo,notas,' +
   'usuarios!ordenes_vendedor_id_fkey(id,nombre),clientes(razon_social,telefono,email),' +
   'estados_orden(nombre,orden_visualizacion),estados_pago(nombre),metodos_pago(nombre),tipos_venta(nombre),' +
   'orden_detalles(id,producto_id,variante_id,cantidad,precio_unitario,tipo_produccion,notas,' +
   'productos(nombre,tipo_prenda),variantes_producto(corte,manga,talla,color),' +
-  'produccion_taller(estado,talleres(nombre)),' +
+  'produccion_taller(estado,fecha_inicio,fecha_fin,talleres(nombre)),' +
   'personalizaciones(lugar_bordado,logo_url,notas,personalizacion_hilos(color_hilo)))';
+
+/** Órdenes con su árbol de datos (FIFO); si faltan columnas nuevas, usa la consulta base. */
+async function consultarOrdenes() {
+  const r = await supabase.from('ordenes').select(SELECT_ORDENES).order('created_at', { ascending: true });
+  if (r.error?.code === '42703') {
+    return supabase.from('ordenes').select(SELECT_ORDENES_BASE).order('created_at', { ascending: true });
+  }
+  return r;
+}
 const SELECT_PAGOS = 'id,orden_id,fecha,monto,metodo_pago,referencia,metodos_pago(nombre)';
 
 /** Colecciones vacías: estado inicial y el que queda al cerrar sesión. */
@@ -203,7 +234,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const userId = user?.id;
   // Estado con las cuatro colecciones de datos (las funciones y banderas van aparte).
-  const [data, setData] = useState<Omit<ErpData, 'loading' | 'error' | 'refresh' | 'crearOrden' | 'actualizarProgresoTaller' | 'registrarPago' | 'editarOrden'>>(SIN_DATOS);
+  const [data, setData] = useState<Omit<ErpData, 'loading' | 'error' | 'refresh' | 'crearOrden' | 'actualizarProgresoTaller' | 'registrarPago' | 'editarOrden' | 'marcarEntregada'>>(SIN_DATOS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Número de la carga más reciente: si llega tarde la respuesta de una carga anterior
@@ -224,7 +255,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
       supabase.from('productos').select(SELECT_PRODUCTOS).order('nombre'),
       supabase.from('proveedores').select(SELECT_PROVEEDORES).order('nombre'),
       // FIFO: de la orden más antigua a la más reciente (primero en llegar, primero en atenderse).
-      supabase.from('ordenes').select(SELECT_ORDENES).order('created_at', { ascending: true }),
+      consultarOrdenes(),
       supabase.from('pagos').select(SELECT_PAGOS).order('fecha'),
     ]);
     // Ya se pidió una carga más nueva (o se cerró sesión): esta respuesta es obsoleta.
@@ -247,6 +278,8 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
         monto: Number((p as any).monto ?? 0),
         metodo: METODO_PAGO_APP[(p as any).metodos_pago?.nombre?.toLowerCase()] ?? 'efectivo',
         referencia: (p as any).referencia ?? undefined,
+        // Reembolso de una devolución (sql/devoluciones.sql): monto negativo.
+        reembolso: Number((p as any).monto ?? 0) < 0 || undefined,
       });
       pagosPorOrden.set((p as any).orden_id, lista);
     }
@@ -319,6 +352,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
           vendedor: o.usuarios?.nombre ?? 'Sin asignar',
           vendedorId: o.usuarios?.id ?? '',
           cliente: o.clientes?.razon_social ?? 'Sin cliente',
+          clienteId: o.cliente_id ?? undefined,
           clienteTelefono: o.clientes?.telefono ?? undefined,
           clienteEmail: o.clientes?.email ?? undefined,
           fechaCreacion: o.fecha_creacion ?? '',
@@ -348,17 +382,29 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
                 .filter((x: any) => x.talleres?.nombre)
                 .map((x: any) => [x.talleres.nombre, x.estado ?? 'pending'])
             );
+            // Cuándo empezó y terminó cada taller.
+            const fechasTaller = Object.fromEntries(
+              (d.produccion_taller ?? [])
+                .filter((x: any) => x.talleres?.nombre)
+                .map((x: any) => [x.talleres.nombre, { inicio: x.fecha_inicio ?? undefined, fin: x.fecha_fin ?? undefined }])
+            );
             // Solo se usa la primera personalización registrada del producto.
             const personalizacionRaw = d.personalizaciones?.[0];
+            const devuelta = Number(d.cantidad_devuelta ?? 0);
             return {
               id: d.id,
-              nombre: d.productos?.nombre ?? 'Producto',
-              tipoPrenda: d.productos?.tipo_prenda ?? '',
+              // Lo capturado en la partida manda; si no hay, el catálogo.
+              nombre: d.descripcion || d.productos?.nombre || 'Producto',
+              tipoPrenda: d.tipo_prenda || d.productos?.tipo_prenda || '',
+              marca: d.marca ?? undefined,
               corte: d.variantes_producto?.corte ?? undefined,
               manga: d.variantes_producto?.manga ?? undefined,
-              talla: d.variantes_producto?.talla ?? '',
-              color: d.variantes_producto?.color ?? '',
-              cantidad: d.cantidad,
+              talla: d.variantes_producto?.talla || d.talla || '',
+              color: d.variantes_producto?.color || d.color || '',
+              cantidad: d.cantidad - devuelta,
+              cantidadPedida: devuelta > 0 ? d.cantidad : undefined,
+              cantidadDevuelta: devuelta > 0 ? devuelta : undefined,
+              fechasTaller,
               precioUnitario: Number(d.precio_unitario ?? 0),
               // Usa el tipo de producción guardado en el detalle si es válido; si no,
               // lo deduce del tipo de venta de la orden.
@@ -495,24 +541,17 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
         let productoId: string | null = producto.productoId ?? null;
         let varianteId: string | null = producto.varianteId ?? null;
 
-        // Si el formulario no indicó la variante, se intenta localizar por talla + color
-        // + nombre del producto (comparación sin distinguir mayúsculas).
-        if (!varianteId && producto.talla && producto.color) {
-          const { data: variantesEncontradas } = await supabase
-            .from('variantes_producto')
-            .select('id, producto_id, productos(nombre)')
-            .eq('talla', producto.talla)
-            .eq('color', producto.color);
-          const match = (variantesEncontradas ?? []).find(
-            (v: any) => v.productos?.nombre?.toLowerCase() === producto.nombre.toLowerCase()
-          );
-          if (match) {
-            varianteId = match.id;
-            productoId = match.producto_id;
-          }
+        // Fabricación / comercialización capturada a mano: se liga al producto del
+        // catálogo con el mismo nombre (para el historial del cliente), pero SIN variante:
+        // esas piezas se fabrican o se compran, no salen del stock de producto terminado.
+        if (!productoId && producto.tipoProduccion !== 'directa' && producto.nombre.trim()) {
+          const nombre = producto.nombre.trim().toLowerCase();
+          productoId = data.productos.find((p) => p.nombre.trim().toLowerCase() === nombre)?.id ?? null;
         }
+        if (producto.tipoProduccion !== 'directa') varianteId = null;
 
-        // Línea de detalle de la orden (un producto con su cantidad y precio).
+        // Línea de detalle de la orden (un producto con su cantidad y precio). Se guarda
+        // lo capturado (nombre, prenda, talla, color, marca) para el historial del cliente.
         const { data: detalleRow, error: detalleError } = await supabase
           .from('orden_detalles')
           .insert({
@@ -523,6 +562,11 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
             precio_unitario: producto.precioUnitario,
             tipo_produccion: producto.tipoProduccion,
             notas: producto.notas || null,
+            descripcion: producto.nombre?.trim() || null,
+            tipo_prenda: producto.tipoPrenda || null,
+            talla: producto.talla?.trim() || null,
+            color: producto.color?.trim() || null,
+            marca: producto.marca?.trim() || null,
           })
           .select('id')
           .single();
@@ -597,7 +641,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
       await refresh();
       return { id: ordenRow.id as string, folio: ordenRow.folio as string };
     },
-    [refresh]
+    [refresh, data.productos]
   );
 
   /**
@@ -665,6 +709,19 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
     [refresh]
   );
 
+  /** Llama a marcar_orden_entregada y recarga los datos. */
+  const marcarEntregada = useCallback(
+    async (ordenId: string, comentario?: string) => {
+      const { error } = await supabase.rpc('marcar_orden_entregada', {
+        p_orden: ordenId,
+        p_comentario: comentario?.trim() || null,
+      });
+      if (error) throw error;
+      await refresh();
+    },
+    [refresh]
+  );
+
   // Al cambiar de usuario se descartan los datos del anterior y se cargan los del
   // nuevo; sin sesión no se carga nada (RLS no devolvería filas).
   useEffect(() => {
@@ -678,7 +735,7 @@ export function ErpDataProvider({ children }: { children: React.ReactNode }) {
   }, [userId, refresh]);
 
   return (
-    <ErpDataContext.Provider value={{ ...data, loading, error, refresh, crearOrden, actualizarProgresoTaller, registrarPago, editarOrden }}>
+    <ErpDataContext.Provider value={{ ...data, loading, error, refresh, crearOrden, actualizarProgresoTaller, registrarPago, editarOrden, marcarEntregada }}>
       {children}
     </ErpDataContext.Provider>
   );

@@ -14,6 +14,11 @@
  * El tipo de venta de la orden se calcula solo a partir de los tipos de producción de
  * sus productos (si hay mezcla de tipos → "mixta"). Al enviar, el formulario arma el
  * objeto orden y lo entrega al padre con `onSubmit`, que es quien lo guarda.
+ *
+ * Si las políticas de venta bloquean la orden (tope de descuento, crédito), el vendedor
+ * puede "Solicitar autorización" al admin primario (lib/autorizacionesVenta.ts). Con una
+ * autorización aprobada y vigente para ese cliente que cubra el descuento y el saldo, el
+ * formulario deja de bloquear y la BD acepta la orden.
  */
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -25,6 +30,8 @@ import { calcularImportes } from "../lib/impuestos";
 import DesgloseImportes from "./DesgloseImportes";
 import PanelPoliticasVenta from "./PanelPoliticasVenta";
 import { usePoliticasVenta } from "../lib/politicasVenta";
+import SolicitarAutorizacionDialog from "./autorizaciones/SolicitarAutorizacionDialog";
+import { autorizacionQueCubre, solicitarAutorizacion, useAutorizacionesAprobadas } from "../lib/autorizacionesVenta";
 import { piezasMayoreo, precioSugerido, useListasPrecios, type PrecioCalculado } from "../lib/listasPrecios";
 import { formatMonto } from "../lib/pagos";
 import {
@@ -46,6 +53,8 @@ import {
   Search,
   Boxes,
   Percent,
+  ShieldCheck,
+  ShieldQuestion,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./Card";
 
@@ -62,6 +71,10 @@ export interface CapturaInicial {
   descuento: number;
   notas: string;
   productos: ProductoCaptura[];
+  /** Solo orden (p. ej. al retomar una orden autorizada). */
+  fechaEntrega?: string;
+  metodoPago?: MetodoPago;
+  anticipo?: number;
 }
 
 /** Lo que entrega el formulario en modo cotización. */
@@ -236,6 +249,9 @@ export default function NuevaOrdenMultiProducto({
       descuento: inicial.descuento,
       notas: inicial.notas,
       tipoVenta: tipoVentaDe(lista),
+      ...(inicial.fechaEntrega ? { fechaEntrega: inicial.fechaEntrega } : {}),
+      ...(inicial.metodoPago ? { metodoPago: inicial.metodoPago } : {}),
+      ...(inicial.anticipo ? { anticipo: inicial.anticipo } : {}),
     });
     setProductos(lista);
     setProductosExpandidos(new Set(lista.map((_, i) => i)));
@@ -267,6 +283,21 @@ export default function NuevaOrdenMultiProducto({
     // Una cotización no deja saldo: el crédito se revisa al convertirla en orden.
     revisarCredito: !esCotizacion,
   });
+
+  // Autorizaciones del admin primario (sql/autorizaciones_venta.sql): solo en órdenes y
+  // para quien está sujeto a las políticas.
+  const puedePedirAutorizacion = !esCotizacion && (user?.rol === "vendedor" || user?.rol === "admin_secundario");
+  const saldoNuevo = Math.max(totalOrden - formData.anticipo, 0);
+  const aprobadas = useAutorizacionesAprobadas(user?.id, formData.cliente, isOpen && puedePedirAutorizacion);
+  const necesita = {
+    descuento: politicas.avisoDescuento ? formData.descuento : null,
+    saldo: politicas.avisoCredito ? saldoNuevo : null,
+  };
+  // Que el descuento supere el subtotal no se autoriza.
+  const autorizable = puedePedirAutorizacion && formData.descuento <= importesOrden.subtotal;
+  const autorizada = autorizable && politicas.bloqueo ? autorizacionQueCubre(aprobadas, necesita) : undefined;
+  const bloqueo = autorizada ? null : politicas.bloqueo;
+  const [pidiendoAutorizacion, setPidiendoAutorizacion] = useState(false);
 
   // Mayoreo y precios especiales por cliente (sql/listas_precios.sql).
   const listas = useListasPrecios(isOpen);
@@ -437,9 +468,9 @@ export default function NuevaOrdenMultiProducto({
     const anticipo = formData.anticipo;
 
     // Límite de crédito y tope de descuento (la BD vuelve a validarlos al guardar).
-    if (politicas.bloqueo) {
+    if (bloqueo) {
       toast.error(esCotizacion ? "No se puede guardar la cotización" : "No se puede crear la orden", {
-        description: politicas.bloqueo,
+        description: bloqueo,
       });
       return;
     }
@@ -819,6 +850,31 @@ export default function NuevaOrdenMultiProducto({
                 cliente={formData.cliente}
                 metodoPago={formData.metodoPago}
               />
+              {autorizada && (
+                <p
+                  role="status"
+                  className="flex items-start gap-2 rounded-lg px-3 py-2 text-sm bg-status-completed-bg text-status-completed-text"
+                >
+                  <ShieldCheck className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>
+                    Autorizado por {autorizada.resueltaPor ?? "el administrador"}
+                    {autorizada.descuento != null && ` · descuento hasta ${formatMonto(autorizada.descuento)}`}
+                    {autorizada.saldo != null && ` · saldo hasta ${formatMonto(autorizada.saldo)}`}
+                    {autorizada.vence && ` · vigente hasta el ${autorizada.vence.split("-").reverse().join("/")}`}. Ya puedes
+                    crear la orden.
+                  </span>
+                </p>
+              )}
+              {autorizable && bloqueo && (
+                <button
+                  type="button"
+                  onClick={() => setPidiendoAutorizacion(true)}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-primary text-primary hover:bg-primary/10 text-sm"
+                >
+                  <ShieldQuestion className="w-4 h-4" />
+                  Solicitar autorización al administrador
+                </button>
+              )}
             </CardContent>
           </Card>
 
@@ -1318,7 +1374,7 @@ export default function NuevaOrdenMultiProducto({
             </button>
             <button
               type="submit"
-              disabled={anticipoExcedido || guardando || !!politicas.bloqueo}
+              disabled={anticipoExcedido || guardando || !!bloqueo}
               className="px-6 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {guardando ? "Guardando…" : esCotizacion ? "Guardar Cotización" : "Crear Orden"}
@@ -1326,6 +1382,50 @@ export default function NuevaOrdenMultiProducto({
           </div>
         </form>
       </div>
+      {puedePedirAutorizacion && (
+        <SolicitarAutorizacionDialog
+          open={pidiendoAutorizacion}
+          onClose={() => setPidiendoAutorizacion(false)}
+          cliente={formData.cliente.trim()}
+          total={totalOrden}
+          descuento={necesita.descuento}
+          saldo={necesita.saldo}
+          motivos={[politicas.avisoDescuento, politicas.avisoCredito].filter((m): m is string => !!m)}
+          onEnviar={async (justificacion) => {
+            try {
+              await solicitarAutorizacion({
+                cliente: formData.cliente.trim(),
+                descuento: necesita.descuento,
+                saldo: necesita.saldo,
+                subtotal: importesOrden.subtotal,
+                total: totalOrden,
+                motivo: [politicas.avisoDescuento, politicas.avisoCredito].filter(Boolean).join(" "),
+                justificacion,
+                captura: {
+                  cliente: formData.cliente.trim(),
+                  clienteTelefono: formData.clienteTelefono,
+                  clienteEmail: formData.clienteEmail,
+                  descuento: formData.descuento,
+                  notas: formData.notas,
+                  productos,
+                  fechaEntrega: formData.fechaEntrega || undefined,
+                  metodoPago: formData.metodoPago,
+                  anticipo: formData.anticipo,
+                },
+              });
+              toast.success("Solicitud enviada al administrador", {
+                description: "Te llegará una notificación cuando la resuelva; la orden queda guardada en Autorizaciones.",
+              });
+              limpiar();
+              onClose();
+              return true;
+            } catch (err) {
+              toast.error("No se pudo enviar la solicitud", { description: (err as Error)?.message });
+              return false;
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -12,23 +12,55 @@
  * y solicitud de reabastecimiento) y "Ver Historial" abre HistorialProveedorDialog
  * (materiales que surte y movimientos de inventario).
  *
+ * Los administradores ven además la cuenta principal a la que se le transfiere (CLABE,
+ * tarjeta o cuenta, con los últimos 4 dígitos) y "Cuentas" abre CuentasProveedorDialog
+ * para copiarla; el primario las da de alta y corrige (sql/proveedores_cuentas.sql).
+ *
  * Nota: el indicador "Órdenes de Compra" es un valor fijo de ejemplo.
  */
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useBusquedaUrl } from "../hooks/useBusquedaUrl";
 import { useNavigate } from "react-router";
 import { Card, CardContent, CardHeader } from "../components/Card";
 import PermissionButton from "../components/PermissionButton";
 import ContactarProveedorDialog from "../components/proveedores/ContactarProveedorDialog";
 import HistorialProveedorDialog from "../components/proveedores/HistorialProveedorDialog";
+import CuentasProveedorDialog from "../components/proveedores/CuentasProveedorDialog";
 import type { Proveedor } from "../data/mockData";
 import { useErpData } from "../context/ErpDataContext";
-import { Search, Plus, Star, Phone, Mail, Package } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import {
+  TIPO_CUENTA,
+  cargarCuentasProveedores,
+  numeroOculto,
+  type CuentaProveedor,
+} from "../lib/proveedoresCuentas";
+import { Search, Plus, Star, Phone, Mail, Package, Landmark } from "lucide-react";
 
 export default function Proveedores() {
   // Proveedores reales de Supabase (con el alias mockProveedores del prototipo).
   const { proveedores: mockProveedores, materiales } = useErpData();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  // Cuentas bancarias: las ven los administradores; las edita el primario.
+  const veCuentas = user?.rol === "admin_primario" || user?.rol === "admin_secundario";
+  const editaCuentas = user?.rol === "admin_primario";
+  const [cuentas, setCuentas] = useState<CuentaProveedor[]>([]);
+  const [viendoCuentas, setViendoCuentas] = useState<Proveedor | null>(null);
+  const recargarCuentas = useCallback(async () => {
+    if (!veCuentas) return;
+    try {
+      setCuentas(await cargarCuentasProveedores());
+    } catch {
+      // Sin la tabla (script sin aplicar) o sin permiso: la tarjeta no muestra cuentas.
+      setCuentas([]);
+    }
+  }, [veCuentas]);
+  useEffect(() => {
+    void recargarCuentas();
+  }, [recargarCuentas]);
+  const cuentaPrincipal = (p: Proveedor) =>
+    cuentas.find((c) => c.proveedorId === p.id && c.principal) ?? cuentas.find((c) => c.proveedorId === p.id);
   // Proveedor abierto en el diálogo de contacto o de historial (null = cerrado).
   const [contactando, setContactando] = useState<Proveedor | null>(null);
   const [viendoHistorial, setViendoHistorial] = useState<Proveedor | null>(null);
@@ -115,6 +147,25 @@ export default function Proveedores() {
                     </div>
                   </div>
 
+                  {veCuentas && (() => {
+                    const c = cuentaPrincipal(proveedor);
+                    const n = cuentas.filter((x) => x.proveedorId === proveedor.id).length;
+                    return (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Landmark className="w-4 h-4 flex-shrink-0" />
+                        {c ? (
+                          <span className="min-w-0 truncate">
+                            {TIPO_CUENTA[c.tipo]}
+                            {c.banco ? ` ${c.banco}` : ""} <span className="font-mono">{numeroOculto(c.numero)}</span>
+                            {n > 1 && <span className="text-xs"> (+{n - 1})</span>}
+                          </span>
+                        ) : (
+                          <span className="italic">Sin cuenta para transferir</span>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   <div className="pt-4 border-t border-border">
                     <div className="flex items-start gap-2 mb-2">
                       <Package className="w-4 h-4 text-muted-foreground mt-0.5" />
@@ -147,6 +198,16 @@ export default function Proveedores() {
                     >
                       Ver Historial
                     </button>
+                    {veCuentas && (
+                      <button
+                        onClick={() => setViendoCuentas(proveedor)}
+                        className="px-3 py-2 bg-secondary text-foreground rounded-lg hover:bg-secondary/80 transition-colors text-sm flex items-center gap-1.5"
+                        title="Cuentas para transferir"
+                      >
+                        <Landmark className="w-4 h-4" />
+                        Cuentas
+                      </button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -221,6 +282,13 @@ export default function Proveedores() {
         proveedor={viendoHistorial}
         materiales={materialesDe(viendoHistorial)}
         onClose={() => setViendoHistorial(null)}
+      />
+      <CuentasProveedorDialog
+        proveedor={viendoCuentas}
+        cuentas={cuentas}
+        puedeEditar={editaCuentas}
+        onClose={() => setViendoCuentas(null)}
+        onCambio={recargarCuentas}
       />
     </div>
   );

@@ -27,6 +27,7 @@ import { useAuth } from "../context/AuthContext";
 import { useErpData } from "../context/ErpDataContext";
 import { hasPermission } from "../utils/permissions";
 import { formatMonto, totalPagado } from "../lib/pagos";
+import { avanceOrden, claseEtapa, textoEtapa } from "../lib/avanceProduccion";
 import {
   claseDiasRestantes,
   diasRestantes as calcularDiasRestantes,
@@ -434,12 +435,16 @@ export default function Ordenes() {
                       <td className="px-6 py-4">
                         <div className="flex flex-col items-start gap-2">
                           <StatusBadge status={orden.estado} size="sm" />
-                          {/* El % de avance no aplica a la venta directa */}
-                          {orden.tipoVenta !== "directa" && (
-                            <span className="text-xs text-muted-foreground">
-                              {progreso}%
-                            </span>
-                          )}
+                          {/* En qué taller va y % de avance (no aplica a la venta directa) */}
+                          {(() => {
+                            const avance = avanceOrden(orden);
+                            if (avance.sinTalleres || avance.etapa === "entregada" || avance.etapa === "cancelada") return null;
+                            return (
+                              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${claseEtapa(avance)}`}>
+                                {textoEtapa(avance)} · {progreso}%
+                              </span>
+                            );
+                          })()}
                         </div>
                       </td>
                     </tr>

@@ -41,6 +41,12 @@ import {
   Target,
   HandCoins,
   Tags,
+  Factory,
+  Undo2,
+  ReceiptText,
+  History,
+  Ruler,
+  ShieldCheck,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
@@ -70,6 +76,10 @@ export default function Sidebar() {
     ordenes: accessibleRoutes.find(r => r.route === '/ordenes'),
     cotizaciones: accessibleRoutes.find(r => r.route === '/cotizaciones'),
     cobranza: accessibleRoutes.find(r => r.route === '/cobranza'),
+    avance: accessibleRoutes.find(r => r.route === '/avance'),
+    devoluciones: accessibleRoutes.find(r => r.route === '/devoluciones'),
+    tallas: accessibleRoutes.find(r => r.route === '/tallas'),
+    autorizaciones: accessibleRoutes.find(r => r.route === '/autorizaciones'),
     talleres: {
       diseno: accessibleRoutes.find(r => r.route === '/talleres/diseno'),
       sublimacion: accessibleRoutes.find(r => r.route === '/talleres/sublimacion'),
@@ -79,10 +89,12 @@ export default function Sidebar() {
     },
     facturacion: {
       facturas: accessibleRoutes.find(r => r.route === '/facturacion/facturas'),
+      solicitudes: accessibleRoutes.find(r => r.route === '/facturacion/solicitudes'),
       complementos: accessibleRoutes.find(r => r.route === '/facturacion/complementos'),
       configuracion: accessibleRoutes.find(r => r.route === '/facturacion/configuracion'),
     },
     clientes: accessibleRoutes.find(r => r.route === '/catalogos/clientes'),
+    historialClientes: accessibleRoutes.find(r => r.route === '/clientes/historial'),
     precios: accessibleRoutes.find(r => r.route === '/catalogos/precios'),
     activoFijo: accessibleRoutes.find(r => r.route === '/activo-fijo'),
     seguimiento: accessibleRoutes.find(r => r.route === '/seguimiento'),
@@ -105,6 +117,12 @@ export default function Sidebar() {
     Target,
     HandCoins,
     Tags,
+    Factory,
+    Undo2,
+    ReceiptText,
+    History,
+    Ruler,
+    ShieldCheck,
     Palette,
     Droplet,
     Scissors,
@@ -269,8 +287,20 @@ export default function Sidebar() {
         {/* Cotizaciones */}
         {menuStructure.cotizaciones && renderMenuItem(menuStructure.cotizaciones)}
 
+        {/* Listas de tallas que llena el cliente desde un enlace */}
+        {menuStructure.tallas && renderMenuItem(menuStructure.tallas)}
+
+        {/* Excepciones de descuento / crédito que autoriza el admin primario */}
+        {menuStructure.autorizaciones && renderMenuItem(menuStructure.autorizaciones)}
+
         {/* Cobranza */}
         {menuStructure.cobranza && renderMenuItem(menuStructure.cobranza)}
+
+        {/* Avance de pedidos (en qué taller va cada orden) */}
+        {menuStructure.avance && renderMenuItem(menuStructure.avance)}
+
+        {/* Devoluciones y cambios de talla */}
+        {menuStructure.devoluciones && renderMenuItem(menuStructure.devoluciones)}
 
         {/* Talleres: se muestra si el rol puede ver al menos un taller
             (los roles de taller solo verán el suyo) */}
@@ -385,6 +415,7 @@ export default function Sidebar() {
               <div className="ml-4 mt-1 space-y-1">
                 {[
                   { ruta: menuStructure.facturacion.facturas, Icon: FileText },
+                  { ruta: menuStructure.facturacion.solicitudes, Icon: ReceiptText },
                   { ruta: menuStructure.facturacion.complementos, Icon: Receipt },
                   { ruta: menuStructure.facturacion.configuracion, Icon: Settings },
                 ].map(({ ruta, Icon }) =>
@@ -415,6 +446,9 @@ export default function Sidebar() {
 
         {/* Catálogo de clientes */}
         {menuStructure.clientes && renderMenuItem(menuStructure.clientes)}
+
+        {/* Historial de clientes y seguimiento (CRM ligero) */}
+        {menuStructure.historialClientes && renderMenuItem(menuStructure.historialClientes)}
 
         {/* Listas de precios (mayoreo y precios por cliente) */}
         {menuStructure.precios && renderMenuItem(menuStructure.precios)}

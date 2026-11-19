@@ -16,8 +16,9 @@
  * (talleres, progreso, tipoPrenda, bordadoDetalle...). Por eso se usa `(orden as any)`.
  * Con los datos actuales de Supabase siempre existe `orden.productos`.
  */
-import { useState } from "react";
-import { useParams, useNavigate } from "react-router";
+import { useEffect, useState } from "react";
+import { Link, useParams, useNavigate } from "react-router";
+import { toast } from "sonner";
 import { useErpData } from "../context/ErpDataContext";
 import { useAuth } from "../context/AuthContext";
 import RegistrarAbonoDialog from "../components/RegistrarAbonoDialog";
@@ -25,8 +26,17 @@ import DesgloseImportes from "../components/DesgloseImportes";
 import EditarOrdenDialog from "../components/EditarOrdenDialog";
 import ContactarClienteDialog from "../components/ContactarClienteDialog";
 import AprobacionDisenoCard from "../components/disenos/AprobacionDisenoCard";
+import FacturaOrdenCard from "../components/facturacion/FacturaOrdenCard";
+import DevolucionesCard from "../components/devoluciones/DevolucionesCard";
+import EntregarOrdenDialog from "../components/EntregarOrdenDialog";
+import NuevaOrdenMultiProducto, { type CapturaInicial } from "../components/NuevaOrdenMultiProducto";
+import { avanceOrden, claseEtapa, textoEtapa } from "../lib/avanceProduccion";
+import { capturaDesdeOrden } from "../lib/clientesCrm";
+import { hasPermission } from "../utils/permissions";
+import type { Orden } from "../data/mockData";
 import { imprimirNotaOrden, plantillasMensaje, progresoOrden } from "../lib/notaOrden";
-import { enlaceWhatsApp } from "../lib/contacto";
+import { copiarTexto, enlaceWhatsApp } from "../lib/contacto";
+import { enlaceSeguimiento, obtenerTokenSeguimiento } from "../lib/seguimientoPublico";
 import { Button } from "../components/ui/button";
 import { METODO_PAGO_LABEL, formatMonto, redondearCentavos, saldoPendiente, totalPagado } from "../lib/pagos";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/Card";
@@ -61,10 +71,13 @@ import {
   ReceiptText,
   Printer,
   MessageCircle,
+  PackageCheck,
+  Repeat,
+  Link2,
 } from "lucide-react";
 
 export default function OrdenDetalle() {
-  const { ordenes: mockOrdenes } = useErpData();
+  const { ordenes: mockOrdenes, productos: catalogo, crearOrden, marcarEntregada } = useErpData();
   // Id de la orden tomado de la URL.
   const { id } = useParams();
   const navigate = useNavigate();
@@ -76,6 +89,22 @@ export default function OrdenDetalle() {
   const [edicionAbierta, setEdicionAbierta] = useState(false);
   // Diálogo para mandar al cliente un mensaje (WhatsApp/correo) sobre su orden.
   const [contactoAbierto, setContactoAbierto] = useState(false);
+  // Entrega al cliente (cuando todos los talleres terminaron).
+  const [entregarAbierto, setEntregarAbierto] = useState(false);
+  // "Repetir pedido": orden nueva con los mismos productos.
+  const [repetir, setRepetir] = useState<CapturaInicial | null>(null);
+  // Enlace público de seguimiento (sql/seguimiento_publico.sql); null si aún no existe.
+  const [enlace, setEnlace] = useState<string | null>(null);
+  useEffect(() => {
+    if (!id) return;
+    let vigente = true;
+    obtenerTokenSeguimiento(id)
+      .then((t) => vigente && setEnlace(t ? enlaceSeguimiento(t) : null))
+      .catch(() => vigente && setEnlace(null));
+    return () => {
+      vigente = false;
+    };
+  }, [id]);
 
   // Id inexistente (o datos aún cargando): mensaje y botón para volver al listado.
   if (!orden) {
@@ -111,6 +140,34 @@ export default function OrdenDetalle() {
   // La edición, además, solo mientras la orden no esté entregada ni cancelada.
   const ordenAbierta = orden.estadoNombre !== "Entregada" && orden.estadoNombre !== "Cancelada";
   const puedeEditar = ordenAbierta && puedeModificar;
+
+  // Etapa de producción (en qué taller va) y si ya se puede entregar.
+  const avance = avanceOrden(orden);
+  const puedeEntregar = puedeModificar && avance.etapa === "lista";
+  const puedeRepetir = !!user && hasPermission(user.rol, "/ordenes", "canCreate");
+
+  const entregar = async (comentario: string) => {
+    try {
+      await marcarEntregada(orden.id, comentario);
+      toast.success("Orden entregada", { description: orden.numero });
+      setEntregarAbierto(false);
+    } catch (err: any) {
+      toast.error("No se pudo marcar como entregada", { description: err?.message });
+    }
+  };
+
+  const guardarRepeticion = async (nueva: Orden): Promise<boolean> => {
+    try {
+      const { id: nuevaId, folio } = await crearOrden(nueva);
+      toast.success("Orden creada", { description: `${folio} - ${nueva.cliente}` });
+      setRepetir(null);
+      navigate(`/ordenes/${nuevaId}`);
+      return true;
+    } catch (err: any) {
+      toast.error("No se pudo crear la orden", { description: err?.message });
+      return false;
+    }
+  };
 
   // Días que faltan para la fecha de entrega (0 = hoy, negativo = vencida, null = sin fecha).
   const diasRestantes = calcularDiasRestantes(orden.fechaEntrega);
@@ -230,6 +287,12 @@ export default function OrdenDetalle() {
             <StatusBadge status={orden.estado} size="md" />
             {/* Entregada y pagada en su totalidad */}
             <OrdenCerradaBadge orden={orden} />
+            {/* En qué taller va (si aún no se entrega) */}
+            {!avance.sinTalleres && avance.etapa !== "entregada" && avance.etapa !== "cancelada" && (
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${claseEtapa(avance)}`}>
+                {textoEtapa(avance)}
+              </span>
+            )}
             {orden.tipoVenta && (
               <span
                 className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getTipoVentaColor()}`}
@@ -251,6 +314,29 @@ export default function OrdenDetalle() {
           <MessageCircle className="w-4 h-4" />
           Contactar cliente
         </Button>
+        {/* Página pública donde el cliente ve el avance sin llamar */}
+        {enlace && orden.estadoNombre !== "Cancelada" && (
+          <Button
+            variant="outline"
+            onClick={() => copiarTexto(enlace, "Enlace de seguimiento")}
+            title="El cliente ve el avance de su pedido sin iniciar sesión"
+          >
+            <Link2 className="w-4 h-4" />
+            Enlace de seguimiento
+          </Button>
+        )}
+        {puedeEntregar && (
+          <Button onClick={() => setEntregarAbierto(true)}>
+            <PackageCheck className="w-4 h-4" />
+            Entregar
+          </Button>
+        )}
+        {puedeRepetir && (
+          <Button variant="outline" onClick={() => setRepetir(capturaDesdeOrden(orden, catalogo))}>
+            <Repeat className="w-4 h-4" />
+            Repetir pedido
+          </Button>
+        )}
         {puedeEditar && (
           <Button variant="outline" onClick={() => setEdicionAbierta(true)}>
             <Pencil className="w-4 h-4" />
@@ -294,7 +380,7 @@ export default function OrdenDetalle() {
                       {/* Cantidad, talla y color del producto. Se filtran los valores nulos o vacíos y se unen con " • ". */}
                       <p className="text-sm text-muted-foreground">
                         {/* Talla y color solo si el producto está ligado a una variante */}
-                        {[`${producto.cantidad} unidades`, producto.corte, producto.manga && `Manga ${producto.manga.toLowerCase()}`, producto.talla, producto.color]
+                        {[`${producto.cantidad} unidades`, producto.cantidadDevuelta ? `${producto.cantidadDevuelta} devueltas de ${producto.cantidadPedida}` : null, producto.corte, producto.manga && `Manga ${producto.manga.toLowerCase()}`, producto.talla, producto.color]
                           .filter(Boolean)
                           .join(" • ")}
                       </p>
@@ -433,6 +519,12 @@ export default function OrdenDetalle() {
       {/* Bocetos y aprobación del diseño por el cliente (productos que pasan por Diseño) */}
       <AprobacionDisenoCard orden={orden} puedeEditar={puedeModificar && orden.estadoNombre !== "Cancelada"} />
 
+      {/* El cliente requiere factura: el vendedor la solicita; el admin la emite */}
+      <FacturaOrdenCard orden={orden} puedeSolicitar={puedeModificar} />
+
+      {/* Devoluciones y cambios de talla (piezas ya terminadas) */}
+      <DevolucionesCard orden={orden} puedeRegistrar={puedeModificar} />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 {/* Información General */}
         <Card>
@@ -455,7 +547,13 @@ export default function OrdenDetalle() {
               <ShoppingBag className="w-5 h-5 text-primary mt-0.5" />
               <div className="flex-1">
                 <p className="text-sm text-muted-foreground">Cliente</p>
-                <p className="font-medium">{orden.cliente}</p>
+                {orden.clienteId ? (
+                  <Link to={`/clientes/historial/${orden.clienteId}`} className="font-medium text-primary hover:underline">
+                    {orden.cliente}
+                  </Link>
+                ) : (
+                  <p className="font-medium">{orden.cliente}</p>
+                )}
               </div>
             </div>
             {/* Información de contacto del cliente: teléfono y correo electrónico. */}
@@ -744,8 +842,9 @@ export default function OrdenDetalle() {
                   orden.pagos.slice(0, index + 1).reduce((acc, p) => acc + p.monto, 0)
                 );
                 const restante = Math.max(redondearCentavos(orden.total - acumulado), 0);
-                const concepto =
-                  restante === 0 ? "Liquidación" : index === 0 ? "Anticipo" : `Abono ${index}`;
+                const concepto = pago.reembolso || pago.monto < 0
+                  ? "Reembolso"
+                  : restante === 0 ? "Liquidación" : index === 0 ? "Anticipo" : `Abono ${index}`;
                 return (
                 <div
                   key={`${pago.fecha}-${index}`}
@@ -775,7 +874,7 @@ export default function OrdenDetalle() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold text-lg">
+                    <p className={`font-semibold text-lg ${pago.monto < 0 ? "text-status-pending-text" : ""}`}>
                       {formatMonto(pago.monto)}
                     </p>
                     <p className="text-xs text-muted-foreground">
@@ -871,11 +970,27 @@ export default function OrdenDetalle() {
         cliente={orden.cliente}
         telefono={orden.clienteTelefono}
         email={orden.clienteEmail}
-        plantillas={plantillasMensaje(orden)}
+        plantillas={plantillasMensaje(orden, { enlaceSeguimiento: enlace ?? undefined })}
         folio={`Orden ${orden.numero}`}
         onGuardarPdf={() => imprimirNotaOrden(orden)}
         textoPdf="Guardar nota en PDF"
       />
+      {puedeEntregar && (
+        <EntregarOrdenDialog
+          orden={entregarAbierto ? orden : null}
+          onClose={() => setEntregarAbierto(false)}
+          onConfirmar={entregar}
+        />
+      )}
+      {puedeRepetir && (
+        <NuevaOrdenMultiProducto
+          isOpen={!!repetir}
+          onClose={() => setRepetir(null)}
+          onSubmit={guardarRepeticion}
+          inicial={repetir}
+          titulo="Repetir pedido"
+        />
+      )}
       {puedeEditar && (
         <EditarOrdenDialog orden={orden} open={edicionAbierta} onClose={() => setEdicionAbierta(false)} />
       )}

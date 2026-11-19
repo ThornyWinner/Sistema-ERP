@@ -9,11 +9,12 @@
  * Los datos de la empresa van fijos (logo y nombre): el vendedor no tiene acceso a
  * la configuración fiscal (`empresa_fiscal` solo la leen los administradores).
  */
-import type { Orden, ProductoOrden } from "../data/mockData";
+import type { Orden } from "../data/mockData";
 import { formatFecha, hoyISO } from "./fechas";
 import { METODO_PAGO_LABEL, formatMonto, redondearCentavos, saldoPendiente, totalPagado } from "./pagos";
 import { escaparHtml, imprimirHtml } from "./impresion";
 import { NOMBRE_EMPRESA, htmlDocumentoVenta } from "./documentoVenta";
+import { avanceOrden, lineasAvanceCliente, NOMBRE_TALLER } from "./avanceProduccion";
 
 export { NOMBRE_EMPRESA };
 
@@ -137,9 +138,13 @@ export interface PlantillaMensaje {
 
 /**
  * Plantillas de mensaje que aplican al estado actual de la orden, en orden de
- * relevancia (la primera es la sugerida).
+ * relevancia (la primera es la sugerida). Con `enlaceSeguimiento` (página pública de
+ * avance, sql/seguimiento_publico.sql) el resumen y el avance incluyen el enlace.
  */
-export function plantillasMensaje(orden: Orden): PlantillaMensaje[] {
+export function plantillasMensaje(
+  orden: Orden,
+  opciones: { enlaceSeguimiento?: string } = {}
+): PlantillaMensaje[] {
   const saldo = saldoPendiente(orden);
   const pagado = totalPagado(orden);
   const cancelada = ordenCancelada(orden);
@@ -147,14 +152,21 @@ export function plantillasMensaje(orden: Orden): PlantillaMensaje[] {
   const productos = orden.productos ?? [];
   const tieneTalleres = productos.some((p) => p.talleres.length > 0);
   const entrega = orden.fechaEntrega ? formatFecha(orden.fechaEntrega, FECHA_LARGA, "") : "";
+  // En qué taller va (sql/avance_produccion.sql); "lista" = ya no tiene producción pendiente.
+  const avance = avanceOrden(orden);
+  const lista = avance.etapa === "lista" && !avance.sinTalleres;
 
   const saludo = `Hola, buen día. Le saludamos de ${NOMBRE_EMPRESA}.`;
   const firma = `Quedamos a sus órdenes.\n${orden.vendedor}\n${NOMBRE_EMPRESA}`;
   const lineaSaldo = saldo > 0 ? `Saldo pendiente: ${formatMonto(saldo)}` : "La orden está pagada en su totalidad.";
+  const lineasEnlace =
+    opciones.enlaceSeguimiento && !cancelada && !entregada
+      ? ["", `Puede consultar el avance de su pedido en cualquier momento aquí: ${opciones.enlaceSeguimiento}`]
+      : [];
 
   const plantillas: PlantillaMensaje[] = [];
 
-  if (!cancelada && !entregada && orden.estado === "completed") {
+  if (!cancelada && !entregada && lista) {
     plantillas.push({
       tipo: "lista",
       titulo: "Orden lista para entrega",
@@ -187,6 +199,7 @@ export function plantillasMensaje(orden: Orden): PlantillaMensaje[] {
       ...(pagado > 0 ? [`Pagado: ${formatMonto(pagado)}`] : []),
       lineaSaldo,
       ...(entrega && !entregada && !cancelada ? [`Fecha estimada de entrega: ${entrega}`] : []),
+      ...lineasEnlace,
       "",
       "Le enviamos también la nota en PDF.",
       "",
@@ -194,15 +207,27 @@ export function plantillasMensaje(orden: Orden): PlantillaMensaje[] {
     ].join("\n"),
   });
 
-  if (!cancelada && !entregada && orden.estado !== "completed" && tieneTalleres) {
+  if (!cancelada && !entregada && !lista && tieneTalleres) {
+    const etapa =
+      avance.etapa === "sin_iniciar"
+        ? "ya está en la fila de producción"
+        : avance.etapa !== "lista" && avance.etapa !== "entregada" && avance.etapa !== "cancelada"
+        ? `va en el área de ${NOMBRE_TALLER[avance.etapa].toLowerCase()}`
+        : "está en producción";
     plantillas.push({
       tipo: "avance",
       titulo: "Avance de producción",
       texto: [
         saludo,
         "",
-        `Le compartimos el avance de su orden ${orden.numero}: lleva un ${progresoOrden(orden)} % de producción.`,
-        ...(entrega ? [`Seguimos en tiempo para la entrega estimada del ${entrega}.`] : []),
+        `Le compartimos el avance de su orden ${orden.numero}: ${etapa} y lleva un ${progresoOrden(orden)} % de producción.`,
+        ...(productos.length > 1 ? lineasAvanceCliente(avance) : []),
+        ...(entrega
+          ? [avance.atrasada
+              ? `La fecha estimada era el ${entrega}; le confirmaremos la nueva fecha a la brevedad.`
+              : `Seguimos en tiempo para la entrega estimada del ${entrega}.`]
+          : []),
+        ...lineasEnlace,
         "",
         "Le avisaremos en cuanto esté lista.",
         "",

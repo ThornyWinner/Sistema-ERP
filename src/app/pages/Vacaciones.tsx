@@ -14,7 +14,8 @@
  * Cálculos: lib/vacaciones.ts y lib/laboral.ts. Tablas y reglas: sql/vacaciones.sql y
  * sql/expediente_laboral.sql.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { AlertTriangle, CalendarDays, Gavel, Palmtree, Pencil, Plus, Scale, Shield, Users } from "lucide-react";
 import { supabase } from "../lib/supabase";
@@ -55,6 +56,10 @@ export default function Vacaciones() {
   // Diálogos: empleado en edición ("nuevo" = alta) y empleado al que se registran vacaciones.
   const [dialogoEmpleado, setDialogoEmpleado] = useState<Empleado | "nuevo" | null>(null);
   const [registrarPara, setRegistrarPara] = useState<Empleado | null>(null);
+  // ?empleado=<id> (desde el buscador global) abre el detalle de ese empleado.
+  const [params, setParams] = useSearchParams();
+  const empleadoUrl = params.get("empleado");
+  const detalleRef = useRef<HTMLDivElement>(null);
 
   const cargar = useCallback(async () => {
     const [emp, vac, inc, doc, fin] = await Promise.all([
@@ -83,6 +88,21 @@ export default function Vacaciones() {
     void cargar();
     refreshUsers().catch(() => {});
   }, [esAdmin, cargar]);
+
+  useEffect(() => {
+    if (!empleadoUrl || cargando) return;
+    const e = empleados.find((x) => x.id === empleadoUrl);
+    if (e) {
+      if (!e.activo) setMostrarInactivos(true);
+      setSeleccionadoId(e.id);
+      // Espera a que se pinte el detalle para llevarlo a la vista.
+      requestAnimationFrame(() => detalleRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
+    // Se quita de la URL para que recargar o volver no lo reabra.
+    const siguiente = new URLSearchParams(params);
+    siguiente.delete("empleado");
+    setParams(siguiente, { replace: true });
+  }, [empleadoUrl, cargando, empleados, params, setParams]);
 
   if (!esAdmin) {
     return (
@@ -290,6 +310,7 @@ export default function Vacaciones() {
       </Card>
 
       {/* Detalle del empleado elegido */}
+      <div ref={detalleRef} className="scroll-mt-4" />
       {seleccionado && (
         <DetalleEmpleado
           empleado={seleccionado.empleado}

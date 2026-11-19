@@ -37,6 +37,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../
 import DesgloseImportes from "../../components/DesgloseImportes";
 import PartidaDialog, { type ProductoFacturable } from "../../components/facturacion/PartidaDialog";
 import { hoyISO } from "../../lib/fechas";
+import { solicitudAbiertaDeOrden } from "../../lib/solicitudesFactura";
 import {
   EXPORTACIONES,
   FORMAS_PAGO,
@@ -292,18 +293,24 @@ export default function FacturaForm() {
 
   /** Prellenado desde una orden: cliente y partidas (con su parte del descuento). */
   const cargarOrden = async (idOrden: string, listaClientes: ClienteFiscal[]) => {
-    const [{ data: o, error }, { data: previas }] = await Promise.all([
+    // Con sql/historial_clientes.sql y sql/devoluciones.sql cada partida trae su descripción,
+    // talla y color capturados y las piezas devueltas; sin ellos se usa la consulta básica.
+    const consultar = (extra: string) =>
       supabase
         .from("ordenes")
         .select(
           "id,folio,cliente_id,descuento," +
-            "orden_detalles(id,cantidad,precio_unitario,tasa_iva,producto_id,created_at," +
+            `orden_detalles(id,cantidad,precio_unitario,tasa_iva,producto_id,created_at${extra},` +
             "productos(nombre,codigo,clave_prod_serv,clave_unidad,unidad_medida,objeto_imp),variantes_producto(talla,color,sku))"
         )
         .eq("id", idOrden)
-        .maybeSingle(),
+        .maybeSingle();
+    const [primera, { data: previas }, solicitud] = await Promise.all([
+      consultar(",descripcion,talla,color,cantidad_devuelta"),
       supabase.from("cfdis").select("serie,folio,estado").eq("orden_id", idOrden).neq("estado", "cancelado"),
+      solicitudAbiertaDeOrden(idOrden),
     ]);
+    const { data: o, error } = primera.error?.code === "42703" ? await consultar("") : primera;
     if (error || !o) {
       toast.error(error?.message ?? "No se encontró la orden");
       return;
@@ -319,19 +326,36 @@ export default function FacturaForm() {
     }
     const cli = listaClientes.find((c) => c.id === orden.cliente_id);
     if (cli) aplicarCliente(cli);
+    if (solicitud) {
+      // Lo que capturó el vendedor al pedir la factura manda sobre lo guardado en el cliente.
+      setRfc(solicitud.rfc);
+      setNombre(solicitud.razonSocial);
+      setRegimen(solicitud.regimen);
+      setCp(solicitud.cp);
+      if (solicitud.email) setEmail(solicitud.email);
+      setUsoCfdi(solicitud.usoCfdi);
+      setMetodoPago(solicitud.metodoPago);
+      setFormaPago(solicitud.formaPago);
+      if (solicitud.metodoPago === "PPD" && cli) setVencimiento(sumarDias(fecha, cli.dias_credito ?? 0));
+      if (solicitud.notas) toast.info("Notas del vendedor", { description: solicitud.notas, duration: 15000 });
+    }
 
-    const detalles = [...(orden.orden_detalles ?? [])].sort((a: any, b: any) => a.created_at.localeCompare(b.created_at));
+    // Piezas netas: lo devuelto ya no se factura.
+    const detalles = [...(orden.orden_detalles ?? [])]
+      .map((d: any) => ({ ...d, cantidad: Number(d.cantidad) - Number(d.cantidad_devuelta ?? 0) }))
+      .filter((d: any) => d.cantidad > 0)
+      .sort((a: any, b: any) => a.created_at.localeCompare(b.created_at));
     const importes = detalles.map((d: any) => calcularConcepto({ cantidad: d.cantidad, valor_unitario: Number(d.precio_unitario), descuento: 0, objeto_imp: "02", tasa_iva: 0 }).importe);
     const descuentos = repartirDescuento(importes, Number(orden.descuento ?? 0));
     setConceptos(
       detalles.map((d: any, i: number): ConceptoCfdi => {
         const v = d.variantes_producto;
-        const variante = [v?.talla, v?.color].filter(Boolean).join(" ");
+        const variante = [v?.talla ?? d.talla, v?.color ?? d.color].filter(Boolean).join(" ");
         return {
           producto_id: d.producto_id,
           orden_detalle_id: d.id,
           sku: d.productos?.codigo ?? v?.sku ?? null,
-          descripcion: `${(d.productos?.nombre ?? "Producto").toUpperCase()}${variante ? ` ${variante.toUpperCase()}` : ""}`,
+          descripcion: `${(d.descripcion || d.productos?.nombre || "Producto").toUpperCase()}${variante ? ` ${variante.toUpperCase()}` : ""}`,
           clave_prod_serv: d.productos?.clave_prod_serv ?? "",
           clave_unidad: d.productos?.clave_unidad ?? "H87",
           unidad: d.productos?.unidad_medida ?? "Pieza",
